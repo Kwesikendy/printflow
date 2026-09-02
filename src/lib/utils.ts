@@ -147,7 +147,7 @@ export function getDefaultDashboardPath(role: Role): string {
     case 'printer': return '/dashboard/queue'
     case 'accountant': return '/dashboard/finance'
     case 'front_desk': return '/dashboard/jobs'
-    case 'admin': return '/dashboard'
+    case 'admin': return '/dashboard/admin'
     default: return '/dashboard'
   }
 }
