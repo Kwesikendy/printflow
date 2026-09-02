@@ -22,9 +22,9 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
     return { error: 'Missing required fields' }
   }
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from('tenants')
-    .update({ name, currency, area_unit: areaUnit } as any)
+    .update({ name, currency, area_unit: areaUnit })
     .eq('id', profile.tenant_id)
 
   if (error) {
@@ -71,9 +71,9 @@ export async function toggleProductType(id: string, isActive: boolean): Promise<
   const profile = profileData
   if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
 
-  const { error } = await supabase
+  const { error } = await (supabase as any)
     .from('product_types')
-    .update({ is_active: isActive } as any)
+    .update({ is_active: isActive })
     .eq('id', id)
     .eq('tenant_id', profile.tenant_id)
 
