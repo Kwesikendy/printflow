@@ -89,7 +89,7 @@ export default async function JobsPage(props: {
                 </tr>
               </thead>
               <tbody>
-                {jobs.map(job => (
+                {jobs.map((job: any) => (
                   <tr key={job.id}>
                     <td className="font-medium text-slate-900">{job.job_number}</td>
                     <td>{job.customer_name}</td>

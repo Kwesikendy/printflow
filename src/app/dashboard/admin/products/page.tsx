@@ -30,7 +30,7 @@ export default async function AdminProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {productTypes?.map(pt => (
+              {productTypes?.map((pt: any) => (
                 <tr key={pt.id}>
                   <td className="font-medium text-slate-900">{pt.name}</td>
                   <td>
@@ -61,7 +61,7 @@ export default async function AdminProductsPage() {
               </tr>
             </thead>
             <tbody>
-              {pricingRules?.map(rule => (
+              {pricingRules?.map((rule: any) => (
                 <tr key={rule.id}>
                   <td className="font-medium text-slate-900">{rule.product_types?.name}</td>
                   <td className="capitalize">{rule.source.replace('_', '-')}</td>

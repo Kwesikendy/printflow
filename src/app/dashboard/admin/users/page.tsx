@@ -29,7 +29,7 @@ export default async function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {profiles?.map(user => (
+              {profiles?.map((user: any) => (
                 <tr key={user.id}>
                   <td>
                     <div className="flex items-center gap-2 font-medium text-slate-900">

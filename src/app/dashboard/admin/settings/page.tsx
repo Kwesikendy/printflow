@@ -6,10 +6,12 @@ import { Settings2 } from 'lucide-react'
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
 
-  const { data: tenant } = await supabase
+  const { data: tenantData } = await supabase
     .from('tenants')
     .select('*')
     .single()
+  
+  const tenant = tenantData as any
 
   return (
     <div className="space-y-6 max-w-2xl">
