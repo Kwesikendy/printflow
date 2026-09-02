@@ -1,6 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { getDefaultDashboardPath } from '@/lib/utils'
+import type { Role } from '@/types/database'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -18,31 +19,32 @@ export async function GET(request: Request) {
         .from('profiles')
         .select('role')
         .eq('id', user.id)
-        .single()
+        .single() as { data: { role: string } | null, error: any }
         
-      if (profile && 'role' in profile) {
-        // Existing user, redirect to their dashboard
-        return NextResponse.redirect(`${origin}${getDefaultDashboardPath(profile.role as string)}`)
+      if (profile) {
+        return NextResponse.redirect(`${origin}${getDefaultDashboardPath(profile.role as Role)}`)
       } else {
-        // New user from OAuth. Assign them to the default tenant.
-        const { data: tenant } = await supabase
+        // New user via OAuth — provision a profile on the default tenant
+        const supabaseAdmin = createServiceClient()
+
+        const { data: tenant } = await supabaseAdmin
           .from('tenants')
           .select('id')
           .order('created_at', { ascending: true })
           .limit(1)
-          .single()
+          .single() as { data: { id: string } | null, error: any }
           
-        if (tenant && 'id' in tenant) {
-          const { error: profileError } = await supabase
+        if (tenant) {
+          const { error: profileError } = await supabaseAdmin
             .from('profiles')
             .insert({
               id: user.id,
-              tenant_id: (tenant as { id: string }).id,
-              role: 'front_desk',
+              tenant_id: tenant.id,
+              role: 'front_desk' as Role,
               full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New User',
-              email: user.email,
-              is_active: true
-            })
+              email: user.email ?? '',
+              is_active: true,
+            } as any)
             
           if (!profileError) {
             return NextResponse.redirect(`${origin}${getDefaultDashboardPath('front_desk')}`)

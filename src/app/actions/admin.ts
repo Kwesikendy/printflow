@@ -3,13 +3,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResponse } from './jobs'
+import type { Profile, Tenant } from '@/types/database'
 
 export async function updateTenantSettings(formData: FormData): Promise<ActionResponse> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null, error: any }
+  const profile = profileData
   if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
 
   const name = formData.get('name') as string
@@ -22,7 +24,7 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
 
   const { error } = await supabase
     .from('tenants')
-    .update({ name, currency, area_unit: areaUnit })
+    .update({ name, currency, area_unit: areaUnit } as any)
     .eq('id', profile.tenant_id)
 
   if (error) {
@@ -39,7 +41,8 @@ export async function createProductType(formData: FormData): Promise<ActionRespo
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null, error: any }
+  const profile = profileData
   if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
 
   const name = formData.get('name') as string
@@ -64,12 +67,13 @@ export async function toggleProductType(id: string, isActive: boolean): Promise<
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null, error: any }
+  const profile = profileData
   if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
 
   const { error } = await supabase
     .from('product_types')
-    .update({ is_active: isActive })
+    .update({ is_active: isActive } as any)
     .eq('id', id)
     .eq('tenant_id', profile.tenant_id)
 
@@ -84,7 +88,8 @@ export async function createPricingRule(formData: FormData): Promise<ActionRespo
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null, error: any }
+  const profile = profileData
   if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
 
   const productTypeId = formData.get('productTypeId') as string

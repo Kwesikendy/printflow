@@ -1,8 +1,8 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import type { Role } from '@/types/database'
 
 export interface CreateUserResult {
   success?: boolean
@@ -12,19 +12,13 @@ export interface CreateUserResult {
 export async function createUser(formData: FormData): Promise<CreateUserResult> {
   const email = formData.get('email') as string
   const fullName = formData.get('full_name') as string
-  const role = formData.get('role') as string
+  const role = formData.get('role') as Role
 
   if (!email || !fullName || !role) {
     return { error: 'All fields are required.' }
   }
 
-  // We need the service role key to invite users via the admin API
-  const supabaseAdmin = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
-  // Get calling user's tenant_id
+  // Get calling user's tenant_id (uses anon client with session)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -33,17 +27,18 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     .from('profiles')
     .select('tenant_id, role')
     .eq('id', user.id)
-    .single()
+    .single() as { data: { tenant_id: string; role: string } | null, error: any }
 
   if (!callerProfile || callerProfile.role !== 'admin') {
     return { error: 'Only admins can add users.' }
   }
 
-  // Invite the user by email. Supabase will send them an invite link to set their password.
+  // Use service role client (bypasses RLS, has Database generic)
+  const supabaseAdmin = createServiceClient()
+
+  // Invite user — Supabase sends them an email with a link to set their password
   const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      full_name: fullName,
-    },
+    data: { full_name: fullName },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?type=invite`,
   })
 
@@ -60,12 +55,12 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     .from('profiles')
     .insert({
       id: inviteData.user.id,
-      tenant_id: callerProfile.tenant_id,
-      role,
+      tenant_id: (callerProfile as any).tenant_id,
+      role: role as any,
       full_name: fullName,
       email,
       is_active: true,
-    })
+    } as any)
 
   if (profileError) {
     // Rollback: delete the auth user if profile creation failed

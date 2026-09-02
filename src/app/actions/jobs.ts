@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { type JobStatus, type PaymentMethod, type JobSource } from '@/types/database'
+import { type JobStatus, type PaymentMethod, type JobSource, type Profile } from '@/types/database'
 
 export type ActionResponse = {
   error?: string
@@ -33,7 +33,8 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
   if (artworkFile && artworkFile.size > 0) {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+      const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+      const profile = profileData as Pick<Profile, 'tenant_id'> | null
       if (profile) {
         const fileExt = artworkFile.name.split('.').pop()
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
