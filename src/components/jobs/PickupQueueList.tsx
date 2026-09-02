@@ -42,8 +42,12 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
     return unsubscribe
   }, [subscribeToJobs])
 
+  const [loadingJobId, setLoadingJobId] = useState<string | null>(null)
+
   const handlePickup = async (jobId: string, jobNumber: string) => {
+    setLoadingJobId(jobId)
     const res = await transitionJobStatusAction(jobId, 'picked_up')
+    setLoadingJobId(null)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -105,6 +109,7 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
                   <Button 
                     variant="success" 
                     className="flex-1"
+                    loading={loadingJobId === job.id}
                     onClick={() => handlePickup(job.id, job.job_number)}
                   >
                     <CheckCircle2 className="w-4 h-4 mr-1.5" /> Pick Up

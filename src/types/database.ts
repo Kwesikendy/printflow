@@ -75,6 +75,7 @@ export interface Job {
   unit_cost_applied: number
   line_total: number
   notes: string | null
+  artwork_url: string | null
   status: JobStatus
   created_by: string
   created_at: string
@@ -162,7 +163,9 @@ export type Database = {
           p_width: number
           p_height: number
           p_quantity: number
+          p_unit_cost: number
           p_notes: string | null
+          p_artwork_url: string | null
         }
         Returns: {
           job_id: string

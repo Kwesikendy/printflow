@@ -48,8 +48,12 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     return unsubscribe
   }, [subscribeToJobs])
 
+  const [loadingJobId, setLoadingJobId] = useState<string | null>(null)
+
   const handleStart = async (jobId: string, jobNumber: string) => {
+    setLoadingJobId(jobId)
     const res = await transitionJobStatusAction(jobId, 'in_production')
+    setLoadingJobId(null)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -58,7 +62,9 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
   }
 
   const handleComplete = async (jobId: string, jobNumber: string) => {
+    setLoadingJobId(jobId)
     const res = await transitionJobStatusAction(jobId, 'completed')
+    setLoadingJobId(null)
     if (res.error) {
       toast.error(res.error)
     } else {
@@ -147,6 +153,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
                     <Button 
                       variant="primary" 
                       className="w-full flex-1 md:flex-none"
+                      loading={loadingJobId === job.id}
                       onClick={() => handleStart(job.id, job.job_number)}
                     >
                       <Play className="w-4 h-4 mr-1.5" /> Start Job
@@ -157,6 +164,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
                     <Button 
                       variant="success" 
                       className="w-full flex-1 md:flex-none"
+                      loading={loadingJobId === job.id}
                       onClick={() => handleComplete(job.id, job.job_number)}
                     >
                       <CheckCircle2 className="w-4 h-4 mr-1.5" /> Complete

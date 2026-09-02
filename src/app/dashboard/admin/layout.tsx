@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, Users, Settings } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 const adminTabs = [
   { name: 'Overview', href: '/dashboard/admin', icon: LayoutDashboard },
@@ -21,20 +22,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <p className="text-slate-500 mt-1">Manage tenant settings, users, and product catalog.</p>
       </div>
 
-      <div className="mb-6 flex space-x-1 bg-slate-50 p-1 rounded-lg border border-indigo-100 inline-flex">
+      <div className="mb-8 flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 inline-flex relative">
         {adminTabs.map(tab => {
           const isActive = pathname === tab.href
           return (
             <Link
               key={tab.name}
               href={tab.href}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`relative flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg transition-colors z-10 ${
                 isActive 
-                  ? 'bg-indigo-600 text-slate-900 shadow' 
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'text-slate-900' 
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <tab.icon className="w-4 h-4" />
+              {isActive && (
+                <motion.div
+                  layoutId="admin-tab-indicator"
+                  className="absolute inset-0 bg-white rounded-lg shadow-sm border border-slate-200/60 -z-10"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <tab.icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : ''}`} />
               {tab.name}
             </Link>
           )

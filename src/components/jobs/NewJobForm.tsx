@@ -117,7 +117,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
         <form id="new-job-form" onSubmit={handleSubmit} className="space-y-8">
           
           <Card>
-            <CardContent className="p-8">
+            <CardContent className="p-4 sm:p-8">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 shadow-sm">
                   <FileText className="w-5 h-5" />
@@ -165,7 +165,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
           </Card>
 
           <Card>
-            <CardContent className="p-8">
+            <CardContent className="p-4 sm:p-8">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100 shadow-sm">
                   <Ruler className="w-5 h-5" />
@@ -186,6 +186,23 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Upload Artwork</label>
+                  <input 
+                    type="file" 
+                    name="artwork" 
+                    accept="image/*,.pdf"
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2.5 file:px-4
+                      file:rounded-md file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-indigo-50 file:text-indigo-700
+                      hover:file:bg-indigo-100
+                      border border-slate-200 rounded-md bg-slate-50 cursor-pointer"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">Max file size: 10MB (PDF, PNG, JPG)</p>
                 </div>
 
                 <div>

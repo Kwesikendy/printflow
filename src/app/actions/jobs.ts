@@ -22,9 +22,36 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
   const quantity = parseInt(formData.get('quantity') as string, 10)
   const unitCost = parseFloat(formData.get('unitCost') as string)
   const notes = formData.get('notes') as string
+  const artworkFile = formData.get('artwork') as File | null
 
   if (!customerName || !productTypeId || !source || isNaN(width) || isNaN(height) || isNaN(quantity) || isNaN(unitCost)) {
     return { error: 'Missing required fields or invalid numbers' }
+  }
+  
+  let artworkUrl: string | null = null
+
+  if (artworkFile && artworkFile.size > 0) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+      if (profile) {
+        const fileExt = artworkFile.name.split('.').pop()
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `${profile.tenant_id}/${fileName}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('artworks')
+          .upload(filePath, artworkFile)
+          
+        if (uploadError) {
+          console.error('Artwork upload error:', uploadError)
+          return { error: 'Failed to upload artwork: ' + uploadError.message }
+        }
+        
+        const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
+        artworkUrl = publicUrlData.publicUrl
+      }
+    }
   }
 
   const { data, error } = await supabase.rpc('create_job', {
@@ -36,7 +63,8 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
     p_height: height,
     p_quantity: quantity,
     p_unit_cost: unitCost,
-    p_notes: notes || null
+    p_notes: notes || null,
+    p_artwork_url: artworkUrl
   } as any)
 
   if (error) {

@@ -63,18 +63,20 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
               href={item.href}
               onClick={() => setMobileOpenAction(false)}
               className={cn(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
-                isActive ? "text-indigo-700" : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                "relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
+                isActive 
+                  ? "text-indigo-700 shadow-sm" 
+                  : "text-slate-500 hover:text-slate-900 hover:bg-slate-50/80"
               )}
             >
               {isActive && (
                 <motion.div
                   layoutId="sidebar-active-indicator"
-                  className="absolute inset-0 bg-indigo-50 border border-indigo-100 rounded-lg -z-10"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  className="absolute inset-0 bg-white border border-indigo-100/50 rounded-xl shadow-[0_2px_10px_rgba(99,102,241,0.08)] -z-10"
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
                 />
               )}
-              <item.icon className={cn("w-5 h-5", isActive ? "text-indigo-600" : "text-slate-400")} />
+              <item.icon className={cn("w-5 h-5 transition-colors", isActive ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600")} />
               {item.name}
             </Link>
           )

@@ -12,18 +12,17 @@ interface CardProps {
 export function Card({ children, className = '', noHover = false }: CardProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 15, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{ 
-        duration: 0.4, 
-        ease: [0.23, 1, 0.32, 1] // Apple-like spring ease
+        duration: 0.6, 
+        ease: [0.16, 1, 0.3, 1] // Very smooth expo out
       }}
       whileHover={noHover ? undefined : { 
-        y: -3, 
-        scale: 1.01,
-        transition: { duration: 0.2 }
+        y: -4, 
+        transition: { duration: 0.3, ease: 'easeOut' }
       }}
-      className={`bg-white/70 backdrop-blur-xl rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/60 ${className}`}
+      className={`bg-white/60 backdrop-blur-2xl rounded-2xl shadow-premium-card border border-white/80 transition-shadow duration-300 ${noHover ? '' : 'hover:shadow-premium-hover'} ${className}`}
     >
       {children}
     </motion.div>
@@ -38,7 +37,7 @@ interface CardHeaderProps {
 
 export function CardHeader({ title, description, action }: CardHeaderProps) {
   return (
-    <div className="flex items-start justify-between p-6 pb-4">
+    <div className="flex items-start justify-between p-4 sm:p-6 pb-4">
       <div>
         <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
         {description && <p className="text-sm text-slate-500 mt-0.5">{description}</p>}
@@ -49,5 +48,5 @@ export function CardHeader({ title, description, action }: CardHeaderProps) {
 }
 
 export function CardContent({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <div className={`px-6 pb-6 ${className}`}>{children}</div>
+  return <div className={`px-4 sm:px-6 pb-4 sm:pb-6 ${className}`}>{children}</div>
 }

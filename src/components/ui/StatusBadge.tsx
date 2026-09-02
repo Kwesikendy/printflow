@@ -10,21 +10,21 @@ import { CheckCircle2, Loader2, Sparkles, AlertCircle, Circle, PlayCircle, Packa
 import { cn } from '@/lib/utils'
 
 const statusConfig: Record<JobStatus, { color: string, icon: any, animation?: any }> = {
-  draft:            { color: 'bg-slate-100 text-slate-600 border-slate-200', icon: Circle },
-  quoted:           { color: 'bg-blue-50 text-blue-700 border-blue-200', icon: AlertCircle },
-  awaiting_payment: { color: 'bg-amber-50 text-amber-700 border-amber-200', icon: AlertCircle },
+  draft:            { color: 'bg-slate-100/80 text-slate-700 border-slate-200/50 shadow-sm', icon: Circle },
+  quoted:           { color: 'bg-blue-50/80 text-blue-700 border-blue-200/50 shadow-sm', icon: AlertCircle },
+  awaiting_payment: { color: 'bg-amber-50/80 text-amber-700 border-amber-200/50 shadow-sm', icon: AlertCircle },
   paid_released:    { 
-    color: 'bg-emerald-50 text-emerald-700 border-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.2)]', 
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)]', 
     icon: PlayCircle,
-    animation: { scale: [1, 1.02, 1], transition: { repeat: Infinity, duration: 2, ease: "easeInOut" } }
+    animation: { scale: [1, 1.03, 1], transition: { repeat: Infinity, duration: 2.5, ease: "easeInOut" } }
   },
   in_production:    { 
-    color: 'bg-indigo-50 text-indigo-700 border-indigo-200', 
+    color: 'bg-orange-50 text-orange-700 border-orange-300 shadow-[0_0_15px_rgba(249,115,22,0.25)]', 
     icon: Loader2,
   },
-  completed:        { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: CheckCircle2 },
-  picked_up:        { color: 'bg-slate-100 text-slate-500 border-slate-200', icon: PackageCheck },
-  cancelled:        { color: 'bg-red-50 text-red-500 border-red-100 opacity-70', icon: AlertCircle },
+  completed:        { color: 'bg-emerald-100/90 text-emerald-800 border-emerald-300/80 shadow-sm', icon: CheckCircle2 },
+  picked_up:        { color: 'bg-slate-100/80 text-slate-600 border-slate-200/60 shadow-sm', icon: PackageCheck },
+  cancelled:        { color: 'bg-red-50/80 text-red-600 border-red-200/50 opacity-80 shadow-sm', icon: AlertCircle },
 }
 
 export function StatusBadge({ status }: { status: JobStatus }) {
@@ -37,7 +37,6 @@ export function StatusBadge({ status }: { status: JobStatus }) {
     if (!hasMounted) {
       if (status === 'picked_up') {
         // Pop confetti if a status badge mounts as picked_up
-        // In a real app we'd track prevStatus to only fire on transition, but for MVP, this is a nice surprise when navigating to the job details.
         const duration = 2 * 1000;
         const end = Date.now() + duration;
 

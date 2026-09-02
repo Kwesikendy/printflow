@@ -1,0 +1,116 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import type { ActionResponse } from './jobs'
+
+export async function updateTenantSettings(formData: FormData): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
+
+  const name = formData.get('name') as string
+  const currency = formData.get('currency') as string
+  const areaUnit = formData.get('area_unit') as string
+
+  if (!name || !currency || !areaUnit) {
+    return { error: 'Missing required fields' }
+  }
+
+  const { error } = await supabase
+    .from('tenants')
+    .update({ name, currency, area_unit: areaUnit })
+    .eq('id', profile.tenant_id)
+
+  if (error) {
+    console.error('Update tenant error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/admin/settings')
+  return { success: true }
+}
+
+export async function createProductType(formData: FormData): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
+
+  const name = formData.get('name') as string
+  if (!name) return { error: 'Product name is required' }
+
+  const { error } = await supabase.from('product_types').insert({
+    tenant_id: profile.tenant_id,
+    name
+  } as any)
+
+  if (error) {
+    console.error('Create product type error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/admin/products')
+  return { success: true }
+}
+
+export async function toggleProductType(id: string, isActive: boolean): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
+
+  const { error } = await supabase
+    .from('product_types')
+    .update({ is_active: isActive })
+    .eq('id', id)
+    .eq('tenant_id', profile.tenant_id)
+
+  if (error) return { error: error.message }
+  
+  revalidatePath('/dashboard/admin/products')
+  return { success: true }
+}
+
+export async function createPricingRule(formData: FormData): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
+
+  const productTypeId = formData.get('productTypeId') as string
+  const source = formData.get('source') as string
+  const unitCost = parseFloat(formData.get('unitCost') as string)
+
+  if (!productTypeId || !source || isNaN(unitCost) || unitCost <= 0) {
+    return { error: 'Invalid fields provided' }
+  }
+
+  const { error } = await supabase.from('pricing_rules').insert({
+    tenant_id: profile.tenant_id,
+    product_type_id: productTypeId,
+    source,
+    unit_cost: unitCost
+  } as any)
+
+  if (error) {
+    // Check for unique constraint violation (code 23505)
+    if (error.code === '23505') {
+      return { error: 'A pricing rule for this product and source already exists.' }
+    }
+    console.error('Create pricing rule error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/admin/products')
+  return { success: true }
+}

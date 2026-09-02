@@ -21,16 +21,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         
         <div className="lg:pl-64 flex flex-col min-h-screen">
           {/* Mobile header */}
-          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:hidden">
+          <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/40 bg-white/60 backdrop-blur-xl px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:hidden">
             <button
               type="button"
-              className="-m-2.5 p-2.5 text-slate-500 hover:text-slate-900"
+              className="-m-2.5 p-2.5 text-slate-600 hover:text-slate-900 transition-colors"
               onClick={() => setMobileOpen(true)}
             >
               <span className="sr-only">Open sidebar</span>
               <Menu className="h-6 w-6" aria-hidden="true" />
             </button>
-            <div className="flex-1 text-sm font-semibold leading-6 text-slate-900">
+            <div className="flex-1 text-sm font-semibold leading-6 text-slate-800">
               {session.tenant.name}
             </div>
           </div>

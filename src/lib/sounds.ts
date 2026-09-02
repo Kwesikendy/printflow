@@ -2,7 +2,6 @@
 
 // Base64 encoded extremely tiny, subtle UI sounds.
 // These allow us to have sound without external assets.
-// Note: In a real app these would be better as small mp3s, but for self-contained MVP this is great.
 
 const SOUNDS = {
   // A very soft, high quality click/tick

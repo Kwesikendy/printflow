@@ -5,7 +5,7 @@ import { PageLoader } from '@/components/ui/EmptyState'
 export default async function FinancePage() {
   const supabase = await createClient()
 
-  // For MVP, we'll fetch all payments and unpaid invoices for the tenant.
+  // Fetch all payments and unpaid invoices for the tenant.
   // In a real app with large data, we would do the aggregation in SQL or use date filters.
   
   const [{ data: payments }, { data: unpaidInvoices }] = await Promise.all([

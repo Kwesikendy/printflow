@@ -118,6 +118,21 @@ export default async function JobDetailPage(props: {
                   <p className="text-sm text-slate-600">{job.notes}</p>
                 </div>
               )}
+              
+              {job.artwork_url && (
+                <div className="mt-6 pt-4 border-t border-indigo-100">
+                  <p className="text-xs text-slate-500 mb-2">Artwork</p>
+                  <a 
+                    href={job.artwork_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-md text-sm font-medium hover:bg-indigo-100 transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Download / View Artwork
+                  </a>
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCurrency } from '@/lib/utils'
-
+import { AddProductTypeForm, ToggleProductTypeButton, AddPricingRuleForm } from '@/components/admin/ProductForms'
 export default async function AdminProductsPage() {
   const supabase = await createClient()
 
@@ -22,27 +22,27 @@ export default async function AdminProductsPage() {
           description="Manage the types of items you print (e.g., Flyer, Banner)." 
         />
         <CardContent>
-          <table className="table-standard">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {productTypes?.map((pt: any) => (
-                <tr key={pt.id}>
-                  <td className="font-medium text-slate-900">{pt.name}</td>
-                  <td>
-                    <span className={`badge ${pt.is_active ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
-                      {pt.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
+          <div className="table-container">
+            <table className="table-standard">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-xs text-slate-500 mt-4 text-center">MVP Demo: Editing product types requires database access.</p>
+              </thead>
+              <tbody>
+                {productTypes?.map((pt: any) => (
+                  <tr key={pt.id}>
+                    <td className="font-medium text-slate-900">{pt.name}</td>
+                    <td>
+                      <ToggleProductTypeButton product={pt} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <AddProductTypeForm />
         </CardContent>
       </Card>
 
@@ -52,25 +52,27 @@ export default async function AdminProductsPage() {
           description="Unit costs per square area for each product and source combination." 
         />
         <CardContent>
-          <table className="table-standard">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Source</th>
-                <th className="text-right">Unit Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pricingRules?.map((rule: any) => (
-                <tr key={rule.id}>
-                  <td className="font-medium text-slate-900">{rule.product_types?.name}</td>
-                  <td className="capitalize">{rule.source.replace('_', '-')}</td>
-                  <td className="text-right text-green-600 font-medium">₵{rule.unit_cost.toFixed(4)}</td>
+          <div className="table-container">
+            <table className="table-standard">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Source</th>
+                  <th className="text-right">Unit Cost</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-xs text-slate-500 mt-4 text-center">MVP Demo: Pricing rules are seeded. Updating rules via UI is scoped for next version.</p>
+              </thead>
+              <tbody>
+                {pricingRules?.map((rule: any) => (
+                  <tr key={rule.id}>
+                    <td className="font-medium text-slate-900">{rule.product_types?.name}</td>
+                    <td className="capitalize">{rule.source.replace('_', '-')}</td>
+                    <td className="text-right text-green-600 font-medium">₵{rule.unit_cost.toFixed(4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <AddPricingRuleForm productTypes={productTypes || []} />
         </CardContent>
       </Card>
     </div>
