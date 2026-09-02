@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { useSession } from '@/contexts/SessionContext'
 import { ROLE_LABELS, canAccessRoute, cn } from '@/lib/utils'
-import { logout } from '@/app/actions/auth'
 import { motion } from 'framer-motion'
 import { 
   Printer,
@@ -30,7 +29,7 @@ const navItems = [
 
 export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boolean, setMobileOpenAction: (open: boolean) => void }) {
   const pathname = usePathname()
-  const { session } = useSession()
+  const { session, signOut } = useSession()
   
   if (!session) return null
 
@@ -38,7 +37,7 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
   const visibleItems = navItems.filter(item => item.roles.includes(role) && canAccessRoute(role, item.href))
 
   const handleLogout = async () => {
-    await logout()
+    await signOut()
   }
 
   const SidebarContent = (

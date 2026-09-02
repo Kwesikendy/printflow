@@ -37,10 +37,10 @@ export async function login(formData: FormData) {
     .eq('id', user.id)
     .single()
 
-  const role = profile?.role || 'front_desk'
+  const role = (profile as any)?.role || 'front_desk'
   
   revalidatePath('/', 'layout')
-  redirect(getDefaultDashboardPath(role))
+  return { success: true, url: getDefaultDashboardPath(role) }
 }
 
 export async function logout() {

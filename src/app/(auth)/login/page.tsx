@@ -23,8 +23,11 @@ export default function LoginPage() {
       if (result?.error) {
         setError(result.error)
         toast.error(result.error)
+      } else if (result?.success && result.url) {
+        // Force a hard navigation so the entire React tree and SessionProvider 
+        // mount freshly with the new user's context.
+        window.location.href = result.url
       }
-      // If successful, the server action handles the redirect
     })
   }
 
@@ -47,7 +50,7 @@ export default function LoginPage() {
         Sign in to your print shop dashboard
       </p>
 
-      <Card glass className="mx-4 sm:mx-0">
+      <Card className="mx-4 sm:mx-0">
         <CardContent className="pt-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (

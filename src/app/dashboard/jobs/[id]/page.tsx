@@ -19,7 +19,7 @@ export default async function JobDetailPage(props: {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) notFound()
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  const role = profile?.role
+  const role = (profile as any)?.role
 
   // Data fetch uses service client so invoices/payments are never blocked by RLS
   const { data: jobData } = await serviceSupabase
