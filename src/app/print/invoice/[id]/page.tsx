@@ -25,9 +25,9 @@ export default async function InvoicePrintPage(props: {
 
   const job = data as any
 
-  if (!job || !job.invoices?.[0]) notFound()
+  if (!job || !job.invoices) notFound()
 
-  const invoice = job.invoices[0]
+  const invoice = job.invoices
   const totalPaid = (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0)
   const balance = invoice.total - totalPaid
 
