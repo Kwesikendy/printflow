@@ -36,9 +36,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
       if (!profile) {
+        // If they have an auth session but no profile, they are in a broken state. 
+        // Sign them out locally so they can try again.
+        await supabase.auth.signOut()
         setSession(null)
         return
       }
@@ -47,7 +50,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         .from('tenants')
         .select('*')
         .eq('id', (profile as Profile).tenant_id)
-        .single()
+        .maybeSingle()
 
       if (!tenant) {
         setSession(null)
