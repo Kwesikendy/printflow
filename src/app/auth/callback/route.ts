@@ -24,43 +24,17 @@ export async function GET(request: Request) {
       if (profile) {
         return NextResponse.redirect(`${origin}${getDefaultDashboardPath(profile.role as Role)}`)
       } else {
+        // User authenticated via Google but has no profile in the system.
+        // We do not allow open registration. The admin must invite them first.
         try {
-          // New user via OAuth — provision a profile on the default tenant
           const supabaseAdmin = createServiceClient()
-
-          const { data: tenant } = await supabaseAdmin
-            .from('tenants')
-            .select('id')
-            .order('created_at', { ascending: true })
-            .limit(1)
-            .single() as { data: { id: string } | null, error: any }
-            
-          if (tenant) {
-            const { error: profileError } = await supabaseAdmin
-              .from('profiles')
-              .insert({
-                id: user.id,
-                tenant_id: tenant.id,
-                role: 'front_desk' as Role,
-                full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'New User',
-                email: user.email ?? '',
-                is_active: true,
-              } as any)
-              
-            if (!profileError) {
-              return NextResponse.redirect(`${origin}${getDefaultDashboardPath('front_desk')}`)
-            } else {
-              console.error("Profile creation error:", profileError)
-              return NextResponse.redirect(`${origin}/login?error=Could not create user profile`)
-            }
-          } else {
-            console.error("No default tenant found")
-            return NextResponse.redirect(`${origin}/login?error=System misconfigured: No tenant`)
-          }
-        } catch (err: any) {
-          console.error("OAuth provisioning error (check SUPABASE_SERVICE_ROLE_KEY):", err)
-          return NextResponse.redirect(`${origin}/login?error=Server configuration error (missing admin key)`)
+          // Clean up the automatically created auth user since they aren't allowed
+          await supabaseAdmin.auth.admin.deleteUser(user.id)
+        } catch (e) {
+          console.error("Failed to cleanup unauthorized user:", e)
         }
+        
+        return NextResponse.redirect(`${origin}/login?error=You are not registered. Please ask an administrator to invite you.`)
       }
     }
   }
