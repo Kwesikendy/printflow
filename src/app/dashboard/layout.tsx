@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { RealtimeProvider } from '@/contexts/RealtimeContext'
 import { Menu } from 'lucide-react'
@@ -8,10 +9,21 @@ import { useSession } from '@/contexts/SessionContext'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { session } = useSession()
+  const { session, loading } = useSession()
+  const router = useRouter()
 
-  if (!session) {
-    return null
+  useEffect(() => {
+    if (!loading && !session) {
+      router.replace('/login')
+    }
+  }, [loading, session, router])
+
+  if (loading || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
   }
 
   return (
