@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { login } from '@/app/actions/auth'
+import { login, signInWithGoogle } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import Image from 'next/image'
@@ -124,10 +124,7 @@ function LoginForm() {
             </div>
 
             <div className="mt-6">
-              <form action={async () => {
-                const { signInWithGoogle } = await import('@/app/actions/auth')
-                await signInWithGoogle()
-              }}>
+              <form action={signInWithGoogle}>
                 <Button
                   type="submit"
                   variant="outline"
