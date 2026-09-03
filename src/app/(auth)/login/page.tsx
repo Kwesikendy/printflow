@@ -124,7 +124,9 @@ function LoginForm() {
             </div>
 
             <div className="mt-6">
-              <form action={signInWithGoogle}>
+              <form action={async () => {
+                await signInWithGoogle()
+              }}>
                 <Button
                   type="submit"
                   variant="outline"
