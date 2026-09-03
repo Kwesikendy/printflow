@@ -21,7 +21,7 @@ const SessionContext = createContext<SessionContextType>({
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<UserSession | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const loadSession = useCallback(async () => {
     try {
