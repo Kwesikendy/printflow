@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { type JobStatus, type PaymentMethod, type JobSource, type Profile } from '@/types/database'
+import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit } from '@/types/database'
 
 export type ActionResponse = {
   error?: string
@@ -10,6 +10,103 @@ export type ActionResponse = {
   data?: any
 }
 
+export interface JobItem {
+  productTypeId: string
+  width: number
+  height: number
+  dimensionUnit: DimensionUnit
+  quantity: number
+  unitCost: number
+  notes?: string
+  artworkFile?: File | null
+}
+
+// Convert any dimension unit to cm before storing
+function toCm(value: number, unit: DimensionUnit): number {
+  switch (unit) {
+    case 'cm': return value
+    case 'm':  return value * 100
+    case 'ft': return value * 30.48
+    case 'in': return value * 2.54
+  }
+}
+
+async function uploadArtwork(
+  supabase: any,
+  tenantId: string,
+  artworkFile: File
+): Promise<string | null> {
+  if (!artworkFile || artworkFile.size === 0) return null
+  if (artworkFile.size > 100 * 1024 * 1024) throw new Error('Artwork file exceeds 100MB limit')
+
+  const fileExt = artworkFile.name.split('.').pop()
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+  const filePath = `${tenantId}/${fileName}`
+
+  const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, artworkFile)
+  if (uploadError) throw new Error('Failed to upload artwork: ' + uploadError.message)
+
+  const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
+  return publicUrlData.publicUrl
+}
+
+export async function createJobGroupAction(
+  customerName: string,
+  customerPhone: string | null,
+  source: JobSource,
+  items: JobItem[]
+): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+  const profile = profileData as Pick<Profile, 'tenant_id'> | null
+  if (!profile) return { error: 'Profile not found' }
+
+  // Upload all artworks in parallel
+  let artworkUrls: (string | null)[] = []
+  try {
+    artworkUrls = await Promise.all(
+      items.map(item =>
+        item.artworkFile && item.artworkFile.size > 0
+          ? uploadArtwork(supabase, profile.tenant_id, item.artworkFile)
+          : Promise.resolve(null)
+      )
+    )
+  } catch (err: any) {
+    return { error: err.message }
+  }
+
+  // Build items payload with converted cm dimensions
+  const itemsPayload = items.map((item, i) => ({
+    product_type_id: item.productTypeId,
+    width: toCm(item.width, item.dimensionUnit),
+    height: toCm(item.height, item.dimensionUnit),
+    dimension_unit: item.dimensionUnit,
+    quantity: item.quantity,
+    unit_cost: item.unitCost,
+    notes: item.notes || null,
+    artwork_url: artworkUrls[i] || null,
+  }))
+
+  const { data, error } = await supabase.rpc('create_job_group', {
+    p_customer_name: customerName,
+    p_customer_phone: customerPhone || null,
+    p_source: source,
+    p_items: itemsPayload,
+  } as any)
+
+  if (error) {
+    console.error('Create job group error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/jobs')
+  return { success: true, data }
+}
+
+// Legacy single-job create (kept for compatibility)
 export async function createJob(formData: FormData): Promise<ActionResponse> {
   const supabase = await createClient()
 
@@ -36,21 +133,11 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
       const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
       const profile = profileData as Pick<Profile, 'tenant_id'> | null
       if (profile) {
-        const fileExt = artworkFile.name.split('.').pop()
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-        const filePath = `${profile.tenant_id}/${fileName}`
-        
-        const { error: uploadError } = await supabase.storage
-          .from('artworks')
-          .upload(filePath, artworkFile)
-          
-        if (uploadError) {
-          console.error('Artwork upload error:', uploadError)
-          return { error: 'Failed to upload artwork: ' + uploadError.message }
+        try {
+          artworkUrl = await uploadArtwork(supabase, profile.tenant_id, artworkFile)
+        } catch (err: any) {
+          return { error: err.message }
         }
-        
-        const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
-        artworkUrl = publicUrlData.publicUrl
       }
     }
   }
@@ -130,11 +217,9 @@ export async function transitionJobStatusAction(jobId: string, toStatus: JobStat
   return { success: true }
 }
 
-// Creates a missing invoice for legacy jobs that were created without one
 export async function createInvoiceForJobAction(jobId: string): Promise<ActionResponse> {
   const supabase = await createClient()
 
-  // Fetch the job to get line_total
   const { data: jobData, error: jobError } = await supabase
     .from('jobs')
     .select('id, tenant_id, line_total, status')
@@ -146,7 +231,6 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   if (jobError || !job) return { error: 'Job not found' }
   if (job.status !== 'awaiting_payment') return { error: 'Job is not awaiting payment' }
 
-  // Generate an invoice number
   const { data: invNum, error: numError } = await supabase.rpc('get_next_invoice_number', {
     p_tenant_id: job.tenant_id
   } as any)
@@ -161,8 +245,6 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   } as any)
 
   if (insertError) {
-    // Unique constraint = invoice already exists (race condition or legacy data)
-    // Just revalidate so the page reloads and shows the existing invoice
     if (insertError.code === '23505') {
       revalidatePath(`/dashboard/jobs/${jobId}`)
       return { success: true }

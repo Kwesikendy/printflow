@@ -18,7 +18,6 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     return { error: 'All fields are required.' }
   }
 
-  // Get calling user's tenant_id (uses anon client with session)
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
@@ -33,10 +32,8 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     return { error: 'Only admins can add users.' }
   }
 
-  // Use service role client (bypasses RLS, has Database generic)
   const supabaseAdmin = createServiceClient()
 
-  // Invite user — Supabase sends them an email with a link to set their password
   const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?type=invite`,
@@ -50,7 +47,6 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     return { error: 'Failed to create user account.' }
   }
 
-  // Create the profile row for this new user
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .insert({
@@ -63,10 +59,40 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     } as any)
 
   if (profileError) {
-    // Rollback: delete the auth user if profile creation failed
     await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id)
     return { error: `Failed to create profile: ${profileError.message}` }
   }
+
+  revalidatePath('/dashboard/admin/users')
+  return { success: true }
+}
+
+export async function deleteUser(userId: string): Promise<CreateUserResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  // Prevent self-deletion
+  if (user.id === userId) return { error: 'You cannot delete your own account.' }
+
+  const { data: callerProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single() as { data: { role: string } | null, error: any }
+
+  if (!callerProfile || callerProfile.role !== 'admin') {
+    return { error: 'Only admins can delete users.' }
+  }
+
+  const supabaseAdmin = createServiceClient()
+
+  // Delete auth user (this cascades to profiles via DB trigger or FK)
+  const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  if (deleteError) return { error: deleteError.message }
+
+  // Also delete profile explicitly (in case no cascade)
+  await supabaseAdmin.from('profiles').delete().eq('id', userId)
 
   revalidatePath('/dashboard/admin/users')
   return { success: true }

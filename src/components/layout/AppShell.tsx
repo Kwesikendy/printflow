@@ -4,11 +4,10 @@ import { useEffect, useState } from 'react'
 import { useSession } from '@/contexts/SessionContext'
 import { AppLoadingScreen } from '@/components/ui/AppLoadingScreen'
 
-// Minimum time the loading screen must be visible (ms)
 const MIN_DISPLAY_MS = 2500
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { loading } = useSession()
+  const { loading, session } = useSession()
   const [minTimeDone, setMinTimeDone] = useState(false)
 
   useEffect(() => {
@@ -16,12 +15,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer)
   }, [])
 
-  // Show loading screen until BOTH the session is ready AND the minimum time has elapsed
   const showLoader = loading || !minTimeDone
 
   return (
     <>
-      <AppLoadingScreen visible={showLoader} />
+      <AppLoadingScreen
+        visible={showLoader}
+        tenantName={session?.tenant?.name}
+        logoUrl={session?.tenant?.logo_url}
+      />
       {!showLoader && children}
     </>
   )

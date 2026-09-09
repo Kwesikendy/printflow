@@ -4,12 +4,17 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 
-export function AppLoadingScreen({ visible }: { visible: boolean }) {
+interface AppLoadingScreenProps {
+  visible: boolean
+  tenantName?: string
+  logoUrl?: string | null
+}
+
+export function AppLoadingScreen({ visible, tenantName, logoUrl }: AppLoadingScreenProps) {
   const [progress, setProgress] = useState(0)
 
   useEffect(() => {
     if (!visible) return
-    // Reset and run the progress bar animation over 3.3s (slightly shorter than the min to finish at 100%)
     const start = Date.now()
     const duration = 2300
     setProgress(0)
@@ -18,9 +23,7 @@ export function AppLoadingScreen({ visible }: { visible: boolean }) {
       const elapsed = Date.now() - start
       const pct = Math.min((elapsed / duration) * 100, 100)
       setProgress(pct)
-      if (pct < 100) {
-        requestAnimationFrame(tick)
-      }
+      if (pct < 100) requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
   }, [visible])
@@ -89,35 +92,48 @@ export function AppLoadingScreen({ visible }: { visible: boolean }) {
 
           {/* Main content */}
           <div className="relative z-10 flex flex-col items-center gap-8">
-            {/* Logo */}
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.92 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }}
-              className="drop-shadow-xl"
+              className="drop-shadow-xl flex flex-col items-center gap-3"
             >
-              <Image
-                src="/printflow-logo.jpg"
-                alt="PrintFlow"
-                width={320}
-                height={100}
-                priority
-                className="select-none object-contain rounded-xl"
-                style={{ maxHeight: '90px', width: 'auto' }}
-              />
+              {logoUrl ? (
+                <Image
+                  src={logoUrl}
+                  alt={tenantName || 'Company Logo'}
+                  width={320}
+                  height={100}
+                  priority
+                  unoptimized
+                  className="select-none object-contain rounded-xl"
+                  style={{ maxHeight: '90px', width: 'auto' }}
+                />
+              ) : (
+                <Image
+                  src="/printflow-logo.jpg"
+                  alt="PrintFlow"
+                  width={320}
+                  height={100}
+                  priority
+                  className="select-none object-contain rounded-xl"
+                  style={{ maxHeight: '90px', width: 'auto' }}
+                />
+              )}
+              {tenantName && (
+                <p className="text-2xl font-black text-slate-800 tracking-tight">{tenantName}</p>
+              )}
             </motion.div>
 
-            {/* Tagline */}
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-sm font-medium tracking-widest text-slate-400 uppercase"
             >
-              Preparing your workspaceâ€¦
+              Preparing your workspace…
             </motion.p>
 
-            {/* Progress bar */}
             <motion.div
               initial={{ opacity: 0, scaleX: 0 }}
               animate={{ opacity: 1, scaleX: 1 }}
@@ -132,16 +148,11 @@ export function AppLoadingScreen({ visible }: { visible: boolean }) {
                   backgroundSize: '200% 100%',
                   transition: 'width 0.1s linear',
                 }}
-                animate={{
-                  backgroundPosition: ['0% 0%', '200% 0%'],
-                }}
-                transition={{
-                  backgroundPosition: { repeat: Infinity, duration: 1.5, ease: 'linear' },
-                }}
+                animate={{ backgroundPosition: ['0% 0%', '200% 0%'] }}
+                transition={{ backgroundPosition: { repeat: Infinity, duration: 1.5, ease: 'linear' } }}
               />
             </motion.div>
 
-            {/* Animated dots */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -153,12 +164,7 @@ export function AppLoadingScreen({ visible }: { visible: boolean }) {
                   key={i}
                   className="w-1.5 h-1.5 rounded-full bg-indigo-400"
                   animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
-                  transition={{
-                    repeat: Infinity,
-                    duration: 1.2,
-                    delay: i * 0.2,
-                    ease: 'easeInOut',
-                  }}
+                  transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.2, ease: 'easeInOut' }}
                 />
               ))}
             </motion.div>

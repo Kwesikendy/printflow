@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResponse } from './jobs'
-import type { Profile, Tenant } from '@/types/database'
+import type { Profile } from '@/types/database'
 
 export async function updateTenantSettings(formData: FormData): Promise<ActionResponse> {
   const supabase = await createClient()
@@ -17,14 +17,37 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
   const name = formData.get('name') as string
   const currency = formData.get('currency') as string
   const areaUnit = formData.get('area_unit') as string
+  const logoFile = formData.get('logo') as File | null
 
   if (!name || !currency || !areaUnit) {
     return { error: 'Missing required fields' }
   }
 
+  let logoUrl: string | undefined = undefined
+
+  if (logoFile && logoFile.size > 0) {
+    const fileExt = logoFile.name.split('.').pop()
+    const fileName = `tenant_${profile.tenant_id}_logo.${fileExt}`
+    const filePath = `logos/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('artworks')
+      .upload(filePath, logoFile, { upsert: true })
+
+    if (uploadError) {
+      return { error: 'Failed to upload logo: ' + uploadError.message }
+    }
+
+    const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
+    logoUrl = publicUrlData.publicUrl
+  }
+
+  const updatePayload: any = { name, currency, area_unit: areaUnit }
+  if (logoUrl !== undefined) updatePayload.logo_url = logoUrl
+
   const { error } = await (supabase as any)
     .from('tenants')
-    .update({ name, currency, area_unit: areaUnit })
+    .update(updatePayload)
     .eq('id', profile.tenant_id)
 
   if (error) {
@@ -33,6 +56,7 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
   }
 
   revalidatePath('/dashboard/admin/settings')
+  revalidatePath('/dashboard')
   return { success: true }
 }
 
@@ -108,7 +132,6 @@ export async function createPricingRule(formData: FormData): Promise<ActionRespo
   } as any)
 
   if (error) {
-    // Check for unique constraint violation (code 23505)
     if (error.code === '23505') {
       return { error: 'A pricing rule for this product and source already exists.' }
     }
