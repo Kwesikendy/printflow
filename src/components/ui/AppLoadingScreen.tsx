@@ -131,7 +131,7 @@ export function AppLoadingScreen({ visible, tenantName, logoUrl }: AppLoadingScr
               transition={{ delay: 0.4, duration: 0.6 }}
               className="text-sm font-medium tracking-widest text-slate-400 uppercase"
             >
-              Preparing your workspace…
+              Preparing your workspaceâ€¦
             </motion.p>
 
             <motion.div

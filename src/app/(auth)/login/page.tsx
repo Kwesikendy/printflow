@@ -123,7 +123,7 @@ function LoginForm() {
                   autoComplete="current-password"
                   required
                   className="input-standard"
-                  placeholder="••••••••"
+                  placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 />
               </div>
             </div>

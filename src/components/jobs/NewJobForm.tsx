@@ -314,7 +314,7 @@ function LineItemCard({
                   >
                     <option value="">Select standard size...</option>
                     {standardSizes.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.width} × {s.height} cm)</option>
+                      <option key={s.id} value={s.id}>{s.name} ({s.width} Ã— {s.height} cm)</option>
                     ))}
                   </select>
                 </motion.div>
@@ -394,7 +394,7 @@ function LineItemCard({
               <Upload className="w-5 h-5 text-slate-400 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm text-slate-600 truncate">
-                  {item.artworkName || 'Click to upload (images, PDF — max 100MB)'}
+                  {item.artworkName || 'Click to upload (images, PDF â€” max 100MB)'}
                 </p>
               </div>
               <input
@@ -500,7 +500,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
         toast.error(res.error)
       } else if (res.success && res.data) {
         const itemCount = res.data.jobs?.length || 1
-        toast.success(`Order created! ${itemCount} job${itemCount > 1 ? 's' : ''} — Invoice ${res.data.invoice_number}`)
+        toast.success(`Order created! ${itemCount} job${itemCount > 1 ? 's' : ''} â€” Invoice ${res.data.invoice_number}`)
         router.push(`/dashboard/jobs/group/${res.data.group_id}`)
       }
     })
@@ -593,7 +593,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
         </form>
       </div>
 
-      {/* RIGHT COLUMN — SUMMARY */}
+      {/* RIGHT COLUMN â€” SUMMARY */}
       <div className="lg:col-span-1 relative">
         <div className="sticky top-24">
           <Card className="border-indigo-100 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5 bg-white/95 backdrop-blur-xl">

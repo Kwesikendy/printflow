@@ -42,8 +42,8 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
         <div>
           <h1 className="text-2xl font-black text-slate-900">Order for {group.customer_name}</h1>
           <p className="text-slate-500 text-sm mt-1">
-            {group.customer_phone && <span>{group.customer_phone} · </span>}
-            {jobs.length} job{jobs.length !== 1 ? 's' : ''} · {formatDateTime(group.created_at)}
+            {group.customer_phone && <span>{group.customer_phone} Â· </span>}
+            {jobs.length} job{jobs.length !== 1 ? 's' : ''} Â· {formatDateTime(group.created_at)}
           </p>
         </div>
       </div>

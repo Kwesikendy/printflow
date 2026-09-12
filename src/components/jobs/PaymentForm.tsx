@@ -76,7 +76,7 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
             {payments.map(p => (
               <div key={p.id} className="flex justify-between items-center text-sm text-amber-700">
                 <span className="capitalize">{p.method === 'momo' ? 'Mobile Money' : p.method}
-                  {p.reference && <span className="text-xs text-amber-500"> · {p.reference}</span>}
+                  {p.reference && <span className="text-xs text-amber-500"> Â· {p.reference}</span>}
                 </span>
                 <span className="font-semibold">+{formatCurrency(p.amount)}</span>
               </div>

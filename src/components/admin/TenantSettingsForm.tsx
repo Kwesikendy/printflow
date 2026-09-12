@@ -109,9 +109,9 @@ export function TenantSettingsForm({ tenant }: { tenant: any }) {
         <div>
           <label className="block text-sm font-medium text-slate-500 mb-1">Measurement Unit</label>
           <select name="area_unit" defaultValue={tenant?.area_unit || 'cm2'} className="input-standard bg-white border-indigo-200 h-[42px]">
-            <option value="cm2">Square Centimeters (cm²)</option>
-            <option value="m2">Square Meters (m²)</option>
-            <option value="in2">Square Inches (in²)</option>
+            <option value="cm2">Square Centimeters (cmÂ²)</option>
+            <option value="m2">Square Meters (mÂ²)</option>
+            <option value="in2">Square Inches (inÂ²)</option>
           </select>
         </div>
       </div>
