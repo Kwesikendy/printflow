@@ -65,13 +65,14 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
                 <th className="text-right">Total</th>
                 <th>Status</th>
                 <th>Created</th>
+                <th className="pr-6">Completed</th>
               </tr>
             </thead>
             
             <AnimatePresence>
               {initialJobs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-0 border-none">
+                  <td colSpan={7} className="p-0 border-none">
                     <EmptyState 
                       icon={<FileText />}
                       title="No jobs found"
@@ -119,6 +120,9 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
                       </td>
                       <td className="text-slate-500 text-sm">
                         {formatDateTime(job.created_at)}
+                      </td>
+                      <td className="text-slate-500 text-sm pr-6">
+                        {job.status === 'completed' || job.status === 'picked_up' ? formatDateTime(job.updated_at) : '-'}
                       </td>
                     </motion.tr>
                   ))}

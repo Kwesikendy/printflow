@@ -43,12 +43,13 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
     <div className="flex h-full flex-col" style={{ background: '#EFEFEF' }}>
       <div className="flex flex-col items-start px-5 py-5 border-b border-slate-100 gap-2">
         <Image
-          src="/printflow-logo.jpg"
-          alt="PrintFlow"
+          src={session.tenant?.logo_url || process.env.NEXT_PUBLIC_APP_LOGO || "/printflow-logo.jpg"}
+          alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintFlow"}
           width={160}
           height={50}
           priority
-          className="object-contain select-none"
+          unoptimized={!!session.tenant?.logo_url}
+          className="object-contain select-none rounded-lg"
           style={{ maxHeight: '44px', width: 'auto' }}
         />
         <p className="text-xs font-semibold text-indigo-600 tracking-wide pl-0.5">{session.tenant.name}</p>

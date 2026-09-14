@@ -165,7 +165,7 @@ export function getAllowedTransitions(
   const transitions: Partial<Record<JobStatus, { statuses: JobStatus[]; roles: Role[] }[]>> = {
     draft: [{ statuses: ['quoted'], roles: ['front_desk', 'admin'] }],
     quoted: [{ statuses: ['awaiting_payment'], roles: ['front_desk', 'admin'] }],
-    // awaiting_payment transitions to paid_released ONLY via the record_payment flow, not via generic status buttons.
+    awaiting_payment: [{ statuses: ['paid_released'], roles: ['front_desk', 'admin'] }],
     paid_released: [{ statuses: ['in_production'], roles: ['printer', 'admin'] }],
     in_production: [{ statuses: ['completed'], roles: ['printer', 'admin'] }],
     completed: [{ statuses: ['picked_up'], roles: ['front_desk', 'admin'] }],

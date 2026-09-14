@@ -9,25 +9,52 @@ export default async function InvoicePrintPage(props: {
   const params = await props.params
   const supabase = await createClient()
 
+  // Fetch the invoice using the provided ID.
+  // Then fetch the associated jobs either via single job_id or group_id.
   const { data } = await supabase
-    .from('jobs')
+    .from('invoices')
     .select(`
       *,
-      product_types(name),
       tenants(name),
-      invoices(
+      payments(amount),
+      job_groups(
+        customer_name,
+        customer_phone,
+        jobs(
+          *,
+          product_types(name)
+        )
+      ),
+      jobs(
         *,
-        payments(amount)
+        product_types(name)
       )
     `)
     .eq('id', params.id)
     .single()
 
-  const job = data as any
+  const invoice = data as any
+  if (!invoice) notFound()
 
-  if (!job || !job.invoices) notFound()
+  let customerName = ''
+  let customerPhone = ''
+  let jobsList: any[] = []
 
-  const invoice = job.invoices
+  if (invoice.group_id && invoice.job_groups) {
+    customerName = invoice.job_groups.customer_name
+    customerPhone = invoice.job_groups.customer_phone || ''
+    jobsList = invoice.job_groups.jobs || []
+  } else if (invoice.jobs) {
+    customerName = invoice.jobs.customer_name
+    customerPhone = invoice.jobs.customer_phone || ''
+    jobsList = [invoice.jobs]
+  } else {
+    notFound()
+  }
+
+  // Sort jobs by created_at ascending
+  jobsList.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+
   const totalPaid = (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0)
   const balance = invoice.total - totalPaid
 
@@ -37,7 +64,7 @@ export default async function InvoicePrintPage(props: {
       
       <div className="border-b-2 border-black pb-4 mb-8 flex justify-between items-end">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight uppercase">{job.tenants?.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight uppercase">{invoice.tenants?.name}</h1>
           <p className="text-sm text-gray-600 mt-1">Official Invoice / Receipt</p>
         </div>
         <div className="text-right">
@@ -48,8 +75,8 @@ export default async function InvoicePrintPage(props: {
 
       <div className="mb-8 p-4 bg-gray-50 border border-gray-200">
         <h3 className="font-bold text-sm uppercase text-gray-500 mb-1">Billed To:</h3>
-        <p className="font-semibold text-lg">{job.customer_name}</p>
-        {job.customer_phone && <p className="text-gray-700">{job.customer_phone}</p>}
+        <p className="font-semibold text-lg">{customerName}</p>
+        {customerPhone && <p className="text-gray-700">{customerPhone}</p>}
       </div>
 
       <table className="w-full mb-8 text-left border-collapse">
@@ -62,15 +89,18 @@ export default async function InvoicePrintPage(props: {
           </tr>
         </thead>
         <tbody>
-          <tr className="border-b border-gray-200">
-            <td className="py-4">
-              <p className="font-semibold">{job.product_types?.name}</p>
-              {job.notes && <p className="text-sm text-gray-600 mt-1">{job.notes}</p>}
-            </td>
-            <td className="py-4 text-center">{job.width} × {job.height}</td>
-            <td className="py-4 text-center">{job.quantity}</td>
-            <td className="py-4 text-right font-medium">{formatCurrency(invoice.total)}</td>
-          </tr>
+          {jobsList.map((job: any, index: number) => (
+            <tr key={job.id} className="border-b border-gray-200">
+              <td className="py-4">
+                <p className="font-semibold">{jobsList.length > 1 ? `${index + 1}. ` : ''}{job.product_types?.name}</p>
+                {job.notes && <p className="text-sm text-gray-600 mt-1">{job.notes}</p>}
+                {jobsList.length > 1 && <p className="text-xs text-gray-400 mt-1 font-mono">Job #: {job.job_number}</p>}
+              </td>
+              <td className="py-4 text-center">{job.width} × {job.height} {job.dimension_unit}</td>
+              <td className="py-4 text-center">{job.quantity}</td>
+              <td className="py-4 text-right font-medium">{formatCurrency(job.line_total)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 

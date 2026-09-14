@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { PageLoader } from '@/components/ui/EmptyState'
-import { FileText, Users, Package } from 'lucide-react'
+import { FileText, Users, Package, Clock } from 'lucide-react'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { formatDateTime } from '@/lib/utils'
+import Link from 'next/link'
 
 export default async function AdminOverviewPage() {
   const supabase = await createClient()
@@ -25,6 +28,12 @@ export default async function AdminOverviewPage() {
     acc[job.status] = (acc[job.status] || 0) + 1
     return acc
   }, {})
+
+  const { data: recentJobs } = await supabase
+    .from('jobs')
+    .select('*, product_types(name)')
+    .order('created_at', { ascending: false })
+    .limit(10)
 
   return (
     <div className="space-y-6">
@@ -121,6 +130,65 @@ export default async function AdminOverviewPage() {
                 <p className="text-sm mt-1">When jobs are created, their statuses will appear here.</p>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader title="Recent Jobs" description="Latest jobs created in the system." />
+        <CardContent className="p-0">
+          <div className="table-container">
+            <table className="table-standard w-full">
+              <thead className="bg-slate-50/50">
+                <tr>
+                  <th className="pl-6">Job No.</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th>Created At</th>
+                  <th>Completed At</th>
+                  <th className="pr-6">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50">
+                {(recentJobs || []).map((job: any) => {
+                  const isCompleted = job.status === 'completed' || job.status === 'picked_up';
+                  return (
+                    <tr key={job.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="pl-6 font-bold text-slate-900">
+                        <Link href={`/dashboard/jobs/${job.id}`} className="hover:text-indigo-600 transition-colors">
+                          {job.job_number}
+                        </Link>
+                      </td>
+                      <td className="text-slate-700 font-medium">{job.customer_name}</td>
+                      <td>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs font-medium text-slate-600 border border-slate-200/60 shadow-sm">
+                          {job.product_types?.name}
+                        </span>
+                      </td>
+                      <td className="text-slate-500 text-sm">{formatDateTime(job.created_at)}</td>
+                      <td className="text-slate-500 text-sm">
+                        {isCompleted ? (
+                          <span className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                            <Clock className="w-3.5 h-3.5" />
+                            {formatDateTime(job.updated_at)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 italic">Pending</span>
+                        )}
+                      </td>
+                      <td className="pr-6">
+                        <StatusBadge status={job.status} />
+                      </td>
+                    </tr>
+                  )
+                })}
+                {(!recentJobs || recentJobs.length === 0) && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-slate-400 font-medium">No recent jobs found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>

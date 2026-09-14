@@ -70,8 +70,8 @@ export default async function JobDetailPage(props: {
           <Link href={`/print/job-card/${job.id}`} target="_blank" className="btn btn-outline">
             <Printer className="w-4 h-4" /> Print Card
           </Link>
-          {invoice && (
-            <Link href={`/print/invoice/${job.id}`} target="_blank" className="btn btn-outline">
+          {invoice && role !== 'printer' && (
+            <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline">
               <FileText className="w-4 h-4" /> Print Invoice
             </Link>
           )}
@@ -181,7 +181,7 @@ export default async function JobDetailPage(props: {
                           </p>
                         </div>
                         <Link
-                          href={`/print/invoice/${job.id}`}
+                          href={`/print/invoice/${invoice.id}`}
                           target="_blank"
                           className="btn btn-outline shrink-0 flex items-center gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
                         >

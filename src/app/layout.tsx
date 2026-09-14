@@ -8,11 +8,11 @@ import { Toaster } from 'sonner'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'PrintFlow — Print Shop Management',
+  title: `${process.env.NEXT_PUBLIC_APP_NAME || 'PrintFlow'} — Print Shop Management`,
   description: 'Multi-tenant SaaS for graphic printing shops. Manage jobs, payments, and production in real time.',
   icons: {
-    icon: '/printflow-logo.jpg',
-    apple: '/printflow-logo.jpg',
+    icon: process.env.NEXT_PUBLIC_APP_LOGO || '/printflow-logo.jpg',
+    apple: process.env.NEXT_PUBLIC_APP_LOGO || '/printflow-logo.jpg',
   },
 }
 

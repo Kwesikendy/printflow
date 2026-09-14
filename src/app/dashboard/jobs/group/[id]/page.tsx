@@ -46,6 +46,13 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
             {jobs.length} job{jobs.length !== 1 ? 's' : ''} · {formatDateTime(group.created_at)}
           </p>
         </div>
+        {invoice && role !== 'printer' && (
+          <div className="ml-auto">
+            <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline bg-white hover:bg-slate-50">
+              <FileText className="w-4 h-4 mr-2" /> Print Invoice
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
