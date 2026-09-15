@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 
 export default async function InvoicePrintPage(props: {
   params: Promise<{ id: string }>
@@ -59,75 +59,127 @@ export default async function InvoicePrintPage(props: {
   const balance = invoice.total - totalPaid
 
   return (
-    <div className="max-w-3xl mx-auto p-8 font-sans text-black">
+    <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white">
       <AutoPrint />
       
-      <div className="border-b-2 border-black pb-4 mb-8 flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight uppercase">{invoice.tenants?.name}</h1>
-          <p className="text-sm text-gray-600 mt-1">Official Invoice / Receipt</p>
-        </div>
-        <div className="text-right">
-          <h2 className="text-2xl font-bold">{invoice.invoice_number}</h2>
-          <p className="text-sm">Date: {formatDateTime(invoice.issued_at)}</p>
-        </div>
+      <div className="flex justify-center mb-6">
+        <img src="/Print_DPI_Logo.png" alt="Print dpi DIGITAL PRESS" className="h-24" />
       </div>
 
-      <div className="mb-8 p-4 bg-gray-50 border border-gray-200">
-        <h3 className="font-bold text-sm uppercase text-gray-500 mb-1">Billed To:</h3>
-        <p className="font-semibold text-lg">{customerName}</p>
-        {customerPhone && <p className="text-gray-700">{customerPhone}</p>}
+      <div className="text-sm font-semibold border-b-[1.5px] border-black pb-1 mb-1">
+        INVOICE NO.{invoice.invoice_number}
+      </div>
+      
+      <div className="flex justify-between items-center border-b-[1.5px] border-[#c8b488] pb-1 mb-1">
+        <div className="text-sm font-semibold">{formatDate(invoice.issued_at)}</div>
+        <div className="text-[#ec008c] font-bold text-sm uppercase">GHS {invoice.total}</div>
+      </div>
+      
+      <div className="text-sm font-bold border-b-[1.5px] border-black pb-1 mb-1">
+        PAYMENT DUE BY &nbsp; {formatDate(invoice.issued_at)}
+      </div>
+      
+      <div className="text-sm border-b-[1.5px] border-black pb-1 mb-6">
+        <span className="font-bold border-b-[1.5px] border-black inline-block uppercase">
+          {customerName}
+        </span>
+        <div className="font-normal mt-1 text-xs">Accra</div>
       </div>
 
-      <table className="w-full mb-8 text-left border-collapse">
+      <table className="w-full mb-8 text-left border-collapse text-sm">
         <thead>
-          <tr className="border-b-2 border-black">
-            <th className="py-2 font-bold uppercase text-sm">Description</th>
-            <th className="py-2 font-bold uppercase text-sm text-center">Dimensions</th>
-            <th className="py-2 font-bold uppercase text-sm text-center">Qty</th>
-            <th className="py-2 font-bold uppercase text-sm text-right">Line Total</th>
+          <tr className="border-y-2 border-black">
+            <th className="py-1 px-2 font-bold uppercase w-24">QUANTITY</th>
+            <th className="py-1 px-2 font-bold uppercase">DETAILS</th>
+            <th className="py-1 px-2 font-bold uppercase text-center w-32">UNIT PRICE</th>
+            <th className="py-1 px-2 font-bold uppercase text-center w-32">LINE TOTAL</th>
           </tr>
         </thead>
         <tbody>
           {jobsList.map((job: any, index: number) => (
-            <tr key={job.id} className="border-b border-gray-200">
-              <td className="py-4">
-                <p className="font-semibold">{jobsList.length > 1 ? `${index + 1}. ` : ''}{job.product_types?.name}</p>
-                {job.notes && <p className="text-sm text-gray-600 mt-1">{job.notes}</p>}
-                {jobsList.length > 1 && <p className="text-xs text-gray-400 mt-1 font-mono">Job #: {job.job_number}</p>}
-              </td>
-              <td className="py-4 text-center">{job.width} × {job.height} {job.dimension_unit}</td>
-              <td className="py-4 text-center">{job.quantity}</td>
-              <td className="py-4 text-right font-medium">{formatCurrency(job.line_total)}</td>
+            <tr key={job.id} className={index % 2 === 0 ? "bg-[#e5e5e5]" : "bg-white"}>
+              <td className="py-1 px-2">{job.quantity}</td>
+              <td className="py-1 px-2 uppercase">{job.product_types?.name} {job.width} x {job.height} {job.dimension_unit}</td>
+              <td className="py-1 px-2 text-center">{(job.line_total / job.quantity).toFixed(2)}</td>
+              <td className="py-1 px-2 text-center">{job.line_total.toFixed(2)}</td>
             </tr>
           ))}
+          {Array.from({ length: 8 }).map((_, i) => {
+            const rowIndex = jobsList.length + i;
+            return (
+              <tr key={`empty-${i}`} className={rowIndex % 2 === 0 ? "bg-[#e5e5e5]" : "bg-white"}>
+                <td className="py-3 px-2"></td>
+                <td className="py-3 px-2"></td>
+                <td className="py-3 px-2"></td>
+                <td className="py-3 px-2"></td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
-      <div className="flex justify-end mb-12">
-        <div className="w-64 space-y-2 text-right">
-          <div className="flex justify-between border-b border-gray-200 pb-2">
-            <span className="font-semibold">Subtotal:</span>
-            <span>{formatCurrency(invoice.total)}</span>
-          </div>
-          <div className="flex justify-between border-b border-gray-200 pb-2 text-green-700">
-            <span className="font-semibold">Amount Paid:</span>
-            <span>-{formatCurrency(totalPaid)}</span>
-          </div>
-          <div className="flex justify-between pt-2 text-xl font-bold">
-            <span>Balance Due:</span>
-            <span>{formatCurrency(balance)}</span>
-          </div>
+      <div className="mb-8">
+        <div className="bg-[#e5e5e5] font-bold px-2 py-1 text-sm uppercase mb-1">
+          NOTE
+        </div>
+        <div className="px-2 text-sm uppercase">
+          UPFRONT PAYMENT
         </div>
       </div>
 
-      {invoice.status === 'paid' ? (
-        <div className="text-center p-4 border-2 border-green-600 text-green-700 font-bold uppercase text-xl tracking-widest rotate-[-5deg] w-48 mx-auto opacity-75">
-          PAID IN FULL
+      <div className="flex flex-col items-end mb-8 text-sm">
+        <div className="w-64 space-y-1 text-right">
+          <div className="flex justify-between">
+            <span>Discount</span>
+            <span></span>
+          </div>
+          <div className="flex justify-between">
+            <span>Net Total</span>
+            <span>GHS {invoice.total}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Add VAT</span>
+            <span></span>
+          </div>
         </div>
-      ) : (
-        <p className="text-center text-sm font-semibold text-red-600">Please pay balance to proceed with production.</p>
-      )}
+        
+        <div className="w-[450px] flex justify-between border-y-2 border-black mt-2 font-bold text-[#ec008c]">
+          <div className="py-1 uppercase text-right flex-1 border-r-[1.5px] border-black pr-2">TOTAL PAYABLE</div>
+          <div className="py-1 pl-2 w-32 text-center">GHS {invoice.total}</div>
+        </div>
+      </div>
+
+      <div className="text-xs">
+        <h3 className="font-bold text-[#ec008c] uppercase mb-2">PAYMENT DETAILS</h3>
+        <table className="w-80">
+          <tbody>
+            <tr>
+              <td className="py-[2px] text-gray-700">Name of Beneficiary:</td>
+              <td className="py-[2px] uppercase">PRINT DPI</td>
+            </tr>
+            <tr>
+              <td className="py-[2px] text-gray-700">Mobile Money No.</td>
+              <td className="py-[2px] uppercase">598608209</td>
+            </tr>
+            <tr>
+              <td className="py-[2px] text-gray-700">Name of Bank:</td>
+              <td className="py-[2px] uppercase">FIDELIITY BANK</td>
+            </tr>
+            <tr>
+              <td className="py-[2px] text-gray-700">Address of Bank:</td>
+              <td className="py-[2px] uppercase">KANESHHIE</td>
+            </tr>
+            <tr>
+              <td className="py-[2px] text-gray-700">Account Number:</td>
+              <td className="py-[2px] uppercase">2400446763917</td>
+            </tr>
+            <tr>
+              <td className="py-[2px] text-gray-700">SWIFT Code</td>
+              <td className="py-[2px] uppercase">FBLIGHAC</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <div className="no-print mt-16 text-center text-sm text-gray-500">
         <PrintButton />
