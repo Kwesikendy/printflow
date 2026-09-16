@@ -10,6 +10,7 @@ interface CardProps {
 }
 
 export function Card({ children, className = '', noHover = false }: CardProps) {
+  const hasOverrideOverflow = className.includes('overflow-')
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
@@ -22,7 +23,7 @@ export function Card({ children, className = '', noHover = false }: CardProps) {
         y: -4, 
         transition: { duration: 0.3, ease: 'easeOut' }
       }}
-      className={`bg-white/60 backdrop-blur-2xl rounded-2xl shadow-premium-card border border-white/80 transition-shadow duration-300 ${noHover ? '' : 'hover:shadow-premium-hover'} ${className}`}
+      className={`bg-white/60 backdrop-blur-2xl rounded-2xl shadow-premium-card border border-white/80 transition-shadow duration-300 ${noHover ? '' : 'hover:shadow-premium-hover'} ${hasOverrideOverflow ? '' : 'overflow-hidden'} ${className}`}
     >
       {children}
     </motion.div>

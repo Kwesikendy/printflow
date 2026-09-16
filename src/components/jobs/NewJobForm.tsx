@@ -149,14 +149,19 @@ function CustomerAutocomplete({
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            style={{ zIndex: 9999 }}
+            className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
           >
             {suggestions.map((s, i) => (
               <li key={i}>
                 <button
                   type="button"
                   className="w-full text-left px-4 py-3 hover:bg-indigo-50 flex items-center gap-3 transition-colors border-b border-slate-100 last:border-none"
-                  onClick={() => { onSelect(s); setOpen(false) }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelect(s);
+                    setOpen(false);
+                  }}
                 >
                   <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
                     <User className="w-3.5 h-3.5 text-indigo-600" />
@@ -512,9 +517,10 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
       <div className="lg:col-span-2 space-y-6">
         <form id="new-job-form" onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Customer Details */}
-          <Card>
-            <CardContent className="p-4 sm:p-8">
+          {/* Customer Details — elevated z-index so autocomplete floats above job items */}
+          <div className="relative" style={{ zIndex: 1000 }}>
+          <Card className="overflow-visible">
+            <CardContent className="p-4 sm:p-8 overflow-visible">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-100">
                   <FileText className="w-5 h-5" />
@@ -562,6 +568,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
               </div>
             </CardContent>
           </Card>
+          </div>{/* end elevated z-index wrapper */}
 
           {/* Job Line Items */}
           <AnimatePresence>

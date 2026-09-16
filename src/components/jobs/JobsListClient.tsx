@@ -156,26 +156,28 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
             
             <AnimatePresence mode="wait">
               {visibleJobs.length === 0 ? (
-                <motion.tr
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
-                  <td colSpan={7} className="p-0 border-none">
-                    <EmptyState 
-                      icon={<FileText />}
-                      title="No jobs found"
-                      description={query ? "No jobs matched your search criteria." : "Get started by creating your first print job."}
-                      action={
-                        !query && (
-                          <Link href="/dashboard/jobs/new">
-                            <Button variant="outline">Create Job</Button>
-                          </Link>
-                        )
-                      }
-                    />
-                  </td>
-                </motion.tr>
+                <tbody>
+                  <motion.tr
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <td colSpan={7} className="p-0 border-none">
+                      <EmptyState 
+                        icon={<FileText />}
+                        title="No jobs found"
+                        description={query ? "No jobs matched your search criteria." : "Get started by creating your first print job."}
+                        action={
+                          !query && (
+                            <Link href="/dashboard/jobs/new">
+                              <Button variant="outline">Create Job</Button>
+                            </Link>
+                          )
+                        }
+                      />
+                    </td>
+                  </motion.tr>
+                </tbody>
               ) : (
                 <tbody className="divide-y divide-slate-100/50">
                   {visibleJobs.map((job, index) => (

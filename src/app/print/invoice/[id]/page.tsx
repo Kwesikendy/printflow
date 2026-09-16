@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDate } from '@/lib/utils'
 
+import QRCode from 'react-qr-code'
+
 export default async function InvoicePrintPage(props: {
   params: Promise<{ id: string }>
 }) {
@@ -58,12 +60,21 @@ export default async function InvoicePrintPage(props: {
   const totalPaid = (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0)
   const balance = invoice.total - totalPaid
 
+  const qrData = `Invoice No: ${invoice.invoice_number}
+Customer: ${customerName}
+Date: ${formatDate(invoice.issued_at)}
+Total: GHS ${invoice.total}
+Balance Due: GHS ${balance}`;
+
   return (
     <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white">
       <AutoPrint />
       
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-6 relative">
         <img src="/Print_DPI_Logo.png" alt="Print dpi DIGITAL PRESS" className="h-24" />
+        <div className="absolute right-0 top-0">
+          <QRCode value={qrData} size={80} level="M" />
+        </div>
       </div>
 
       <div className="text-sm font-semibold border-b-[1.5px] border-black pb-1 mb-1">
