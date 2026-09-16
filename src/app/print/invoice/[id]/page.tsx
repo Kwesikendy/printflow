@@ -137,15 +137,19 @@ export default async function InvoicePrintPage(props: {
             <span>Net Total</span>
             <span>GHS {invoice.total}</span>
           </div>
-          <div className="flex justify-between">
+          <div className="flex justify-between border-b border-gray-200 pb-1">
             <span>Add VAT</span>
             <span></span>
+          </div>
+          <div className="flex justify-between font-semibold text-green-700 pt-1">
+            <span>Amount Paid</span>
+            <span>- GHS {totalPaid}</span>
           </div>
         </div>
         
         <div className="w-[450px] flex justify-between border-y-2 border-black mt-2 font-bold text-[#ec008c]">
-          <div className="py-1 uppercase text-right flex-1 border-r-[1.5px] border-black pr-2">TOTAL PAYABLE</div>
-          <div className="py-1 pl-2 w-32 text-center">GHS {invoice.total}</div>
+          <div className="py-1 uppercase text-right flex-1 border-r-[1.5px] border-black pr-2">BALANCE DUE</div>
+          <div className="py-1 pl-2 w-32 text-center">GHS {balance}</div>
         </div>
       </div>
 

@@ -51,22 +51,48 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null)
 
   const handleStart = async (jobId: string, jobNumber: string) => {
+    // Optimistically update UI
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'in_production' } : j))
     setLoadingJobId(jobId)
+    
     const res = await transitionJobStatusAction(jobId, 'in_production')
     setLoadingJobId(null)
+    
     if (res.error) {
-      toast.error(res.error)
+      // Revert optimistic update on failure
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'paid_released' } : j))
+      
+      if (res.error.includes('in_production -> in_production')) {
+        toast.info(`Job ${jobNumber} is already in production.`)
+      } else {
+        toast.error(`Could not start job: ${res.error}`)
+      }
     } else {
       toast.success(`Started job ${jobNumber}`)
     }
   }
 
   const handleComplete = async (jobId: string, jobNumber: string) => {
+    // Store original just in case we need to revert
+    const originalJob = jobs.find(j => j.id === jobId)
+    // Optimistically remove from queue
+    setJobs(prev => prev.filter(j => j.id !== jobId))
     setLoadingJobId(jobId)
+    
     const res = await transitionJobStatusAction(jobId, 'completed')
     setLoadingJobId(null)
+    
     if (res.error) {
-      toast.error(res.error)
+      // Revert optimistic update
+      if (originalJob) {
+        setJobs(prev => [...prev, originalJob])
+      }
+      
+      if (res.error.includes('completed -> completed')) {
+        toast.info(`Job ${jobNumber} is already completed.`)
+      } else {
+        toast.error(`Could not complete job: ${res.error}`)
+      }
     } else {
       toast.success(`Completed job ${jobNumber}`)
     }

@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: `${process.env.NEXT_PUBLIC_APP_NAME || 'PrintFlow'} — Print Shop Management`,
   description: 'Multi-tenant SaaS for graphic printing shops. Manage jobs, payments, and production in real time.',
   icons: {
-    icon: process.env.NEXT_PUBLIC_APP_LOGO || '/printflow-logo.jpg',
-    apple: process.env.NEXT_PUBLIC_APP_LOGO || '/printflow-logo.jpg',
+    icon: process.env.NEXT_PUBLIC_APP_LOGO || '/Print_DPI_Logo.png',
+    apple: process.env.NEXT_PUBLIC_APP_LOGO || '/Print_DPI_Logo.png',
   },
 }
 

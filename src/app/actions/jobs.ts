@@ -102,6 +102,22 @@ export async function createJobGroupAction(
     return { error: error.message }
   }
 
+  // UPSERT the customer into the dedicated customers table
+  if (profile) {
+    const { error: customerError } = await supabase
+      .from('customers')
+      .upsert({
+        tenant_id: profile.tenant_id,
+        name: customerName,
+        phone: customerPhone || null
+      }, { onConflict: 'tenant_id, name' })
+      
+    if (customerError) {
+      console.error('Error saving customer to database:', customerError)
+      // We don't fail the whole request just because saving to address book failed
+    }
+  }
+
   revalidatePath('/dashboard/jobs')
   return { success: true, data }
 }
@@ -196,7 +212,13 @@ export async function recordPaymentAction(formData: FormData) {
   return { success: true }
 }
 
-export async function transitionJobStatusAction(jobId: string, toStatus: JobStatus, notes?: string) {
+export async function transitionJobStatusAction(
+  jobId: string, 
+  toStatus: JobStatus, 
+  notes?: string,
+  pickupName?: string,
+  pickupPhone?: string
+) {
   const supabase = await createClient()
   
   const { error } = await supabase.rpc('transition_job_status', {
@@ -208,6 +230,21 @@ export async function transitionJobStatusAction(jobId: string, toStatus: JobStat
   if (error) {
     console.error('Transition status error:', error)
     return { error: error.message }
+  }
+
+  // If status is picked_up and we have pickup details, update the job record
+  if (toStatus === 'picked_up' && (pickupName || pickupPhone)) {
+    const { error: updateError } = await supabase
+      .from('jobs')
+      .update({
+        pickup_name: pickupName || null,
+        pickup_phone: pickupPhone || null
+      })
+      .eq('id', jobId)
+      
+    if (updateError) {
+      console.error('Update pickup details error:', updateError)
+    }
   }
 
   revalidatePath('/dashboard/jobs')

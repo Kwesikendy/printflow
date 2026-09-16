@@ -14,25 +14,17 @@ export async function searchCustomers(query: string): Promise<CustomerSuggestion
   const supabase = await createClient()
 
   const { data } = await supabase
-    .from('jobs')
-    .select('customer_name, customer_phone, source')
-    .ilike('customer_name', `${query.trim()}%`)
+    .from('customers')
+    .select('name, phone')
+    .ilike('name', `%${query.trim()}%`)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(10)
 
   if (!data) return []
 
-  // Deduplicate by customer_name (case-insensitive), keep most recent
-  const seen = new Set<string>()
-  const unique: CustomerSuggestion[] = []
-  for (const row of data as CustomerSuggestion[]) {
-    const key = row.customer_name.toLowerCase()
-    if (!seen.has(key)) {
-      seen.add(key)
-      unique.push(row)
-    }
-    if (unique.length >= 8) break
-  }
-
-  return unique
+  return data.map((c: any) => ({
+    customer_name: c.name,
+    customer_phone: c.phone,
+    source: 'walk_in' // default fallback since customers table doesn't store source
+  }))
 }
