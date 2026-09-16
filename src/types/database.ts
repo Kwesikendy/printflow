@@ -93,6 +93,8 @@ export interface Job {
   artwork_url: string | null
   dimension_unit: DimensionUnit
   status: JobStatus
+  pickup_name: string | null
+  pickup_phone: string | null
   created_by: string
   created_at: string
   updated_at: string
@@ -100,6 +102,15 @@ export interface Job {
   product_types?: ProductType
   profiles?: Profile
   invoices?: Invoice[]
+}
+
+export interface Customer {
+  id: string
+  tenant_id: string
+  name: string
+  phone: string | null
+  email: string | null
+  created_at: string
 }
 
 export interface Invoice {
@@ -168,6 +179,7 @@ export type Database = {
       standard_sizes: { Row: StandardSize; Insert: Omit<StandardSize, 'id'>; Update: Partial<StandardSize> }
       job_groups: { Row: JobGroup; Insert: Omit<JobGroup, 'id' | 'created_at'>; Update: Partial<JobGroup> }
       jobs: { Row: Job; Insert: Omit<Job, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Job> }
+      customers: { Row: Customer; Insert: Omit<Customer, 'id' | 'created_at'>; Update: Partial<Customer> }
       invoices: { Row: Invoice; Insert: Omit<Invoice, 'id' | 'issued_at'>; Update: Partial<Invoice> }
       payments: { Row: Payment; Insert: Omit<Payment, 'id' | 'recorded_at'>; Update: Partial<Payment> }
       job_status_events: { Row: JobStatusEvent; Insert: Omit<JobStatusEvent, 'id' | 'created_at'>; Update: never }
