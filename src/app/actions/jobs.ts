@@ -110,7 +110,7 @@ export async function createJobGroupAction(
         tenant_id: profile.tenant_id,
         name: customerName,
         phone: customerPhone || null
-      }, { onConflict: 'tenant_id, name' })
+      } as any, { onConflict: 'tenant_id, name' })
       
     if (customerError) {
       console.error('Error saving customer to database:', customerError)
@@ -234,8 +234,7 @@ export async function transitionJobStatusAction(
 
   // If status is picked_up and we have pickup details, update the job record
   if (toStatus === 'picked_up' && (pickupName || pickupPhone)) {
-    const { error: updateError } = await supabase
-      .from('jobs')
+    const { error: updateError } = await (supabase.from('jobs') as any)
       .update({
         pickup_name: pickupName || null,
         pickup_phone: pickupPhone || null
