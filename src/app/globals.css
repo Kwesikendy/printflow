@@ -224,3 +224,11 @@ body::before {
     0 16px 32px -4px rgba(99, 102, 241, 0.08),
     0 32px 80px -8px rgba(99, 102, 241, 0.06);
 }
+
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

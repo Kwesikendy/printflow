@@ -22,7 +22,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <p className="text-slate-500 mt-1">Manage tenant settings, users, and product catalog.</p>
       </div>
 
-      <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative hide-scrollbar">
         {adminTabs.map(tab => {
           const isActive = pathname === tab.href
           return (
