@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: "printflow",
-      script: "./node_modules/next/dist/bin/next",
+      script: "server.js",
       args: "start",
       cwd: "./",
       instances: 1,
