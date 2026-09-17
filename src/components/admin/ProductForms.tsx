@@ -2,9 +2,9 @@
 
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/Button'
-import { createProductType, toggleProductType, createPricingRule } from '@/app/actions/admin'
+import { createProductType, toggleProductType, createPricingRule, updatePricingRule } from '@/app/actions/admin'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Plus, Edit2, Check, X } from 'lucide-react'
 import type { ProductType } from '@/types/database'
 
 export function AddProductTypeForm() {
@@ -119,5 +119,64 @@ export function AddPricingRuleForm({ productTypes }: { productTypes: ProductType
         <Button type="submit" size="sm" loading={isPending}>Save Rule</Button>
       </div>
     </form>
+  )
+}
+
+export function PricingRuleRow({ rule }: { rule: any }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [unitCost, setUnitCost] = useState(rule.unit_cost.toString())
+  const [isPending, startTransition] = useTransition()
+
+  const handleSave = () => {
+    startTransition(async () => {
+      const res = await updatePricingRule(rule.id, parseFloat(unitCost))
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        toast.success('Pricing rule updated')
+        setIsEditing(false)
+      }
+    })
+  }
+
+  const handleCancel = () => {
+    setUnitCost(rule.unit_cost.toString())
+    setIsEditing(false)
+  }
+
+  return (
+    <tr>
+      <td className="font-medium text-slate-900">{rule.product_types?.name}</td>
+      <td className="capitalize">{rule.source.replace('_', '-')}</td>
+      <td className="text-right">
+        {isEditing ? (
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-slate-500 font-medium">₵</span>
+            <input 
+              type="number" 
+              step="0.0001" 
+              min="0.0001" 
+              value={unitCost} 
+              onChange={(e) => setUnitCost(e.target.value)} 
+              className="input-standard h-8 w-24 text-right text-sm font-medium text-green-600"
+              disabled={isPending}
+            />
+            <button onClick={handleSave} disabled={isPending} className="text-green-600 hover:bg-green-50 p-1.5 rounded transition-colors" title="Save">
+              <Check className="w-4 h-4" />
+            </button>
+            <button onClick={handleCancel} disabled={isPending} className="text-red-600 hover:bg-red-50 p-1.5 rounded transition-colors" title="Cancel">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-2 group">
+            <span className="text-green-600 font-medium">₵{rule.unit_cost.toFixed(4)}</span>
+            <button onClick={() => setIsEditing(true)} className="text-slate-300 hover:text-indigo-600 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" title="Edit">
+              <Edit2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
   )
 }

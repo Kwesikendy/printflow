@@ -142,3 +142,31 @@ export async function createPricingRule(formData: FormData): Promise<ActionRespo
   revalidatePath('/dashboard/admin/products')
   return { success: true }
 }
+
+export async function updatePricingRule(id: string, unitCost: number): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null, error: any }
+  const profile = profileData
+  if (!profile || profile.role !== 'admin') return { error: 'Admin access required' }
+
+  if (isNaN(unitCost) || unitCost <= 0) {
+    return { error: 'Invalid unit cost provided' }
+  }
+
+  const { error } = await (supabase as any)
+    .from('pricing_rules')
+    .update({ unit_cost: unitCost })
+    .eq('id', id)
+    .eq('tenant_id', profile.tenant_id)
+
+  if (error) {
+    console.error('Update pricing rule error:', error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/admin/products')
+  return { success: true }
+}

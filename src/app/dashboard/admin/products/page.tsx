@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCurrency } from '@/lib/utils'
-import { AddProductTypeForm, ToggleProductTypeButton, AddPricingRuleForm } from '@/components/admin/ProductForms'
+import { AddProductTypeForm, ToggleProductTypeButton, AddPricingRuleForm, PricingRuleRow } from '@/components/admin/ProductForms'
 export default async function AdminProductsPage() {
   const supabase = await createClient()
 
@@ -63,11 +63,7 @@ export default async function AdminProductsPage() {
               </thead>
               <tbody>
                 {pricingRules?.map((rule: any) => (
-                  <tr key={rule.id}>
-                    <td className="font-medium text-slate-900">{rule.product_types?.name}</td>
-                    <td className="capitalize">{rule.source.replace('_', '-')}</td>
-                    <td className="text-right text-green-600 font-medium">₵{rule.unit_cost.toFixed(4)}</td>
-                  </tr>
+                  <PricingRuleRow key={rule.id} rule={rule} />
                 ))}
               </tbody>
             </table>
