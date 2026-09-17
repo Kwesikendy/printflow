@@ -1,7 +1,8 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { FinanceReportPrint } from '@/components/finance/FinanceReportPrint'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Financial Report',
 }
 
