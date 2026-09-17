@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-h-screen">
         <Sidebar mobileOpen={mobileOpen} setMobileOpenAction={setMobileOpen} />
         
-        <div className="lg:pl-64 flex flex-col min-h-screen">
+        <div className="lg:pl-64 flex flex-col min-h-screen min-w-0">
           {/* Mobile header */}
           <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/40 bg-white/60 backdrop-blur-xl px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:hidden">
             <button
@@ -47,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </div>
 
-          <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+          <main className="flex-1 py-8 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full min-w-0">
             {children}
           </main>
         </div>

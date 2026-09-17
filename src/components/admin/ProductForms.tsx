@@ -34,10 +34,12 @@ export function AddProductTypeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-3 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
       <input type="text" name="name" placeholder="e.g. Rollup Banner" required className="input-standard flex-1 h-9 text-sm" />
-      <Button type="submit" size="sm" loading={isPending}>Save</Button>
-      <Button type="button" variant="ghost" size="sm" onClick={() => setIsAdding(false)}>Cancel</Button>
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" loading={isPending} className="flex-1 sm:flex-none">Save</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setIsAdding(false)} className="flex-1 sm:flex-none">Cancel</Button>
+      </div>
     </form>
   )
 }

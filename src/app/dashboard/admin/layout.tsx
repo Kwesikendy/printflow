@@ -22,14 +22,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <p className="text-slate-500 mt-1">Manage tenant settings, users, and product catalog.</p>
       </div>
 
-      <div className="mb-8 flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 inline-flex relative">
+      <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {adminTabs.map(tab => {
           const isActive = pathname === tab.href
           return (
             <Link
               key={tab.name}
               href={tab.href}
-              className={`relative flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg transition-colors z-10 ${
+              className={`relative flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 text-sm font-semibold rounded-lg transition-colors z-10 whitespace-nowrap shrink-0 ${
                 isActive 
                   ? 'text-slate-900' 
                   : 'text-slate-500 hover:text-slate-700'
