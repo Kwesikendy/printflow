@@ -13,12 +13,14 @@ import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
   ChevronDown, User, Search
 } from 'lucide-react'
-import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit } from '@/types/database'
+import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig } from '@/types/database'
+import { resolveUnitRate, UNIT_SHORT_LABELS } from '@/lib/pricing'
 
 interface NewJobFormProps {
   productTypes: ProductType[]
   pricingRules: PricingRule[]
   standardSizes: StandardSize[]
+  unitPricingConfig?: UnitPricingConfig
 }
 
 const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
@@ -37,8 +39,8 @@ function toCm(value: number, unit: DimensionUnit): number {
   }
 }
 
-function calculateArea(w: number, h: number, unit: DimensionUnit): number {
-  return toCm(w, unit) * toCm(h, unit)
+function calculateArea(w: number, h: number): number {
+  return w * h
 }
 
 function calculateLineTotal(area: number, unitCost: number, qty: number): number {
@@ -190,6 +192,7 @@ function LineItemCard({
   productTypes,
   pricingRules,
   standardSizes,
+  unitPricingConfig,
   source,
   onUpdate,
   onRemove,
@@ -200,11 +203,14 @@ function LineItemCard({
   productTypes: ProductType[]
   pricingRules: PricingRule[]
   standardSizes: StandardSize[]
+  unitPricingConfig?: UnitPricingConfig
   source: JobSource
   onUpdate: (id: string, updates: Partial<LineItemState>) => void
   onRemove: (id: string) => void
 }) {
   const u = (updates: Partial<LineItemState>) => onUpdate(item.id, updates)
+
+  const effectiveUnit: DimensionUnit = item.useStandardSize ? 'cm' : item.dimensionUnit
 
   const activePricingRule = useMemo(() =>
     pricingRules.find(r => r.product_type_id === item.productTypeId && r.source === source),
@@ -212,9 +218,20 @@ function LineItemCard({
   )
 
   useEffect(() => {
-    if (activePricingRule) u({ manualUnitCost: activePricingRule.unit_cost.toString() })
-    else u({ manualUnitCost: '' })
-  }, [activePricingRule?.id, source])
+    const rate = resolveUnitRate(
+      unitPricingConfig,
+      item.productTypeId,
+      source,
+      effectiveUnit,
+      activePricingRule?.unit_cost
+    )
+    if (rate > 0) {
+      const formatted = rate >= 1 ? rate.toFixed(2) : rate >= 0.01 ? rate.toFixed(4) : rate.toFixed(6)
+      u({ manualUnitCost: formatted })
+    } else {
+      u({ manualUnitCost: '' })
+    }
+  }, [item.productTypeId, source, effectiveUnit, activePricingRule?.id, unitPricingConfig])
 
   const finalWidth = item.useStandardSize && item.standardSizeId
     ? (standardSizes.find(s => s.id === item.standardSizeId)?.width || 0)
@@ -226,9 +243,7 @@ function LineItemCard({
 
   const unitCost = parseFloat(item.manualUnitCost) || 0
   const parsedQty = parseInt(item.quantity, 10) || 1
-  // Standard sizes are always in cm; custom sizes use selected unit
-  const effectiveUnit: DimensionUnit = item.useStandardSize ? 'cm' : item.dimensionUnit
-  const area = calculateArea(finalWidth, finalHeight, effectiveUnit)
+  const area = calculateArea(finalWidth, finalHeight)
   const lineTotal = calculateLineTotal(area, unitCost, parsedQty)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,7 +392,7 @@ function LineItemCard({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between">
-                Unit Cost (GHS)
+                <span>Unit Cost (₵ per {UNIT_SHORT_LABELS[effectiveUnit]})</span>
                 <span className="text-xs text-indigo-500 font-normal">Editable</span>
               </label>
               <input
@@ -428,7 +443,12 @@ function LineItemCard({
   )
 }
 
-export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJobFormProps) {
+export function NewJobForm({
+  productTypes,
+  pricingRules,
+  standardSizes,
+  unitPricingConfig
+}: NewJobFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -461,8 +481,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
       const finalHeight = item.useStandardSize && item.standardSizeId
         ? (standardSizes.find(s => s.id === item.standardSizeId)?.height || 0)
         : (parseFloat(item.height) || 0)
-      const effectiveUnit: DimensionUnit = item.useStandardSize ? 'cm' : item.dimensionUnit
-      const area = calculateArea(finalWidth, finalHeight, effectiveUnit)
+      const area = calculateArea(finalWidth, finalHeight)
       const lineTotal = calculateLineTotal(area, parseFloat(item.manualUnitCost) || 0, parseInt(item.quantity) || 1)
       return sum + lineTotal
     }, 0)
@@ -581,6 +600,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
                 productTypes={productTypes}
                 pricingRules={pricingRules}
                 standardSizes={standardSizes}
+                unitPricingConfig={unitPricingConfig}
                 source={source}
                 onUpdate={updateItem}
                 onRemove={removeItem}
@@ -619,8 +639,7 @@ export function NewJobForm({ productTypes, pricingRules, standardSizes }: NewJob
                   const h = item.useStandardSize && item.standardSizeId
                     ? (standardSizes.find(s => s.id === item.standardSizeId)?.height || 0)
                     : parseFloat(item.height) || 0
-                  const effectiveUnit: DimensionUnit = item.useStandardSize ? 'cm' : item.dimensionUnit
-                  const area = calculateArea(w, h, effectiveUnit)
+                  const area = calculateArea(w, h)
                   const lt = calculateLineTotal(area, parseFloat(item.manualUnitCost) || 0, parseInt(item.quantity) || 1)
                   return (
                     <div key={item.id} className="flex justify-between items-center text-sm py-1.5 border-b border-slate-100 last:border-none">

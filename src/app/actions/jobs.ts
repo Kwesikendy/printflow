@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit } from '@/types/database'
+import { toCmRate } from '@/lib/pricing'
 
 export type ActionResponse = {
   error?: string
@@ -78,14 +79,14 @@ export async function createJobGroupAction(
     return { error: err.message }
   }
 
-  // Build items payload with converted cm dimensions
+  // Build items payload with converted cm dimensions and normalized cm² unit cost
   const itemsPayload = items.map((item, i) => ({
     product_type_id: item.productTypeId,
     width: toCm(item.width, item.dimensionUnit),
     height: toCm(item.height, item.dimensionUnit),
     dimension_unit: item.dimensionUnit,
     quantity: item.quantity,
-    unit_cost: item.unitCost,
+    unit_cost: toCmRate(item.unitCost, item.dimensionUnit),
     notes: item.notes || null,
     artwork_url: artworkUrls[i] || null,
   }))

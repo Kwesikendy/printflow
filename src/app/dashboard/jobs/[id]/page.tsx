@@ -172,8 +172,17 @@ export default async function JobDetailPage(props: {
                           <p className="text-base font-bold text-emerald-800">Payment Confirmed</p>
                           {payments[0] && (
                             <p className="text-sm text-emerald-700 mt-0.5">
-                              {formatCurrency(payments[0].amount)} via <span className="font-semibold capitalize">{payments[0].method === 'momo' ? 'Mobile Money' : payments[0].method}</span>
-                              {payments[0].reference && <span className="text-emerald-600"> · Ref: {payments[0].reference}</span>}
+                              {formatCurrency(payments[0].amount)} via{' '}
+                              <span className="font-semibold capitalize">
+                                {payments[0].method === 'momo'
+                                  ? 'Mobile Money'
+                                  : payments[0].method === 'other'
+                                  ? payments[0].reference || payments[0].notes || 'Other'
+                                  : 'Cash'}
+                              </span>
+                              {payments[0].reference && payments[0].method !== 'other' && (
+                                <span className="text-emerald-600"> · Ref: {payments[0].reference}</span>
+                              )}
                             </p>
                           )}
                           <p className="text-xs text-emerald-600 mt-1">

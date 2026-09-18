@@ -12,6 +12,8 @@ import {
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { TrendingUp, Banknote, AlertCircle, Calendar } from 'lucide-react'
+import { CustomerSearchSection } from '@/components/finance/CustomerSearchSection'
+import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
 
 interface FinanceDashboardProps {
   payments: any[]
@@ -22,6 +24,13 @@ const COLORS = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981'
 
 export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardProps) {
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'week' | 'month'>('month')
+  const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; phone?: string | null } | null>(null)
+  const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
+
+  const handleSelectCustomer = (name: string, phone?: string | null) => {
+    setSelectedCustomer({ name, phone })
+    setIsStatementModalOpen(true)
+  }
 
   const filteredPayments = useMemo(() => {
     if (dateFilter === 'all') return payments
@@ -86,6 +95,14 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
       animate="show"
       className="space-y-6"
     >
+      {/* Customer Financial Statements & Search Bar */}
+      <motion.div variants={itemVariants}>
+        <CustomerSearchSection
+          onSelectCustomer={handleSelectCustomer}
+          selectedCustomerName={selectedCustomer?.name}
+        />
+      </motion.div>
+
       {/* Filter Row */}
       <motion.div variants={itemVariants} className="flex justify-end">
         <div className="relative bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-xl overflow-hidden shadow-sm flex items-center px-4 py-2 hover:shadow-md transition-shadow">
@@ -291,7 +308,20 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                     {unpaidInvoices.slice(0, 10).map((inv) => (
                       <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
                         <td className="pl-6 font-bold text-slate-900">{inv.invoice_number}</td>
-                        <td className="text-slate-600 font-medium">{inv.jobs?.customer_name}</td>
+                        <td className="text-slate-600 font-medium">
+                          {inv.jobs?.customer_name ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCustomer(inv.jobs.customer_name)}
+                              className="text-left font-semibold text-slate-700 hover:text-indigo-600 hover:underline cursor-pointer transition-colors"
+                              title="View Customer Financial Statement"
+                            >
+                              {inv.jobs.customer_name}
+                            </button>
+                          ) : (
+                            'Unknown'
+                          )}
+                        </td>
                         <td className="text-right text-amber-500 font-bold">{formatCurrency(inv.total)}</td>
                         <td className="text-right pr-6">
                           <Link href={`/dashboard/jobs/${inv.job_id}`}>
@@ -312,6 +342,14 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
           </Card>
         </motion.div>
       </div>
+
+      {/* Customer Financial Statement Modal */}
+      <CustomerStatementModal
+        customerName={selectedCustomer?.name || null}
+        customerPhone={selectedCustomer?.phone}
+        isOpen={isStatementModalOpen}
+        onClose={() => setIsStatementModalOpen(false)}
+      />
     </motion.div>
   )
 }

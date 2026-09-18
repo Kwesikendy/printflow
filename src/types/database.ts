@@ -43,6 +43,16 @@ export interface ProductType {
   created_at: string
 }
 
+export type UnitRates = Partial<Record<DimensionUnit, number>>
+
+export interface ProductPricingScheme {
+  walk_in?: UnitRates
+  marketing?: UnitRates
+  default_unit?: DimensionUnit
+}
+
+export type UnitPricingConfig = Record<string, ProductPricingScheme>
+
 export interface PricingRule {
   id: string
   tenant_id: string

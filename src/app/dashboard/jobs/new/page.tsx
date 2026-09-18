@@ -1,15 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { NewJobForm } from '@/components/jobs/NewJobForm'
-import { redirect } from 'next/navigation'
 import { PageLoader } from '@/components/ui/EmptyState'
+import { getTenantUnitPricing } from '@/lib/pricing-server'
 
 export default async function NewJobPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: productTypes }, { data: pricingRules }, { data: standardSizes }] = await Promise.all([
-    supabase.from('product_types').select('*').eq('is_active', true),
+  let tenantId = '00000000-0000-0000-0000-000000000001'
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single() as { data: { tenant_id: string } | null, error: any }
+    if (profile?.tenant_id) tenantId = profile.tenant_id
+  }
+
+  const [{ data: productTypes }, { data: pricingRules }, { data: standardSizes }, unitPricingConfig] = await Promise.all([
+    supabase.from('product_types').select('*').eq('is_active', true).order('name'),
     supabase.from('pricing_rules').select('*'),
-    supabase.from('standard_sizes').select('*')
+    supabase.from('standard_sizes').select('*'),
+    getTenantUnitPricing(tenantId)
   ])
 
   if (!productTypes || !pricingRules || !standardSizes) {
@@ -27,6 +35,7 @@ export default async function NewJobPage() {
         productTypes={productTypes} 
         pricingRules={pricingRules} 
         standardSizes={standardSizes} 
+        unitPricingConfig={unitPricingConfig}
       />
     </div>
   )

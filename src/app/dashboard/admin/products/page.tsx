@@ -1,74 +1,54 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
-import { formatCurrency } from '@/lib/utils'
-import { AddProductTypeForm, ToggleProductTypeButton, AddPricingRuleForm, PricingRuleRow } from '@/components/admin/ProductForms'
+import { 
+  ProductsSection,
+  PricingRulesSection
+} from '@/components/admin/ProductForms'
+import { getTenantUnitPricing } from '@/lib/pricing-server'
+
 export default async function AdminProductsPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: productTypes } = await supabase
-    .from('product_types')
-    .select('*')
-    .order('name')
+  let tenantId = '00000000-0000-0000-0000-000000000001'
+  if (user) {
+    const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single() as { data: { tenant_id: string } | null, error: any }
+    if (profile?.tenant_id) tenantId = profile.tenant_id
+  }
 
-  const { data: pricingRules } = await supabase
-    .from('pricing_rules')
-    .select('*, product_types(name)')
+  const [{ data: productTypes }, { data: pricingRules }, unitPricingConfig] = await Promise.all([
+    supabase.from('product_types').select('*').order('name'),
+    supabase.from('pricing_rules').select('*, product_types(name)'),
+    getTenantUnitPricing(tenantId)
+  ])
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader 
-          title="Product Types" 
-          description="Manage the types of items you print (e.g., Flyer, Banner)." 
+          title="Products & Pricing Schemes" 
+          description="Manage all product types and their customized pricing schemes across measurement units (ft, in, cm, m). You have full rights to edit names, statuses, custom rates, or delete products at will." 
         />
         <CardContent>
-          <div className="table-container">
-            <table className="table-standard">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {productTypes?.map((pt: any) => (
-                  <tr key={pt.id}>
-                    <td className="font-medium text-slate-900">{pt.name}</td>
-                    <td>
-                      <ToggleProductTypeButton product={pt} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <AddProductTypeForm />
+          <ProductsSection
+            productTypes={productTypes || []}
+            pricingRules={pricingRules || []}
+            unitPricingConfig={unitPricingConfig}
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader 
-          title="Pricing Rules" 
-          description="Unit costs per square area for each product and source combination." 
+          title="Active Pricing Rules" 
+          description="Unit pricing rules per square area for each product and customer source (walk-in vs marketing). Search and filter rules by product name, source, or unit rate." 
         />
         <CardContent>
-          <div className="table-container">
-            <table className="table-standard">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Source</th>
-                  <th className="text-right">Unit Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pricingRules?.map((rule: any) => (
-                  <PricingRuleRow key={rule.id} rule={rule} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <AddPricingRuleForm productTypes={productTypes || []} />
+          <PricingRulesSection
+            pricingRules={pricingRules || []}
+            productTypes={productTypes || []}
+            unitPricingConfig={unitPricingConfig}
+          />
         </CardContent>
       </Card>
     </div>
