@@ -11,9 +11,10 @@ import { cn, formatCurrency } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
-  ChevronDown, User, Search
+  ChevronDown, User, Search, Lock, ShieldCheck
 } from 'lucide-react'
-import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig } from '@/types/database'
+import { useSession } from '@/contexts/SessionContext'
+import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role } from '@/types/database'
 import { resolveUnitRate, UNIT_SHORT_LABELS } from '@/lib/pricing'
 
 interface NewJobFormProps {
@@ -21,6 +22,7 @@ interface NewJobFormProps {
   pricingRules: PricingRule[]
   standardSizes: StandardSize[]
   unitPricingConfig?: UnitPricingConfig
+  userRole?: Role
 }
 
 const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
@@ -194,6 +196,7 @@ function LineItemCard({
   standardSizes,
   unitPricingConfig,
   source,
+  isAdmin,
   onUpdate,
   onRemove,
 }: {
@@ -205,6 +208,7 @@ function LineItemCard({
   standardSizes: StandardSize[]
   unitPricingConfig?: UnitPricingConfig
   source: JobSource
+  isAdmin: boolean
   onUpdate: (id: string, updates: Partial<LineItemState>) => void
   onRemove: (id: string) => void
 }) {
@@ -391,16 +395,41 @@ function LineItemCard({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between">
+              <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between items-center">
                 <span>Unit Cost (₵ per {UNIT_SHORT_LABELS[effectiveUnit]})</span>
-                <span className="text-xs text-indigo-500 font-normal">Editable</span>
+                {isAdmin ? (
+                  <span className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Admin Override
+                  </span>
+                ) : (
+                  <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-slate-400" /> Fixed Price
+                  </span>
+                )}
               </label>
-              <input
-                type="number" step="0.0001" min="0.0001"
-                className="input-standard bg-white border-indigo-200 focus:ring-indigo-500 h-12 shadow-sm font-medium text-indigo-900"
-                value={item.manualUnitCost}
-                onChange={e => u({ manualUnitCost: e.target.value })}
-              />
+              {isAdmin ? (
+                <input
+                  type="number" step="0.0001" min="0.0001"
+                  className="input-standard bg-white border-indigo-200 focus:ring-indigo-500 h-12 shadow-sm font-medium text-indigo-900"
+                  value={item.manualUnitCost}
+                  onChange={e => u({ manualUnitCost: e.target.value })}
+                  placeholder="0.00"
+                />
+              ) : (
+                <div className="relative">
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    tabIndex={-1}
+                    aria-readonly="true"
+                    className="input-standard bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed select-none font-semibold h-12 pl-3 pr-9 shadow-none"
+                    value={item.manualUnitCost ? `${item.manualUnitCost}` : 'No price set'}
+                    title="Product unit price is fixed and can only be modified by an administrator."
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -447,10 +476,15 @@ export function NewJobForm({
   productTypes,
   pricingRules,
   standardSizes,
-  unitPricingConfig
+  unitPricingConfig,
+  userRole
 }: NewJobFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const { session } = useSession()
+
+  const activeRole: Role = userRole || session?.profile?.role || 'front_desk'
+  const isAdmin = activeRole === 'admin'
 
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -500,7 +534,14 @@ export function NewJobForm({
         ? (standardSizes.find(s => s.id === it.standardSizeId)?.height || 0)
         : parseFloat(it.height) || 0
       if (w <= 0 || h <= 0) { toast.error(`Job ${i + 1}: Dimensions must be greater than 0`); return }
-      if ((parseFloat(it.manualUnitCost) || 0) <= 0) { toast.error(`Job ${i + 1}: Unit cost must be greater than 0`); return }
+      if ((parseFloat(it.manualUnitCost) || 0) <= 0) {
+        if (!isAdmin) {
+          toast.error(`Job ${i + 1}: Product has no configured price. Please contact an admin to set the product price.`)
+        } else {
+          toast.error(`Job ${i + 1}: Unit cost must be greater than 0`)
+        }
+        return
+      }
     }
 
     const jobItems: JobItem[] = items.map(it => ({
@@ -602,6 +643,7 @@ export function NewJobForm({
                 standardSizes={standardSizes}
                 unitPricingConfig={unitPricingConfig}
                 source={source}
+                isAdmin={isAdmin}
                 onUpdate={updateItem}
                 onRemove={removeItem}
               />

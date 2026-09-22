@@ -1,24 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { RealtimeProvider } from '@/contexts/RealtimeContext'
 import { Menu } from 'lucide-react'
 import { useSession } from '@/contexts/SessionContext'
+import { canAccessRoute, getDefaultDashboardPath } from '@/lib/utils'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { session, loading } = useSession()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!loading && !session) {
       router.replace('/login')
+    } else if (!loading && session) {
+      if (!canAccessRoute(session.profile.role, pathname)) {
+        router.replace(getDefaultDashboardPath(session.profile.role))
+      }
     }
-  }, [loading, session, router])
+  }, [loading, session, router, pathname])
 
-  if (loading || !session) {
+  if (loading || !session || !canAccessRoute(session.profile.role, pathname)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>

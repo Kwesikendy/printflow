@@ -3,7 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit } from '@/types/database'
-import { toCmRate } from '@/lib/pricing'
+import { toCmRate, resolveUnitRate } from '@/lib/pricing'
+import { getTenantUnitPricing } from '@/lib/pricing-server'
 
 export type ActionResponse = {
   error?: string
@@ -61,8 +62,8 @@ export async function createJobGroupAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
-  const profile = profileData as Pick<Profile, 'tenant_id'> | null
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
   if (!profile) return { error: 'Profile not found' }
 
   // Upload all artworks in parallel
@@ -79,17 +80,57 @@ export async function createJobGroupAction(
     return { error: err.message }
   }
 
+  // If user is not an admin, strictly enforce configured catalog pricing
+  let pricingRules: any[] = []
+  let unitPricingConfig: any = null
+  if (profile.role !== 'admin') {
+    const [{ data: rulesData }, configData] = await Promise.all([
+      supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id),
+      getTenantUnitPricing(profile.tenant_id)
+    ])
+    pricingRules = (rulesData as any[]) || []
+    unitPricingConfig = configData
+  }
+
   // Build items payload with converted cm dimensions and normalized cm² unit cost
-  const itemsPayload = items.map((item, i) => ({
-    product_type_id: item.productTypeId,
-    width: toCm(item.width, item.dimensionUnit),
-    height: toCm(item.height, item.dimensionUnit),
-    dimension_unit: item.dimensionUnit,
-    quantity: item.quantity,
-    unit_cost: toCmRate(item.unitCost, item.dimensionUnit),
-    notes: item.notes || null,
-    artwork_url: artworkUrls[i] || null,
-  }))
+  let itemsPayload: any[] = []
+  try {
+    itemsPayload = items.map((item, i) => {
+      let effectiveUnitCost = item.unitCost
+
+      if (profile.role !== 'admin') {
+        const activeRule = pricingRules.find(r => r.product_type_id === item.productTypeId && r.source === source)
+        const resolvedRate = resolveUnitRate(
+          unitPricingConfig,
+          item.productTypeId,
+          source,
+          item.dimensionUnit,
+          activeRule?.unit_cost
+        )
+        if (!resolvedRate || resolvedRate <= 0) {
+          throw new Error('One or more products have no configured price. Only administrators can specify custom prices.')
+        }
+        effectiveUnitCost = resolvedRate
+      } else {
+        if (!effectiveUnitCost || effectiveUnitCost <= 0) {
+          throw new Error('Unit cost must be greater than 0 for all items.')
+        }
+      }
+
+      return {
+        product_type_id: item.productTypeId,
+        width: toCm(item.width, item.dimensionUnit),
+        height: toCm(item.height, item.dimensionUnit),
+        dimension_unit: item.dimensionUnit,
+        quantity: item.quantity,
+        unit_cost: toCmRate(effectiveUnitCost, item.dimensionUnit),
+        notes: item.notes || null,
+        artwork_url: artworkUrls[i] || null,
+      }
+    })
+  } catch (err: any) {
+    return { error: err.message }
+  }
 
   const { data, error } = await supabase.rpc('create_job_group', {
     p_customer_name: customerName,
@@ -134,28 +175,50 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
   const width = parseFloat(formData.get('width') as string)
   const height = parseFloat(formData.get('height') as string)
   const quantity = parseInt(formData.get('quantity') as string, 10)
-  const unitCost = parseFloat(formData.get('unitCost') as string)
+  let unitCost = parseFloat(formData.get('unitCost') as string)
   const notes = formData.get('notes') as string
   const artworkFile = formData.get('artwork') as File | null
 
-  if (!customerName || !productTypeId || !source || isNaN(width) || isNaN(height) || isNaN(quantity) || isNaN(unitCost)) {
+  if (!customerName || !productTypeId || !source || isNaN(width) || isNaN(height) || isNaN(quantity)) {
     return { error: 'Missing required fields or invalid numbers' }
+  }
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
+  const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
+  if (!profile) return { error: 'Profile not found' }
+
+  // If user is not admin, enforce official pricing
+  if (profile.role !== 'admin') {
+    const [{ data: rulesData }, unitPricingConfig] = await Promise.all([
+      supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id).eq('product_type_id', productTypeId).eq('source', source),
+      getTenantUnitPricing(profile.tenant_id)
+    ])
+    const activeRule = (rulesData as any)?.[0]
+    const resolvedRate = resolveUnitRate(
+      unitPricingConfig,
+      productTypeId,
+      source,
+      'cm',
+      activeRule?.unit_cost
+    )
+    if (!resolvedRate || resolvedRate <= 0) {
+      return { error: 'Product has no configured price. Only administrators can specify custom prices.' }
+    }
+    unitCost = resolvedRate
+  } else if (isNaN(unitCost) || unitCost <= 0) {
+    return { error: 'Unit cost must be greater than 0' }
   }
   
   let artworkUrl: string | null = null
 
   if (artworkFile && artworkFile.size > 0) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
-      const profile = profileData as Pick<Profile, 'tenant_id'> | null
-      if (profile) {
-        try {
-          artworkUrl = await uploadArtwork(supabase, profile.tenant_id, artworkFile)
-        } catch (err: any) {
-          return { error: err.message }
-        }
-      }
+    try {
+      artworkUrl = await uploadArtwork(supabase, profile.tenant_id, artworkFile)
+    } catch (err: any) {
+      return { error: err.message }
     }
   }
 

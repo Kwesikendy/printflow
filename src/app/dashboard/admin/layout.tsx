@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Package, Users, Settings } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useSession } from '@/contexts/SessionContext'
 
 const adminTabs = [
   { name: 'Overview', href: '/dashboard/admin', icon: LayoutDashboard },
@@ -14,6 +15,11 @@ const adminTabs = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const { session } = useSession()
+
+  if (session && session.profile.role !== 'admin') {
+    return null
+  }
 
   return (
     <div>
