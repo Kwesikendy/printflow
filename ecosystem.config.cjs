@@ -1,9 +1,11 @@
+const path = require('path');
+
 module.exports = {
   apps: [
     {
       name: "printflow",
-      script: "server.js",
-      cwd: "./",
+      script: path.resolve(__dirname, "server.js"),
+      cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
       autorestart: true,
