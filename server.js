@@ -1,15 +1,18 @@
-const { spawn } = require('child_process');
-const path = require('path');
+const { nextStart } = require('next/dist/cli/next-start');
 
-const nextBin = path.resolve(__dirname, 'node_modules', 'next', 'dist', 'bin', 'next');
-const port = process.env.PORT || '3000';
+const port = parseInt(process.env.PORT || '3000', 10);
+const hostname = process.env.HOSTNAME || '0.0.0.0';
 
-const child = spawn('node', [nextBin, 'start', '-H', '0.0.0.0', '-p', port], {
-  stdio: 'inherit',
-  env: process.env,
-  cwd: __dirname,
+process.title = 'printflow';
+
+nextStart(
+  {
+    port,
+    hostname,
+  },
+  __dirname
+).catch((err) => {
+  console.error('Fatal Next.js startup error:', err);
+  process.exit(1);
 });
 
-child.on('exit', (code) => {
-  process.exit(code || 0);
-});
