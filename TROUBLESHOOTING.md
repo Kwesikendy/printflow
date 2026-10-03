@@ -135,25 +135,21 @@ On Linux, `./node_modules/next/dist/bin/next` has a shebang `#!/usr/bin/env node
 On **Windows**, there is no native shebang handler, and files without extensions cannot be spawned as native executables by PM2 fork mode.
 
 ### Resolution
-We created `server.js` in the project root:
+We created `server.js` in the project root using Next's programmatic start runner (in-process, eliminating child process orphans and Windows `.cmd` quirks):
 ```javascript
-const { spawn } = require('child_process');
-const path = require('path');
+const { nextStart } = require('next/dist/cli/next-start');
 
-const nextBin = path.resolve(__dirname, 'node_modules', 'next', 'dist', 'bin', 'next');
-const port = process.env.PORT || '3000';
+const port = parseInt(process.env.PORT || '3000', 10);
+const hostname = process.env.HOSTNAME || '0.0.0.0';
 
-const child = spawn(process.execPath, [nextBin, 'start', '-p', port], {
-  stdio: 'inherit',
-  env: process.env,
-  cwd: __dirname,
-});
+process.title = 'printflow';
 
-child.on('exit', (code) => {
-  process.exit(code || 0);
+nextStart({ port, hostname }, __dirname).catch((err) => {
+  console.error('Fatal Next.js startup error:', err);
+  process.exit(1);
 });
 ```
-And configured PM2 to launch `server.js`, which Node executes natively across all platforms.
+And configured PM2 to launch `server.js`, which Node executes natively in-process.
 
 ---
 
