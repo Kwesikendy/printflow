@@ -171,8 +171,11 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
                 </div>
 
                 <div className="flex flex-row md:flex-col gap-3 min-w-[160px]">
-                  <Link href={`/dashboard/jobs/${job.id}`} className="flex-1 md:flex-none">
-                    <Button variant="outline" className="w-full">Details</Button>
+                  <Link 
+                    href={`/dashboard/jobs/${job.id}`} 
+                    className="flex-1 md:flex-none btn btn-outline border border-indigo-500/50 text-indigo-600 hover:bg-indigo-50 text-sm px-4 py-2 text-center"
+                  >
+                    Details
                   </Link>
                   
                   {job.status === 'paid_released' && (

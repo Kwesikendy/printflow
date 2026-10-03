@@ -121,7 +121,7 @@ export const AREA_UNIT_LABELS = {
 export function canAccessRoute(role: Role, pathname: string): boolean {
   if (role === 'admin') return true
 
-  const printerRoutes = ['/dashboard/queue']
+  const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
   const accountantRoutes = ['/dashboard/finance']
   const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
 
