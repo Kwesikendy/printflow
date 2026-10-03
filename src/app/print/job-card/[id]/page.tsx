@@ -84,19 +84,6 @@ export default async function JobCardPrintPage(props: {
           )}
         </div>
 
-        {/* Paid / Unpaid status */}
-        <div className="text-center mb-3">
-          {isPaid ? (
-            <span className="inline-flex items-center gap-1 text-green-700 font-bold text-[12px] uppercase tracking-wide">
-              PAID IN FULL
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-red-600 font-bold text-[12px] uppercase tracking-wide">
-              PAYMENT PENDING
-            </span>
-          )}
-        </div>
-
         <div className="border-t border-dashed border-gray-400 my-3" />
 
         {/* Customer Info */}
@@ -131,7 +118,6 @@ export default async function JobCardPrintPage(props: {
             <tr className="border-b border-dashed border-gray-400">
               <th className="text-left pb-1 font-bold">Item</th>
               <th className="text-center pb-1 font-bold">Qty</th>
-              <th className="text-right pb-1 font-bold">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -145,47 +131,12 @@ export default async function JobCardPrintPage(props: {
                   <p className="text-gray-500 text-[10px] italic">{job.notes}</p>
                 )}
               </td>
-              <td className="py-2 text-center">{job.quantity}</td>
-              <td className="py-2 text-right font-semibold">GHS {Number(job.line_total).toFixed(2)}</td>
+              <td className="py-2 text-center font-bold text-[14px]">{job.quantity}</td>
             </tr>
           </tbody>
         </table>
 
-        {/* Totals */}
-        <div className="text-[11px] space-y-1 mb-2">
-          <div className="flex justify-between">
-            <span>Subtotal:</span>
-            <span>GHS {Number(job.line_total).toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between font-bold text-[12px]">
-            <span>Total:</span>
-            <span>GHS {Number(invoice?.total || job.line_total).toFixed(2)}</span>
-          </div>
-          {paymentMethod && (
-            <div className="flex justify-between text-gray-600">
-              <span>Payment Method:</span>
-              <span>{methodLabel[paymentMethod] || paymentMethod}</span>
-            </div>
-          )}
-        </div>
 
-        <div className="border-t border-dashed border-gray-400 my-2" />
-
-        {/* Paid summary */}
-        <div className="text-center text-[11px] mb-3">
-          {isPaid ? (
-            <>
-              <p className="text-green-700 font-bold">Fully Paid: GHS {Number(totalPaid || invoice?.total || job.line_total).toFixed(2)}</p>
-              <p className="text-green-600 text-[10px]">Paid in Full</p>
-            </>
-          ) : (
-            <>
-              <p className="text-orange-600 font-bold">
-                Balance Due: GHS {Number((invoice?.total || job.line_total) - totalPaid).toFixed(2)}
-              </p>
-            </>
-          )}
-        </div>
 
       </div>
 
