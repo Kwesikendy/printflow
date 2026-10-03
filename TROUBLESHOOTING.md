@@ -82,29 +82,49 @@ pm2 save
 
 ---
 
-## 4. VPS Issue: Port Collision (`EADDRINUSE: address already in use :::3000`)
+## 4. VPS Issue: Port Collision (`EADDRINUSE` or `EACCES: permission denied 0.0.0.0:3000`)
 
 ### Symptom
-In PM2 logs (`pm2 logs printflow --lines 25 --nostream`):
+When starting Next.js or inspecting PM2 logs:
+```text
+Error: listen EACCES: permission denied 0.0.0.0:3000
+  code: 'EACCES',
+  errno: -4092,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+```
+or
 ```text
 Error: listen EADDRINUSE: address already in use :::3000
-  code: 'EADDRINUSE',
-  errno: -4091,
-  syscall: 'listen'
 ```
 
 ### Root Causes
-1. **Orphan Node Process**: A previous crashed, detached, or manual Node server is still holding port 3000 in the background.
-2. **PM2 `cluster` Mode**: In `cluster` mode (`instances: 'max'` or multiple instances), Next.js workers attempt to bind directly to the same port 3000 simultaneously without a reverse load balancer.
+1. **Orphan Process with Exclusive Socket Access**: On Windows, when an existing process holds port 3000 with `SO_EXCLUSIVEADDRUSE`, any subsequent bind attempt fails with `WSAEACCES` (10013) which translates to `EACCES: permission denied`, NOT `EADDRINUSE`.
+2. **PM2 `cluster` Mode**: In `cluster` mode (`instances: 'max'`), multiple Next.js workers attempt to bind directly to the same port.
 
 ### Resolution
-1. **Force Fork Mode**: Ensure `ecosystem.config.cjs` uses `instances: 1` and `exec_mode: "fork"`:
+1. **Identify and kill the process holding port 3000**:
+   ```powershell
+   # Find the holding PID
+   netstat -ano | findstr :3000
+
+   # Force terminate the holding PID (e.g., PID 9052)
+   taskkill /F /PID <PID>
+
+   # Alternatively, terminate all processes on port 3000
+   $ports = (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique
+   if ($ports) { $ports | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue } }
+   ```
+2. **Ensure `ecosystem.config.cjs` uses `fork` mode and absolute paths**:
    ```javascript
+   const path = require('path');
    module.exports = {
      apps: [
        {
          name: "printflow",
-         script: "server.js",
+         script: path.resolve(__dirname, "server.js"),
+         cwd: __dirname,
          instances: 1,
          exec_mode: "fork",
          env: {
@@ -114,13 +134,6 @@ Error: listen EADDRINUSE: address already in use :::3000
        }
      ]
    };
-   ```
-2. **Kill any process holding port 3000**:
-   ```powershell
-   $ports = (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique
-   if ($ports) {
-       $ports | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-   }
    ```
 
 ---
