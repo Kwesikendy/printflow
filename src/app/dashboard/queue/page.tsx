@@ -5,14 +5,30 @@ import { PageLoader } from '@/components/ui/EmptyState'
 export default async function PrintQueuePage() {
   const supabase = await createClient()
 
-  // Fetch 'paid_released' and 'in_production' jobs
-  const { data: jobs } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return <PageLoader />
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, print_room')
+    .eq('id', user.id)
+    .single() as { data: { role: string, print_room: string | null } | null, error: any }
+
+  let jobsQuery = supabase
     .from('jobs')
     .select(`
       *,
       product_types(name)
     `)
     .in('status', ['paid_released', 'in_production'])
+
+  // Filter jobs by print room if user is a printer assigned to a specific room
+  // Unassigned jobs (print_room is null) are visible to all printers
+  if (profile?.role === 'printer' && profile.print_room) {
+    jobsQuery = jobsQuery.or(`print_room.eq.${profile.print_room},print_room.is.null`)
+  }
+
+  const { data: jobs } = await jobsQuery
     // Order in_production first, then by updated_at ascending (oldest first)
     .order('status', { ascending: false }) // 'paid_released' > 'in_production' alphabetically, so descending puts in_production first
     .order('updated_at', { ascending: true })

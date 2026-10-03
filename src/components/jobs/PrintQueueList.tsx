@@ -12,7 +12,7 @@ import type { Job } from '@/types/database'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn, PRINT_ROOM_LABELS } from '@/lib/utils'
 
 export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
@@ -141,6 +141,11 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-bold text-slate-900">{job.job_number}</h3>
                     <StatusBadge status={job.status} />
+                    {job.print_room && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 text-xs font-semibold text-slate-600 border border-slate-200">
+                        {PRINT_ROOM_LABELS[job.print_room] || job.print_room}
+                      </span>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">

@@ -76,6 +76,14 @@ export const SOURCE_LABELS = {
 } as const
 
 // ============================================================
+// Print Room Labels
+// ============================================================
+export const PRINT_ROOM_LABELS: Record<string, string> = {
+  room_1: 'Print Room 1',
+  room_2: 'Print Room 2',
+}
+
+// ============================================================
 // Date Formatting
 // ============================================================
 export function formatDate(date: string | Date): string {
@@ -89,12 +97,15 @@ export function formatDate(date: string | Date): string {
 
 export function formatDateTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  return d.toLocaleString('en-GH', {
-    day: 'numeric',
+  // Ghana is UTC+0 (GMT) year-round — no DST
+  return d.toLocaleString('en-GB', {
+    timeZone: 'Africa/Accra',
+    day: '2-digit',
     month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   })
 }
 

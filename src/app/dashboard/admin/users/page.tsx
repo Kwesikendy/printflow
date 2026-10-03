@@ -6,9 +6,11 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { ROLE_LABELS } from '@/lib/utils'
 import { UserCircle, Mail, Trash2 } from 'lucide-react'
 import { InviteUserModal } from '@/components/admin/InviteUserModal'
-import { deleteUser } from '@/app/actions/users'
+import { deleteUser, updateUserPrintRoom } from '@/app/actions/users'
 import { toast } from 'sonner'
 import { useSession } from '@/contexts/SessionContext'
+import { PRINT_ROOM_LABELS } from '@/lib/utils'
+import type { PrintRoom } from '@/types/database'
 
 export default function AdminUsersPage() {
   const { session } = useSession()
@@ -39,6 +41,21 @@ export default function AdminUsersPage() {
     })
   }
 
+  const handlePrintRoomChange = (userId: string, newRoom: PrintRoom | null) => {
+    startTransition(async () => {
+      // Optimistic update
+      setProfiles(prev => prev.map(p => p.id === userId ? { ...p, print_room: newRoom } : p))
+      
+      const res = await updateUserPrintRoom(userId, newRoom)
+      if (res.error) {
+        toast.error(res.error)
+        await fetchProfiles() // revert
+      } else {
+        toast.success('Print room assignment updated')
+      }
+    })
+  }
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -57,7 +74,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <th className="pl-6">Name</th>
                   <th>Email</th>
-                  <th>Role</th>
+                  <th>Role & Assignment</th>
                   <th>Status</th>
                   <th className="text-right pr-6">Actions</th>
                 </tr>
@@ -83,9 +100,24 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td>
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-100/80">
-                        {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS]}
-                      </span>
+                      <div className="flex flex-col gap-2 items-start">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-100/80">
+                          {ROLE_LABELS[user.role as keyof typeof ROLE_LABELS]}
+                        </span>
+                        {user.role === 'printer' && (
+                          <select
+                            className="text-xs border-slate-200 rounded-md py-1 px-2 pr-6 bg-slate-50 focus:ring-1 focus:ring-indigo-500"
+                            value={user.print_room || ''}
+                            onChange={(e) => handlePrintRoomChange(user.id, (e.target.value as PrintRoom) || null)}
+                            disabled={isPending}
+                          >
+                            <option value="">Unassigned Room</option>
+                            {Object.entries(PRINT_ROOM_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>{String(label)}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold ${user.is_active ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/80' : 'bg-red-50 text-red-700 border border-red-100/80'}`}>

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit } from '@/types/database'
+import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom } from '@/types/database'
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 
@@ -21,6 +21,7 @@ export interface JobItem {
   unitCost: number
   notes?: string
   artworkFile?: File | null
+  printRoom?: PrintRoom | null
 }
 
 // Convert any dimension unit to cm before storing
@@ -126,6 +127,7 @@ export async function createJobGroupAction(
         unit_cost: toCmRate(effectiveUnitCost, item.dimensionUnit),
         notes: item.notes || null,
         artwork_url: artworkUrls[i] || null,
+        print_room: item.printRoom || null,
       }
     })
   } catch (err: any) {

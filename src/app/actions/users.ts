@@ -2,7 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { Role } from '@/types/database'
+import type { Role, PrintRoom } from '@/types/database'
 
 export interface CreateUserResult {
   success?: boolean
@@ -13,6 +13,7 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
   const email = formData.get('email') as string
   const fullName = formData.get('full_name') as string
   const role = formData.get('role') as Role
+  const printRoom = formData.get('print_room') as string | null
 
   if (!email || !fullName || !role) {
     return { error: 'All fields are required.' }
@@ -56,6 +57,7 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
       full_name: fullName,
       email,
       is_active: true,
+      print_room: role === 'printer' && printRoom ? printRoom : null,
     } as any)
 
   if (profileError) {
@@ -93,6 +95,35 @@ export async function deleteUser(userId: string): Promise<CreateUserResult> {
 
   // Also delete profile explicitly (in case no cascade)
   await supabaseAdmin.from('profiles').delete().eq('id', userId)
+
+  revalidatePath('/dashboard/admin/users')
+  return { success: true }
+}
+
+export async function updateUserPrintRoom(userId: string, printRoom: PrintRoom | null): Promise<CreateUserResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: callerProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single() as { data: { role: string } | null, error: any }
+
+  if (!callerProfile || callerProfile.role !== 'admin') {
+    return { error: 'Only admins can update user settings.' }
+  }
+
+  const supabaseAdmin = createServiceClient()
+
+  const { error } = await (supabaseAdmin.from('profiles') as any)
+    .update({ print_room: printRoom })
+    .eq('id', userId)
+
+  if (error) {
+    return { error: `Failed to update user: ${error.message}` }
+  }
 
   revalidatePath('/dashboard/admin/users')
   return { success: true }

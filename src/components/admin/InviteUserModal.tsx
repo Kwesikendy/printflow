@@ -8,7 +8,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { createUser } from '@/app/actions/users'
 import { toast } from 'sonner'
 import { X, UserPlus, Mail, User, Shield } from 'lucide-react'
-import { ROLE_LABELS } from '@/lib/utils'
+import { ROLE_LABELS, PRINT_ROOM_LABELS } from '@/lib/utils'
+import { Printer } from 'lucide-react'
 
 interface InviteUserModalProps {
   onSuccess?: () => void
@@ -21,6 +22,7 @@ export function InviteUserModal({ onSuccess }: InviteUserModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [selectedRole, setSelectedRole] = useState<string>(ROLES[0])
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -139,6 +141,8 @@ export function InviteUserModal({ onSuccess }: InviteUserModalProps) {
                           id="role"
                           name="role"
                           required
+                          value={selectedRole}
+                          onChange={(e) => setSelectedRole(e.target.value)}
                           className="input-standard pl-10 appearance-none"
                         >
                           {ROLES.map(role => (
@@ -149,6 +153,27 @@ export function InviteUserModal({ onSuccess }: InviteUserModalProps) {
                         </select>
                       </div>
                     </div>
+
+                    {selectedRole === 'printer' && (
+                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                        <label htmlFor="print_room" className="block text-sm font-medium text-slate-700 mb-1.5">
+                          Print Room Assignment
+                        </label>
+                        <div className="relative">
+                          <Printer className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                          <select
+                            id="print_room"
+                            name="print_room"
+                            className="input-standard pl-10 appearance-none"
+                          >
+                            <option value="">Unassigned Room</option>
+                            {Object.entries(PRINT_ROOM_LABELS).map(([key, label]) => (
+                              <option key={key} value={key}>{String(label)}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </motion.div>
+                    )}
 
                     <div className="pt-2 flex gap-3">
                       <Button

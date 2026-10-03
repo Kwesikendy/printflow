@@ -12,6 +12,7 @@ export type JobStatus =
   | 'cancelled'
 export type PaymentMethod = 'momo' | 'cash' | 'other'
 export type JobSource = 'walk_in' | 'marketing'
+export type PrintRoom = 'room_1' | 'room_2'
 export type InvoiceStatus = 'unpaid' | 'partial' | 'paid'
 export type AreaUnit = 'cm2' | 'm2' | 'in2'
 export type DimensionUnit = 'cm' | 'm' | 'ft' | 'in'
@@ -32,6 +33,7 @@ export interface Profile {
   full_name: string
   email: string
   is_active: boolean
+  print_room: PrintRoom | null
   created_at: string
 }
 
@@ -102,6 +104,7 @@ export interface Job {
   notes: string | null
   artwork_url: string | null
   dimension_unit: DimensionUnit
+  print_room: PrintRoom | null
   status: JobStatus
   pickup_name: string | null
   pickup_phone: string | null

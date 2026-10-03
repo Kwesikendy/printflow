@@ -7,14 +7,14 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { createJobGroupAction, type JobItem } from '@/app/actions/jobs'
 import { searchCustomers, type CustomerSuggestion } from '@/app/actions/customers'
 import { toast } from 'sonner'
-import { cn, formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
   ChevronDown, User, Search, Lock, ShieldCheck
 } from 'lucide-react'
 import { useSession } from '@/contexts/SessionContext'
-import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role } from '@/types/database'
+import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role, PrintRoom } from '@/types/database'
 import { resolveUnitRate, UNIT_SHORT_LABELS } from '@/lib/pricing'
 
 interface NewJobFormProps {
@@ -76,6 +76,7 @@ interface LineItemState {
   notes: string
   artworkFile: File | null
   artworkName: string
+  printRoom: PrintRoom | null
 }
 
 function createLineItem(productTypes: ProductType[]): LineItemState {
@@ -92,6 +93,7 @@ function createLineItem(productTypes: ProductType[]): LineItemState {
     notes: '',
     artworkFile: null,
     artworkName: '',
+    printRoom: null,
   }
 }
 
@@ -455,16 +457,31 @@ function LineItemCard({
             </label>
           </div>
 
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
-            <textarea
-              rows={2}
-              className="input-standard bg-slate-50 resize-none"
-              placeholder="Special requirements..."
-              value={item.notes}
-              onChange={e => u({ notes: e.target.value })}
-            />
+          {/* Notes and Print Room */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Notes (Optional)</label>
+              <textarea
+                rows={2}
+                className="input-standard bg-slate-50 resize-none"
+                placeholder="Special requirements..."
+                value={item.notes}
+                onChange={e => u({ notes: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Print Room (Optional)</label>
+              <select
+                className="input-standard bg-slate-50 h-12"
+                value={item.printRoom || ''}
+                onChange={e => u({ printRoom: (e.target.value as PrintRoom) || null })}
+              >
+                <option value="">No specific room</option>
+                {Object.entries(PRINT_ROOM_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{String(label)}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -557,6 +574,7 @@ export function NewJobForm({
       unitCost: parseFloat(it.manualUnitCost) || 0,
       notes: it.notes || undefined,
       artworkFile: it.artworkFile,
+      printRoom: it.printRoom || null,
     }))
 
     startTransition(async () => {

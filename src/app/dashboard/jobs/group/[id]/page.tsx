@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react'
 
 export default async function JobGroupPage(props: { params: Promise<{ id: string }> }) {
@@ -67,7 +67,14 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     </div>
                     <div>
                       <p className="font-semibold text-slate-900">{job.product_types?.name}</p>
-                      <p className="text-xs text-slate-500 font-mono">{job.job_number}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-slate-500 font-mono">{job.job_number}</p>
+                        {job.print_room && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
+                            {PRINT_ROOM_LABELS[job.print_room] || job.print_room}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">

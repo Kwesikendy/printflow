@@ -2,7 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { formatCurrency, formatDateTime, SOURCE_LABELS, canCancelJob } from '@/lib/utils'
+import { formatCurrency, formatDateTime, SOURCE_LABELS, PRINT_ROOM_LABELS, canCancelJob } from '@/lib/utils'
 import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
@@ -109,6 +109,10 @@ export default async function JobDetailPage(props: {
                 <div>
                   <p className="text-xs text-slate-500 mb-1">Phone</p>
                   <p className="text-sm font-medium text-slate-900">{job.customer_phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Print Room</p>
+                  <p className="text-sm font-medium text-slate-900">{job.print_room ? PRINT_ROOM_LABELS[job.print_room] || job.print_room : 'Not specified'}</p>
                 </div>
               </div>
               

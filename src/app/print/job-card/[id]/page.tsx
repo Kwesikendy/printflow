@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { JobBarcode } from '@/components/print/JobBarcode'
 
 export default async function JobCardPrintPage(props: {
@@ -69,7 +69,7 @@ export default async function JobCardPrintPage(props: {
 
         <div className="border-t border-dashed border-gray-400 my-3" />
 
-        {/* Order Number */}
+        {/* Order Number & Print Room */}
         <div className="text-center mb-3">
           <p className="text-[10px] uppercase tracking-widest text-gray-500">Order Number</p>
           <div className="border-2 border-green-600 rounded-md inline-block px-6 py-1 mt-1">
@@ -77,6 +77,11 @@ export default async function JobCardPrintPage(props: {
               #{job.job_number}
             </p>
           </div>
+          {job.print_room && (
+            <p className="mt-2 font-bold text-[14px] uppercase tracking-wide">
+              {PRINT_ROOM_LABELS[job.print_room] || job.print_room}
+            </p>
+          )}
         </div>
 
         {/* Paid / Unpaid status */}
