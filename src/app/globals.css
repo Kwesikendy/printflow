@@ -232,3 +232,11 @@ body::before {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* === Print Utilities === */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
+
