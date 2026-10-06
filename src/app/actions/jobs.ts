@@ -120,11 +120,11 @@ export async function createJobGroupAction(
 
       return {
         product_type_id: item.productTypeId,
-        width: toCm(item.width, item.dimensionUnit),
-        height: toCm(item.height, item.dimensionUnit),
+        width: item.width,
+        height: item.height,
         dimension_unit: item.dimensionUnit,
         quantity: item.quantity,
-        unit_cost: toCmRate(effectiveUnitCost, item.dimensionUnit),
+        unit_cost: effectiveUnitCost,
         notes: item.notes || null,
         artwork_url: artworkUrls[i] || null,
         print_room: item.printRoom || null,

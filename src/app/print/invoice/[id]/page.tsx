@@ -67,7 +67,7 @@ Total: GHS ${invoice.total}
 Balance Due: GHS ${balance}`;
 
   return (
-    <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white">
+    <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">
       <AutoPrint />
       
       <div className="flex justify-center mb-6 relative">
@@ -115,17 +115,6 @@ Balance Due: GHS ${balance}`;
               <td className="py-1 px-2 text-center">{job.line_total.toFixed(2)}</td>
             </tr>
           ))}
-          {Array.from({ length: 8 }).map((_, i) => {
-            const rowIndex = jobsList.length + i;
-            return (
-              <tr key={`empty-${i}`} className={rowIndex % 2 === 0 ? "bg-[#e5e5e5]" : "bg-white"}>
-                <td className="py-3 px-2"></td>
-                <td className="py-3 px-2"></td>
-                <td className="py-3 px-2"></td>
-                <td className="py-3 px-2"></td>
-              </tr>
-            );
-          })}
         </tbody>
       </table>
 
@@ -164,7 +153,11 @@ Balance Due: GHS ${balance}`;
         </div>
       </div>
 
-      <div className="text-xs">
+      {/* Spacer to push everything below it to the bottom */}
+      <div className="flex-1"></div>
+
+      {/* Footer section: Payment details on the left */}
+      <div className="text-xs mt-8">
         <h3 className="font-bold text-[#ec008c] uppercase mb-2">PAYMENT DETAILS</h3>
         <table className="w-80">
           <tbody>

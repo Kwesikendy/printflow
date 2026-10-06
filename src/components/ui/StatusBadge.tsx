@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import confetti from 'canvas-confetti'
 import { type JobStatus } from '@/types/database'
 import { JOB_STATUS_LABELS } from '@/lib/utils'
 import { playSound } from '../../lib/sounds'
@@ -36,31 +35,6 @@ export function StatusBadge({ status }: { status: JobStatus }) {
     // Only trigger effects on mount if it's a "wow" status, or if status changes (needs prevStatus tracking for robust implementation, but this is simple)
     if (!hasMounted) {
       if (status === 'picked_up') {
-        // Pop confetti if a status badge mounts as picked_up
-        const duration = 2 * 1000;
-        const end = Date.now() + duration;
-
-        const frame = () => {
-          confetti({
-            particleCount: 2,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0 },
-            colors: ['#10b981', '#3b82f6']
-          });
-          confetti({
-            particleCount: 2,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1 },
-            colors: ['#10b981', '#3b82f6']
-          });
-
-          if (Date.now() < end) {
-            requestAnimationFrame(frame);
-          }
-        };
-        frame();
         playSound('success')
       } else if (status === 'paid_released') {
         playSound('pop')
