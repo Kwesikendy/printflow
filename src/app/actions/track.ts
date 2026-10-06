@@ -19,14 +19,17 @@ export async function markInvoiceJobsCompleted(invoiceId: string) {
 
   if (invoice.group_id) {
     // Update all jobs in the group to picked_up
-    await supabase.from('jobs').update({ status: 'picked_up' } as any).eq('group_id', invoice.group_id)
+    // @ts-ignore
+    await supabase.from('jobs').update({ status: 'picked_up' }).eq('group_id', invoice.group_id)
   } else if (invoice.jobs) {
     // Update single job
-    await supabase.from('jobs').update({ status: 'picked_up' } as any).eq('id', invoice.jobs.id)
+    // @ts-ignore
+    await supabase.from('jobs').update({ status: 'picked_up' }).eq('id', invoice.jobs.id)
   }
 
   // Also update invoice status
-  await supabase.from('invoices').update({ status: 'paid' } as any).eq('id', invoiceId)
+  // @ts-ignore
+  await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoiceId)
   
   revalidatePath(`/track/invoice/${invoiceId}`)
   revalidatePath('/dashboard/jobs')
