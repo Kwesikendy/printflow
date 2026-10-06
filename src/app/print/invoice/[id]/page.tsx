@@ -60,11 +60,8 @@ export default async function InvoicePrintPage(props: {
   const totalPaid = (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0)
   const balance = invoice.total - totalPaid
 
-  const qrData = `Invoice No: ${invoice.invoice_number}
-Customer: ${customerName}
-Date: ${formatDate(invoice.issued_at)}
-Total: GHS ${invoice.total}
-Balance Due: GHS ${balance}`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const qrData = `${siteUrl}/track/invoice/${invoice.id}`;
 
   return (
     <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">

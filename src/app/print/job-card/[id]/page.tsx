@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { JobBarcode } from '@/components/print/JobBarcode'
+import QRCode from 'react-qr-code'
 
 export default async function JobCardPrintPage(props: {
   params: Promise<{ id: string }>
@@ -124,6 +125,14 @@ export default async function JobCardPrintPage(props: {
         <div className="flex justify-center mb-2">
           <JobBarcode value={job.job_number} />
         </div>
+
+        {/* Tracking QR Code */}
+        {invoice && (
+          <div className="flex flex-col items-center justify-center mb-2">
+            <p className="text-[9px] text-gray-500 mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
+            <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={64} level="L" />
+          </div>
+        )}
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
