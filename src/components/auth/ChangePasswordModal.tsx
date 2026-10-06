@@ -35,10 +35,12 @@ export function ChangePasswordModal({ isOpen, onClose }: { isOpen: boolean, onCl
           <div className="mx-auto w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-4">
             <Key className="w-6 h-6" />
           </div>
-          <DialogTitle className="text-center text-xl">Change Your Password</DialogTitle>
-          <DialogDescription className="text-center">
-            Enter a new password for your account. It must be at least 6 characters long.
-          </DialogDescription>
+          <div className="text-center">
+            <DialogTitle>Change Your Password</DialogTitle>
+            <DialogDescription>
+              Enter a new password for your account. It must be at least 6 characters long.
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
