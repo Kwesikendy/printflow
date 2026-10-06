@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { createJobGroupAction, type JobItem } from '@/app/actions/jobs'
+import { createClient } from '@/lib/supabase/client'
 import { searchCustomers, type CustomerSuggestion } from '@/app/actions/customers'
 import { toast } from 'sonner'
 import { cn, formatCurrency, PRINT_ROOM_LABELS } from '@/lib/utils'
@@ -23,6 +24,7 @@ interface NewJobFormProps {
   standardSizes: StandardSize[]
   unitPricingConfig?: UnitPricingConfig
   userRole?: Role
+  tenantId: string
 }
 
 const DIMENSION_UNITS: { value: DimensionUnit; label: string }[] = [
@@ -494,7 +496,8 @@ export function NewJobForm({
   pricingRules,
   standardSizes,
   unitPricingConfig,
-  userRole
+  userRole,
+  tenantId
 }: NewJobFormProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -561,30 +564,57 @@ export function NewJobForm({
       }
     }
 
-    const jobItems: JobItem[] = items.map(it => ({
-      productTypeId: it.productTypeId,
-      width: it.useStandardSize && it.standardSizeId
-        ? (standardSizes.find(s => s.id === it.standardSizeId)?.width || 0)
-        : parseFloat(it.width) || 0,
-      height: it.useStandardSize && it.standardSizeId
-        ? (standardSizes.find(s => s.id === it.standardSizeId)?.height || 0)
-        : parseFloat(it.height) || 0,
-      dimensionUnit: it.useStandardSize ? 'cm' : it.dimensionUnit,
-      quantity: parseInt(it.quantity) || 1,
-      unitCost: parseFloat(it.manualUnitCost) || 0,
-      notes: it.notes || undefined,
-      artworkFile: it.artworkFile,
-      printRoom: it.printRoom || null,
-    }))
-
     startTransition(async () => {
-      const res = await createJobGroupAction(customerName, customerPhone || null, source, jobItems)
-      if (res.error) {
-        toast.error(res.error)
-      } else if (res.success && res.data) {
-        const itemCount = res.data.jobs?.length || 1
-        toast.success(`Order created! ${itemCount} job${itemCount > 1 ? 's' : ''} — Invoice ${res.data.invoice_number}`)
-        router.push(`/dashboard/jobs/group/${res.data.group_id}`)
+      try {
+        const supabase = createClient()
+        
+        // 1. Upload artworks directly from browser to bypass server size limits
+        const artworkUrls = await Promise.all(
+          items.map(async (it) => {
+            if (!it.artworkFile || it.artworkFile.size === 0) return null
+            
+            const fileExt = it.artworkFile.name.split('.').pop()
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+            const filePath = `${tenantId}/${fileName}`
+            
+            const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, it.artworkFile)
+            if (uploadError) throw new Error(`Failed to upload ${it.artworkFile.name}: ` + uploadError.message)
+            
+            const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath, { 
+              download: it.artworkFile.name 
+            })
+            return publicUrlData.publicUrl
+          })
+        )
+
+        // 2. Build the job payload with only the URLs (tiny payload for Server Action)
+        const jobItems: JobItem[] = items.map((it, i) => ({
+          productTypeId: it.productTypeId,
+          width: it.useStandardSize && it.standardSizeId
+            ? (standardSizes.find(s => s.id === it.standardSizeId)?.width || 0)
+            : parseFloat(it.width) || 0,
+          height: it.useStandardSize && it.standardSizeId
+            ? (standardSizes.find(s => s.id === it.standardSizeId)?.height || 0)
+            : parseFloat(it.height) || 0,
+          dimensionUnit: it.useStandardSize ? 'cm' : it.dimensionUnit,
+          quantity: parseInt(it.quantity) || 1,
+          unitCost: parseFloat(it.manualUnitCost) || 0,
+          notes: it.notes || undefined,
+          artworkUrl: artworkUrls[i],
+          printRoom: it.printRoom || null,
+        }))
+
+        // 3. Submit the tiny payload to the server
+        const res = await createJobGroupAction(customerName, customerPhone || null, source, jobItems)
+        if (res.error) {
+          toast.error(res.error)
+        } else if (res.success && res.data) {
+          const itemCount = res.data.jobs?.length || 1
+          toast.success(`Order created! ${itemCount} job${itemCount > 1 ? 's' : ''} — Invoice ${res.data.invoice_number}`)
+          router.push(`/dashboard/jobs/group/${res.data.group_id}`)
+        }
+      } catch (err: any) {
+        toast.error(err.message || 'An error occurred during upload')
       }
     })
   }

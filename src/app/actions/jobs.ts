@@ -20,7 +20,7 @@ export interface JobItem {
   quantity: number
   unitCost: number
   notes?: string
-  artworkFile?: File | null
+  artworkUrl?: string | null
   printRoom?: PrintRoom | null
 }
 
@@ -34,26 +34,7 @@ function toCm(value: number, unit: DimensionUnit): number {
   }
 }
 
-async function uploadArtwork(
-  supabase: any,
-  tenantId: string,
-  artworkFile: File
-): Promise<string | null> {
-  if (!artworkFile || artworkFile.size === 0) return null
-  if (artworkFile.size > 400 * 1024 * 1024) throw new Error('Artwork file exceeds 400MB limit')
 
-  const fileExt = artworkFile.name.split('.').pop()
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-  const filePath = `${tenantId}/${fileName}`
-
-  const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, artworkFile)
-  if (uploadError) throw new Error('Failed to upload artwork: ' + uploadError.message)
-
-  const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath, {
-    download: artworkFile.name
-  })
-  return publicUrlData.publicUrl
-}
 
 export async function createJobGroupAction(
   customerName: string,
@@ -69,19 +50,6 @@ export async function createJobGroupAction(
   const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
   if (!profile) return { error: 'Profile not found' }
 
-  // Upload all artworks in parallel
-  let artworkUrls: (string | null)[] = []
-  try {
-    artworkUrls = await Promise.all(
-      items.map(item =>
-        item.artworkFile && item.artworkFile.size > 0
-          ? uploadArtwork(supabase, profile.tenant_id, item.artworkFile)
-          : Promise.resolve(null)
-      )
-    )
-  } catch (err: any) {
-    return { error: err.message }
-  }
 
   // If user is not an admin, strictly enforce configured catalog pricing
   let pricingRules: any[] = []
@@ -128,7 +96,7 @@ export async function createJobGroupAction(
         quantity: item.quantity,
         unit_cost: effectiveUnitCost,
         notes: item.notes || null,
-        artwork_url: artworkUrls[i] || null,
+        artwork_url: item.artworkUrl || null,
         print_room: item.printRoom || null,
       }
     })
@@ -181,7 +149,7 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
   const quantity = parseInt(formData.get('quantity') as string, 10)
   let unitCost = parseFloat(formData.get('unitCost') as string)
   const notes = formData.get('notes') as string
-  const artworkFile = formData.get('artwork') as File | null
+  const artworkUrl = formData.get('artworkUrl') as string | null
 
   if (!customerName || !productTypeId || !source || isNaN(width) || isNaN(height) || isNaN(quantity)) {
     return { error: 'Missing required fields or invalid numbers' }
@@ -216,15 +184,6 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
     return { error: 'Unit cost must be greater than 0' }
   }
   
-  let artworkUrl: string | null = null
-
-  if (artworkFile && artworkFile.size > 0) {
-    try {
-      artworkUrl = await uploadArtwork(supabase, profile.tenant_id, artworkFile)
-    } catch (err: any) {
-      return { error: err.message }
-    }
-  }
 
   const { data, error } = await supabase.rpc('create_job', {
     p_customer_name: customerName,

@@ -40,6 +40,7 @@ export default async function NewJobPage() {
         standardSizes={standardSizes} 
         unitPricingConfig={unitPricingConfig}
         userRole={role}
+        tenantId={tenantId}
       />
     </div>
   )
