@@ -1,0 +1,6 @@
+The default InterServer nameservers that were removed to activate Cloudflare.
+If you need to revert back to InterServer (e.g. when InterServer support increases the proxy upload limit to 400MB), simply log into InterServer Domain Management and replace the Cloudflare nameservers with these:
+
+Nameserver 1: cdns1.interserver.net
+Nameserver 2: cdns2.interserver.net
+Nameserver 3: cdns3.interserver.net

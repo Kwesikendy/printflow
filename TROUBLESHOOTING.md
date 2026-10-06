@@ -264,3 +264,20 @@ Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in (Get-NetTCPConne
 # View PM2 error logs without live streaming
 pm2 logs printflow --lines 30 --nostream
 ```
+
+---
+
+## 8. VPS Issue: 35MB File Upload Failure ("Something went wrong")
+
+### Symptom
+When users try to upload files around 30MB or larger (e.g. a 35MB artwork file), the upload instantly fails and the Next.js React Error Boundary catches an unhandled error ("Something went wrong"). However, 1MB files upload perfectly fine.
+
+### Root Cause
+This is **not** a Next.js `bodySizeLimit` issue, and it is **not** an OOM issue. 
+The Windows VPS is physically sitting behind an InterServer network-edge reverse proxy (Caddy). This proxy has a hard limit on `request_body` size (likely around 10-20MB). When a large payload hits this network edge, Caddy instantly drops the TCP connection. Next.js receives a malformed/dropped connection, crashes the Server Action parser, and triggers the Error Boundary.
+
+### Resolution
+The Next.js app itself is configured to allow `400MB` in `next.config.ts`. To fix the network layer, you must:
+1. **Contact InterServer Support** and request that they increase the `request_body` limit on the proxy for your server IP/domain to `400MB`.
+2. **Temporary Bypass (Cloudflare):** Moving your DNS to Cloudflare and enabling Proxy (Orange Cloud) temporarily bypasses this by routing through Cloudflare's edge. However, Cloudflare's free tier has a strict **100MB** limit. 
+3. **Important Note:** Once InterServer grants the 400MB limit, you **MUST** either disable Cloudflare Proxy (turn to Grey Cloud "DNS Only") or revert your nameservers back to `cdns1.interserver.net`, otherwise Cloudflare's 100MB limit will block your 400MB files.
