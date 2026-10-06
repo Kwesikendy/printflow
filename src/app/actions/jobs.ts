@@ -42,8 +42,9 @@ export async function createJobGroupAction(
   source: JobSource,
   items: JobItem[]
 ): Promise<ActionResponse> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
   const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
@@ -134,6 +135,10 @@ export async function createJobGroupAction(
 
   revalidatePath('/dashboard/jobs')
   return { success: true, data }
+  } catch (globalErr: any) {
+    console.error('FATAL Server Action Error:', globalErr)
+    return { error: 'Server Error: ' + globalErr.message }
+  }
 }
 
 // Legacy single-job create (kept for compatibility)
