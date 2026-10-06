@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation'
 import { useSession } from '@/contexts/SessionContext'
 import { ROLE_LABELS, canAccessRoute, cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
+import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal'
 import { 
   Printer,
   LayoutDashboard, 
@@ -15,6 +16,7 @@ import {
   PieChart, 
   Settings, 
   LogOut,
+  Key,
   X
 } from 'lucide-react'
 
@@ -29,6 +31,7 @@ const navItems = [
 export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boolean, setMobileOpenAction: (open: boolean) => void }) {
   const pathname = usePathname()
   const { session, signOut } = useSession()
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false)
   
   if (!session) return null
 
@@ -93,6 +96,13 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
           <p className="text-xs font-medium text-indigo-600 mt-1">{ROLE_LABELS[role]}</p>
         </div>
         <button
+          onClick={() => setIsPasswordModalOpen(true)}
+          className="flex items-center w-full gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-indigo-700 hover:bg-indigo-50 transition-colors"
+        >
+          <Key className="w-5 h-5" />
+          Change Password
+        </button>
+        <button
           onClick={handleLogout}
           className="flex items-center w-full gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors"
         >
@@ -100,6 +110,11 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
           Sign Out
         </button>
       </div>
+      
+      <ChangePasswordModal 
+        isOpen={isPasswordModalOpen} 
+        onClose={() => setIsPasswordModalOpen(false)} 
+      />
     </div>
   )
 

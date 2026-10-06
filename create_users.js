@@ -6,10 +6,25 @@ const supabase = createClient(
 )
 
 const usersToCreate = [
-  { email: 'admin@demo.com', role: 'admin', name: 'Alice Admin' },
-  { email: 'desk@demo.com', role: 'front_desk', name: 'Frank Frontdesk' },
-  { email: 'printer@demo.com', role: 'printer', name: 'Peter Printer' },
-  { email: 'accountant@demo.com', role: 'accountant', name: 'Anna Accountant' },
+  // Front Desk
+  { email: 'e.kumah@printdpigh.com', role: 'front_desk', name: 'Evelyn Akosua Kumah' },
+  { email: 'h.adjei@printdpigh.com', role: 'front_desk', name: 'Helen Adjei' },
+  { email: 'g.azumah@printdpigh.com', role: 'front_desk', name: 'Gertrude Mawuena Azumah' },
+
+  // Printer
+  { email: 'm.osafo@printdpigh.com', role: 'printer', name: 'Michael Kwabena Osafo' },
+  { email: 'e.martey@printdpigh.com', role: 'printer', name: 'Enoch Nene Martey' },
+  { email: 'p.armah@printdpigh.com', role: 'printer', name: 'Prosper Armah' },
+  { email: 'o.opare@printdpigh.com', role: 'printer', name: 'Obed Opare' },
+  { email: 'b.asare@printdpigh.com', role: 'printer', name: 'Bernard Owusu Asare' },
+  { email: 'b.oduro@printdpigh.com', role: 'printer', name: 'Bernard Oduro' },
+  { email: 'd.opare@printdpigh.com', role: 'printer', name: 'Daniel Opare Addo' },
+
+  // Accountant
+  { email: 'd.agbebo@printdpigh.com', role: 'accountant', name: 'Dennis Makafui Agbebo' },
+
+  // Admin
+  { email: 'admin@printdpigh.com', role: 'admin', name: 'Kojo Wolasime' }
 ]
 
 async function createUsers() {
