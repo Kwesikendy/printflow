@@ -13,7 +13,7 @@ const BUTTON_LABELS: Partial<Record<JobStatus, string>> = {
   picked_up:     'Mark as Picked Up',
   quoted:        'Send Quote',
   awaiting_payment: 'Mark as Awaiting Payment',
-  paid_released: 'Mark as Paid & Released',
+  paid_released: 'Forward to Print Room',
   cancelled:     'Cancel Job',
 }
 
@@ -56,7 +56,11 @@ export function JobActions({ job, role }: { job: Job, role?: Role }) {
           toast.error(`Could not update job status: ${res.error}`)
         }
       } else {
-        toast.success(`Job marked as "${JOB_STATUS_LABELS[toStatus]}"`)
+        toast.success(
+          toStatus === 'paid_released'
+            ? 'Job forwarded to print room!'
+            : `Job marked as "${JOB_STATUS_LABELS[toStatus]}"`
+        )
       }
     })
   }

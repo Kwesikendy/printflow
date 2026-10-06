@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
+import { GroupReleaseButton } from '@/components/jobs/GroupReleaseButton'
+import { JobActions } from '@/components/jobs/JobActions'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react'
 
@@ -32,27 +34,33 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
 
   const totalPaid = payments.reduce((sum: number, p: any) => sum + p.amount, 0)
   const remaining = invoice ? invoice.total - totalPaid : 0
+  const awaitingJobsCount = jobs.filter((j: any) => j.status === 'awaiting_payment').length
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      <div className="flex items-center gap-4">
-        <Link href="/dashboard/jobs" className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-600">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div>
-          <h1 className="text-2xl font-black text-slate-900">Order for {group.customer_name}</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {group.customer_phone && <span>{group.customer_phone} · </span>}
-            {jobs.length} job{jobs.length !== 1 ? 's' : ''} · {formatDateTime(group.created_at)}
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/jobs" className="p-2 rounded-lg hover:bg-slate-100 transition-colors text-slate-600">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Order for {group.customer_name}</h1>
+            <p className="text-slate-500 text-sm mt-1">
+              {group.customer_phone && <span>{group.customer_phone} · </span>}
+              {jobs.length} job{jobs.length !== 1 ? 's' : ''} · {formatDateTime(group.created_at)}
+            </p>
+          </div>
         </div>
-        {invoice && role !== 'printer' && (
-          <div className="ml-auto">
+        <div className="flex items-center gap-2 flex-wrap">
+          {['front_desk', 'admin'].includes(role) && (
+            <GroupReleaseButton groupId={id} awaitingCount={awaitingJobsCount} />
+          )}
+          {invoice && role !== 'printer' && (
             <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline bg-white hover:bg-slate-50">
               <FileText className="w-4 h-4 mr-2" /> Print Invoice
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -60,9 +68,9 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
           {jobs.map((job: any, index: number) => (
             <Card key={job.id}>
               <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center justify-center shrink-0">
                       {index + 1}
                     </div>
                     <div>
@@ -77,9 +85,12 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <StatusBadge status={job.status} />
-                    <Link href={`/dashboard/jobs/${job.id}`} className="text-xs text-indigo-600 hover:underline font-medium">View detail ?</Link>
+                    {['front_desk', 'admin'].includes(role) && (
+                      <JobActions job={job} role={role} />
+                    )}
+                    <Link href={`/dashboard/jobs/${job.id}`} className="text-xs text-indigo-600 hover:underline font-medium ml-1">View detail →</Link>
                   </div>
                 </div>
 

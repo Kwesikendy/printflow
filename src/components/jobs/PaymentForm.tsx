@@ -26,6 +26,7 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
   const [reference, setReference] = useState('')
   const [otherDetails, setOtherDetails] = useState('')
   const [amountStr, setAmountStr] = useState('')
+  const [releaseToPrintRoom, setReleaseToPrintRoom] = useState(true)
 
   const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0)
   const remaining = invoice.total - totalPaid
@@ -49,6 +50,9 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
     formData.set('invoiceId', invoice.id)
     formData.set('amount', amount.toString())
     formData.set('method', method)
+    if (releaseToPrintRoom) {
+      formData.set('releaseToPrintRoom', 'true')
+    }
     if (method === 'momo' && reference.trim()) {
       formData.set('reference', reference.trim())
     } else if (method === 'other') {
@@ -65,7 +69,13 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
         toast.error(res.error)
       } else {
         const isFullyPaid = amount >= remaining
-        toast.success(isFullyPaid ? 'Full payment confirmed!' : `Partial payment of ${formatCurrency(amount)} recorded`)
+        if (isFullyPaid) {
+          toast.success('Full payment confirmed! Jobs released to print room.')
+        } else if (releaseToPrintRoom) {
+          toast.success(`Partial payment of ${formatCurrency(amount)} recorded & forwarded to print room!`)
+        } else {
+          toast.success(`Partial payment of ${formatCurrency(amount)} recorded`)
+        }
         setAmountStr('')
         setReference('')
         setOtherDetails('')
@@ -217,6 +227,28 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
               <p className="text-[11px] text-slate-400">
                 Front desk can specify any custom payment method or transaction notes here.
               </p>
+            </div>
+          )}
+
+          {/* Release to Print Room toggle for partial payments */}
+          {displayAmount < remaining && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3.5 transition-all">
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={releaseToPrintRoom}
+                  onChange={e => setReleaseToPrintRoom(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div>
+                  <p className="text-xs font-bold text-slate-800">
+                    Forward job(s) to print room now
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Allows the print room to start production immediately even with a partial balance remaining.
+                  </p>
+                </div>
+              </label>
             </div>
           )}
 

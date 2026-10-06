@@ -254,6 +254,7 @@ export async function recordPaymentAction(formData: FormData) {
   const method = formData.get('method') as PaymentMethod
   const reference = formData.get('reference') as string
   const notes = formData.get('notes') as string
+  const releaseToPrintRoom = formData.get('releaseToPrintRoom') === 'true'
 
   if (!invoiceId || isNaN(amount) || !method) {
     return { error: 'Invalid payment data' }
@@ -272,8 +273,81 @@ export async function recordPaymentAction(formData: FormData) {
     return { error: error.message }
   }
 
+  // If user requested forwarding to print room upon partial payment
+  if (releaseToPrintRoom) {
+    const { data: invData } = await supabase
+      .from('invoices')
+      .select('job_id, group_id')
+      .eq('id', invoiceId)
+      .single()
+
+    const inv = invData as { job_id: string | null; group_id: string | null } | null
+    if (inv?.group_id) {
+      await releaseJobGroupAction(inv.group_id, 'Forwarded to print room after partial payment')
+    } else if (inv?.job_id) {
+      await supabase.rpc('transition_job_status', {
+        p_job_id: inv.job_id,
+        p_to_status: 'paid_released',
+        p_notes: 'Forwarded to print room after partial payment'
+      } as any)
+    }
+  }
+
   revalidatePath('/dashboard/jobs')
   revalidatePath(`/dashboard/jobs/[id]`, 'page')
+  revalidatePath(`/dashboard/jobs/group/[id]`, 'page')
+  revalidatePath('/dashboard/queue')
+  return { success: true }
+}
+
+export async function releaseJobGroupAction(groupId: string, notes?: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const role = (profile as any)?.role
+  if (!['front_desk', 'admin'].includes(role)) {
+    return { error: 'Insufficient permissions to release jobs' }
+  }
+
+  // Fetch all jobs in this group currently awaiting payment
+  const { data: jobsData, error: jobsError } = await supabase
+    .from('jobs')
+    .select('id, job_number')
+    .eq('group_id', groupId)
+    .eq('status', 'awaiting_payment')
+
+  if (jobsError) {
+    return { error: jobsError.message }
+  }
+
+  const jobs = (jobsData || []) as { id: string; job_number: string }[]
+  if (jobs.length === 0) {
+    return { success: true }
+  }
+
+  const defaultNote = notes || 'Forwarded to print room with partial payment'
+  for (const job of jobs) {
+    const { error: transitionError } = await supabase.rpc('transition_job_status', {
+      p_job_id: job.id,
+      p_to_status: 'paid_released',
+      p_notes: defaultNote,
+    } as any)
+
+    if (transitionError) {
+      console.error(`Error transitioning job ${job.id}:`, transitionError)
+    }
+  }
+
+  revalidatePath('/dashboard/jobs')
+  revalidatePath(`/dashboard/jobs/group/${groupId}`)
   revalidatePath('/dashboard/queue')
   return { success: true }
 }

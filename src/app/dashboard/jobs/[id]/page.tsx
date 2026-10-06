@@ -163,8 +163,8 @@ export default async function JobDetailPage(props: {
                     </div>
                   </div>
 
-                  {invoice.status === 'unpaid' && !isCancelled && ['front_desk', 'admin'].includes(role) ? (
-                    <PaymentForm invoice={invoice} jobId={job.id} />
+                  {invoice.status !== 'paid' && !isCancelled && ['front_desk', 'admin'].includes(role) ? (
+                    <PaymentForm invoice={invoice} jobId={job.id} payments={payments} />
                   ) : invoice.status === 'paid' ? (
                     <div className="mt-4 space-y-4">
                       {/* PAID banner */}
