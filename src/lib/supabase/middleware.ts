@@ -2,6 +2,16 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  const { pathname } = request.nextUrl
+  
+  // Fast path: bypass all auth and session checks for static assets
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js)$/)
+  ) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(

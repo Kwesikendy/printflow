@@ -26,7 +26,7 @@ export default function LoginForm() {
   useEffect(() => {
     const fetchBranding = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from('tenants').select('name, logo_url').limit(1).single()
+      const { data } = await supabase.from('tenants').select('name, logo_url').limit(1).maybeSingle()
       if (data) {
         setTenantName((data as any).name)
         setLogoUrl((data as any).logo_url || null)
