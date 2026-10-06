@@ -7,6 +7,9 @@ import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export const metadata: Metadata = {
   title: `${process.env.NEXT_PUBLIC_APP_NAME || 'PrintFlow'} — Print Shop Management`,
   description: 'Multi-tenant SaaS for graphic printing shops. Manage jobs, payments, and production in real time.',

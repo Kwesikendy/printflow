@@ -38,8 +38,6 @@ export async function updateSession(request: NextRequest) {
   // Refresh session — do not remove this
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { pathname } = request.nextUrl
-
   // Public routes that don't need auth
   const publicRoutes = ['/login', '/print']
   const isPublic = publicRoutes.some(r => pathname.startsWith(r))
