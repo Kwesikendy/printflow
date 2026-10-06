@@ -31,6 +31,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
   const jobs: any[] = group.jobs || []
   const invoice = Array.isArray(group.invoices) ? group.invoices[0] : group.invoices
   const payments: any[] = invoice?.payments || []
+  const hasPayment = payments.length > 0 || invoice?.status === 'paid'
 
   const totalPaid = payments.reduce((sum: number, p: any) => sum + p.amount, 0)
   const remaining = invoice ? invoice.total - totalPaid : 0
@@ -88,7 +89,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusBadge status={job.status} />
                     {['front_desk', 'admin'].includes(role) && (
-                      <JobActions job={job} role={role} />
+                      <JobActions job={job} role={role} hasPaymentOverride={hasPayment} />
                     )}
                     <Link href={`/dashboard/jobs/${job.id}`} className="text-xs text-indigo-600 hover:underline font-medium ml-1">View detail →</Link>
                   </div>

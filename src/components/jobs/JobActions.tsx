@@ -17,13 +17,27 @@ const BUTTON_LABELS: Partial<Record<JobStatus, string>> = {
   cancelled:     'Cancel Job',
 }
 
-export function JobActions({ job, role }: { job: Job, role?: Role }) {
+export function JobActions({ job, role, hasPaymentOverride }: { job: Job, role?: Role, hasPaymentOverride?: boolean }) {
   const [isPending, startTransition] = useTransition()
   const [optimisticStatus, setOptimisticStatus] = useState<JobStatus>(job.status)
 
   if (!role) return null
 
-  const allowedTransitions = getAllowedTransitions(optimisticStatus, role)
+  let allowedTransitions = getAllowedTransitions(optimisticStatus, role)
+
+  // Determine if payment has been made
+  let hasPayment = hasPaymentOverride
+  if (hasPayment === undefined) {
+    const invoiceRaw = (job as any).invoices
+    const invoice = Array.isArray(invoiceRaw) ? invoiceRaw[0] : invoiceRaw
+    const payments = invoice?.payments || []
+    hasPayment = payments.length > 0 || invoice?.status === 'paid'
+  }
+
+  // Only allow 'paid_released' (Forward to Print Room) if a payment has been made
+  if (!hasPayment) {
+    allowedTransitions = allowedTransitions.filter(t => t !== 'paid_released')
+  }
 
   if (allowedTransitions.length === 0) return null
 
