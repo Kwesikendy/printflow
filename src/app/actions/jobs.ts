@@ -40,7 +40,7 @@ async function uploadArtwork(
   artworkFile: File
 ): Promise<string | null> {
   if (!artworkFile || artworkFile.size === 0) return null
-  if (artworkFile.size > 100 * 1024 * 1024) throw new Error('Artwork file exceeds 100MB limit')
+  if (artworkFile.size > 400 * 1024 * 1024) throw new Error('Artwork file exceeds 400MB limit')
 
   const fileExt = artworkFile.name.split('.').pop()
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`

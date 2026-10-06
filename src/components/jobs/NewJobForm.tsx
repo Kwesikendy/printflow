@@ -254,8 +254,8 @@ function LineItemCard({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
-    if (file && file.size > 100 * 1024 * 1024) {
-      toast.error('File too large. Max 100MB allowed.')
+    if (file && file.size > 400 * 1024 * 1024) {
+      toast.error('File too large. Max 400MB allowed.')
       e.target.value = ''
       return
     }
@@ -445,7 +445,7 @@ function LineItemCard({
               <Upload className="w-5 h-5 text-slate-400 flex-shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm text-slate-600 truncate">
-                  {item.artworkName || 'Click to upload (images, PDF — max 100MB)'}
+                  {item.artworkName || 'Click to upload (images, PDF — max 400MB)'}
                 </p>
               </div>
               <input
