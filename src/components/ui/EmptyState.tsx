@@ -45,10 +45,18 @@ export function LoadingSpinner({ className = '' }: { className?: string }) {
 
 export function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-3" />
-        <p className="text-sm text-slate-500">Loading...</p>
+    <div className="w-full p-6 space-y-6 animate-pulse">
+      {/* Header Skeleton */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="h-8 bg-slate-200 rounded-md w-1/3"></div>
+        <div className="h-8 bg-slate-200 rounded-md w-24"></div>
+      </div>
+      
+      {/* Cards/List Skeleton */}
+      <div className="space-y-4">
+        <div className="h-32 bg-slate-100 rounded-xl w-full border border-slate-200"></div>
+        <div className="h-32 bg-slate-100 rounded-xl w-full border border-slate-200"></div>
+        <div className="h-32 bg-slate-100 rounded-xl w-full border border-slate-200"></div>
       </div>
     </div>
   )
