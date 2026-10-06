@@ -55,21 +55,21 @@ export default async function JobCardPrintPage(props: {
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
-            margin: 0mm;
+            margin: 0;
             size: auto;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
             min-height: 0 !important;
-            height: auto !important;
+            height: max-content !important;
             background: #ffffff !important;
           }
         }
       `}} />
 
       {/* Receipt card — compact for both thermal roll and desktop printers */}
-      <div className="w-[340px] text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-3 print:pb-1">
+      <div className="w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0 print:pb-0">
 
         {/* Logo + Shop Header */}
         <div className="text-center mb-2">
@@ -78,17 +78,17 @@ export default async function JobCardPrintPage(props: {
             alt="Print DPI"
             className="h-12 mx-auto mb-1.5 object-contain"
           />
-          <p className="font-bold text-[14px] tracking-wide">{job.tenants?.name || 'Print DPI'}</p>
-          <p className="text-[10px] text-gray-600">Accra, Ghana</p>
-          <p className="text-[10px] text-gray-600">0598608209</p>
+          <p className="font-extrabold text-[15px] tracking-wide text-black">{job.tenants?.name || 'Print DPI'}</p>
+          <p className="font-bold text-[11px] text-black">Accra, Ghana</p>
+          <p className="font-bold text-[11px] text-black">0598608209</p>
         </div>
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
         {/* Order Number & Print Room */}
         <div className="text-center mb-2">
-          <p className="text-[10px] uppercase tracking-widest text-gray-500">Order Number</p>
-          <div className="border-2 border-green-600 rounded-md inline-block px-5 py-0.5 mt-0.5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-black">Order Number</p>
+          <div className="border-2 border-black rounded-md inline-block px-5 py-0.5 mt-0.5">
             <p className="text-[24px] font-extrabold tracking-tight text-black">
               #{job.job_number}
             </p>
@@ -104,11 +104,11 @@ export default async function JobCardPrintPage(props: {
 
         {/* Customer Info */}
         <div className="mb-2">
-          <p className="font-bold text-[13px]">{job.customer_name}</p>
+          <p className="font-bold text-[14px] text-black">{job.customer_name}</p>
           {job.customer_phone && (
-            <p className="text-gray-600 text-[11px]">Phone: {job.customer_phone}</p>
+            <p className="font-bold text-black text-[12px]">Phone: {job.customer_phone}</p>
           )}
-          <p className="text-gray-500 text-[10px] mt-0.5">
+          <p className="font-bold text-black text-[11px] mt-0.5">
             Source: {job.source === 'walk_in' ? 'Walk-In' : 'Marketing'}
           </p>
         </div>
@@ -117,8 +117,8 @@ export default async function JobCardPrintPage(props: {
 
         {/* Receipt Date */}
         <div className="text-center mb-2">
-          <p className="font-bold uppercase tracking-widest text-[10px] text-gray-500">JOB CARD</p>
-          <p className="text-[11px]">Date: {formatDateTime(job.created_at)}</p>
+          <p className="font-extrabold uppercase tracking-widest text-[12px] text-black">JOB CARD</p>
+          <p className="font-bold text-[11px] text-black">Date: {formatDateTime(job.created_at)}</p>
         </div>
 
         {/* Real Code 128 barcode */}
@@ -129,7 +129,7 @@ export default async function JobCardPrintPage(props: {
         {/* Tracking QR Code */}
         {invoice && (
           <div className="flex flex-col items-center justify-center mb-2">
-            <p className="text-[9px] text-gray-500 mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
+            <p className="text-[10px] font-bold text-black mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
             <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={64} level="L" />
           </div>
         )}
@@ -137,31 +137,31 @@ export default async function JobCardPrintPage(props: {
         <div className="border-t border-dashed border-gray-400 my-2" />
 
         {/* Items table */}
-        <table className="w-full text-[11px] mb-1">
+        <table className="w-full text-[12px] mb-1 text-black font-bold">
           <thead>
-            <tr className="border-b border-dashed border-gray-400">
-              <th className="text-left pb-1 font-bold">Item</th>
-              <th className="text-center pb-1 font-bold">Qty</th>
+            <tr className="border-b-2 border-black">
+              <th className="text-left pb-1 font-extrabold text-[13px]">Item</th>
+              <th className="text-center pb-1 font-extrabold text-[13px]">Qty</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-dashed border-gray-300">
-              <td className="py-1.5 pr-2">
-                <p className="font-semibold">{job.product_types?.name}</p>
-                <p className="text-gray-500 text-[10px]">
+            <tr className="border-b-2 border-black">
+              <td className="py-2 pr-2">
+                <p className="font-extrabold text-[14px] text-black">{job.product_types?.name}</p>
+                <p className="font-bold text-black text-[12px]">
                   {job.width} × {job.height} {job.dimension_unit || 'cm'}
                 </p>
                 {job.notes && (
-                  <p className="text-gray-500 text-[10px] italic">{job.notes}</p>
+                  <p className="font-bold text-black text-[11px] mt-1">{job.notes}</p>
                 )}
               </td>
-              <td className="py-1.5 text-center font-bold text-[14px]">{job.quantity}</td>
+              <td className="py-2 text-center font-extrabold text-[16px] text-black">{job.quantity}</td>
             </tr>
           </tbody>
         </table>
 
         <div className="border-t border-dashed border-gray-400 my-2" />
-        <div className="text-center text-[9px] text-gray-400 pb-0.5 tracking-wider">
+        <div className="text-center font-bold text-[10px] text-black pb-0 tracking-wider">
           *** END OF JOB TICKET ***
         </div>
       </div>

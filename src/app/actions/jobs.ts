@@ -49,7 +49,9 @@ async function uploadArtwork(
   const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, artworkFile)
   if (uploadError) throw new Error('Failed to upload artwork: ' + uploadError.message)
 
-  const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
+  const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath, {
+    download: artworkFile.name
+  })
   return publicUrlData.publicUrl
 }
 
