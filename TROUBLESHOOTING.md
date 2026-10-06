@@ -185,42 +185,72 @@ git pull
 
 ---
 
-## 7. Standard Operations Quick-Reference Runbook
+## 7. VPS Issue: Corrupted `.next` Cache (CSS/JS 404 Errors)
+
+### Symptom
+After a successful build and PM2 restart, the browser loads the site but it looks completely unstyled (Times New Roman font) and the browser console shows 404 errors for `/_next/static/chunks/...css`.
+
+### Root Cause
+If a previous `npm run build` failed halfway through or was interrupted, Next.js leaves a corrupted, partially updated `.next` directory. When PM2 starts, the server generates HTML pointing to new CSS chunks that were never correctly finalized, or the browser is stuck in a version skew requesting old chunks.
+
+### Resolution
+1. Do a **Hard Refresh** in the browser (Ctrl+F5 or Cmd+Shift+R).
+2. If that fails, the `.next` directory on the server is corrupted and must be nuked from orbit:
+   ```powershell
+   pm2 delete all
+   taskkill /F /IM node.exe /T
+   Remove-Item .next -Recurse -Force
+   npm run build
+   pm2 start ecosystem.config.cjs
+   ```
+
+---
+
+## 8. Standard Operations Quick-Reference Runbook
 
 ### Deploy New Code Changes to VPS (Day-to-Day)
+*Note: Do not just run `pm2 restart`. Always use this sequence to prevent phantom daemons and cache corruption.*
 ```powershell
 cd C:\Apps\printflow
 git pull
 npm run build
-pm2 restart printflow
+pm2 delete all
+taskkill /F /IM node.exe /T
+pm2 start ecosystem.config.cjs
+pm2 save
 ```
 
-### Full Clean Reset (If Server Fails to Start or Hangs)
+### The Ultimate "Nuke From Orbit" Reset (If Server Fails to Start or Hangs)
+If PM2 crashes instantly with `EACCES` on port 3000, it means a phantom PM2 daemon is silently respawning zombie Node instances in the background. Because PM2 itself is a Node program, we must kill the entire process tree (`/T`).
+
 ```powershell
 cd C:\Apps\printflow
 
-# 1. Clear PM2
+# 1. Clear current PM2 memory
 pm2 delete all
 
-# 2. Free port 3000
-$ports = (Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -Unique
-if ($ports) {
-    $ports | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
-}
+# 2. Assassinate all phantom PM2 Daemons and Zombie Node processes
+taskkill /F /IM node.exe /T
 
-# 3. Pull latest repository state
+# 3. (Optional) Reset Windows NAT Driver if Port 3000 is still ghost-locked by Hyper-V
+net stop winnat
+net start winnat
+
+# 4. Pull latest repository state
 git pull
 
-# 4. Build application
+# 5. Obliterate corrupted build cache
+Remove-Item .next -Recurse -Force
+
+# 6. Build fresh application
 npm run build
 
-# 5. Start with PM2 and save configuration
+# 7. Start cleanly with PM2 and save configuration
 pm2 start ecosystem.config.cjs
 pm2 save
 
-# 6. Verify health
+# 8. Verify health (Should say ↺ 0 and >0% CPU)
 pm2 status
-pm2 logs printflow --lines 20 --nostream
 ```
 
 ### Quick Diagnostic One-Liners
@@ -233,7 +263,4 @@ Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in (Get-NetTCPConne
 
 # View PM2 error logs without live streaming
 pm2 logs printflow --lines 30 --nostream
-
-# View PM2 process details (paths, env, uptime)
-pm2 describe 0
 ```
