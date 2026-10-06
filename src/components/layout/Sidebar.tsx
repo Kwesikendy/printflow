@@ -89,7 +89,7 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
 
       <div className="p-4 border-t border-slate-200">
         <div className="px-3 py-3 rounded-xl border mb-2" style={{ background: 'rgba(255,255,255,0.6)', borderColor: '#e0e0e8' }}>
-          <p className="text-xs text-slate-500 mb-0.5">
+          <p className="text-xs text-slate-500 mb-0.5" suppressHydrationWarning>
             {new Date().getHours() < 12 ? 'Good morning,' : new Date().getHours() < 17 ? 'Good afternoon,' : 'Good evening,'}
           </p>
           <p className="text-sm font-bold text-slate-900">{session.profile.full_name.split(' ')[0]}</p>
