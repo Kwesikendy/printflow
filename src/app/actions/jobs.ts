@@ -62,6 +62,79 @@ function toCm(value: number, unit: DimensionUnit): number {
 
 
 
+function getDatePrefix(prefix: 'PF' | 'INV', date = new Date()): string {
+  // Use UTC since Ghana is UTC+0 (Africa/Accra)
+  const yy = String(date.getUTCFullYear()).slice(-2)
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(date.getUTCDate()).padStart(2, '0')
+  return `${prefix}-${yy}${mm}${dd}-`
+}
+
+async function generateDateJobNumbers(
+  serviceSupabase: any,
+  tenantId: string,
+  count: number
+): Promise<string[]> {
+  const prefix = getDatePrefix('PF')
+  const { data: existing, error } = await serviceSupabase
+    .from('jobs')
+    .select('job_number')
+    .eq('tenant_id', tenantId)
+    .ilike('job_number', `${prefix}%`)
+
+  if (error) {
+    console.error('Error fetching existing job numbers:', error)
+  }
+
+  let maxNum = 0
+  if (existing && existing.length > 0) {
+    for (const row of existing) {
+      const suffix = (row.job_number || '').replace(prefix, '')
+      const n = parseInt(suffix, 10)
+      if (!isNaN(n) && n > maxNum) {
+        maxNum = n
+      }
+    }
+  }
+
+  const results: string[] = []
+  for (let i = 0; i < count; i++) {
+    maxNum++
+    results.push(`${prefix}${String(maxNum).padStart(3, '0')}`)
+  }
+  return results
+}
+
+async function generateDateInvoiceNumber(
+  serviceSupabase: any,
+  tenantId: string
+): Promise<string> {
+  const prefix = getDatePrefix('INV')
+  const { data: existing, error } = await serviceSupabase
+    .from('invoices')
+    .select('invoice_number')
+    .eq('tenant_id', tenantId)
+    .ilike('invoice_number', `${prefix}%`)
+
+  if (error) {
+    console.error('Error fetching existing invoice numbers:', error)
+  }
+
+  let maxNum = 0
+  if (existing && existing.length > 0) {
+    for (const row of existing) {
+      const suffix = (row.invoice_number || '').replace(prefix, '')
+      const n = parseInt(suffix, 10)
+      if (!isNaN(n) && n > maxNum) {
+        maxNum = n
+      }
+    }
+  }
+
+  const nextNum = maxNum + 1
+  return `${prefix}${String(nextNum).padStart(3, '0')}`
+}
+
 export async function createJobGroupAction(
   customerName: string,
   customerPhone: string | null,
@@ -71,108 +144,258 @@ export async function createJobGroupAction(
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
+    if (!user) return { error: 'Unauthorized' }
 
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
-  const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
-  if (!profile) return { error: 'Profile not found' }
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('tenant_id, role')
+      .eq('id', user.id)
+      .single()
+    const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
+    if (!profile) return { error: 'Profile not found' }
 
+    if (profile.role !== 'front_desk' && profile.role !== 'admin') {
+      return { error: 'Only front desk or admin can create jobs' }
+    }
 
-  // If user is not an admin, strictly enforce configured catalog pricing
-  let pricingRules: any[] = []
-  let unitPricingConfig: any = null
-  if (profile.role !== 'admin') {
-    const [{ data: rulesData }, configData] = await Promise.all([
-      supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id),
-      getTenantUnitPricing(profile.tenant_id)
-    ])
-    pricingRules = (rulesData as any[]) || []
-    unitPricingConfig = configData
-  }
+    if (!items || items.length === 0) {
+      return { error: 'At least one job item is required' }
+    }
 
-  // Build items payload with converted cm dimensions and normalized cm² unit cost
-  let itemsPayload: any[] = []
-  try {
-    itemsPayload = items.map((item, i) => {
-      let effectiveUnitCost = item.unitCost
+    // If user is not an admin, strictly enforce configured catalog pricing
+    let pricingRules: any[] = []
+    let unitPricingConfig: any = null
+    if (profile.role !== 'admin') {
+      const [{ data: rulesData }, configData] = await Promise.all([
+        supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id),
+        getTenantUnitPricing(profile.tenant_id)
+      ])
+      pricingRules = (rulesData as any[]) || []
+      unitPricingConfig = configData
+    }
 
-      if (profile.role !== 'admin') {
-        const activeRule = pricingRules.find(r => r.product_type_id === item.productTypeId && r.source === source)
-        const resolvedRate = resolveUnitRate(
-          unitPricingConfig,
-          item.productTypeId,
-          source,
-          item.dimensionUnit,
-          activeRule?.unit_cost
-        )
-        if (!resolvedRate || resolvedRate <= 0) {
-          throw new Error('One or more products have no configured price. Only administrators can specify custom prices.')
+    // Build items payload with converted cm dimensions and normalized unit cost
+    let itemsPayload: any[] = []
+    try {
+      itemsPayload = items.map((item) => {
+        let effectiveUnitCost = item.unitCost
+
+        if (profile.role !== 'admin') {
+          const activeRule = pricingRules.find(r => r.product_type_id === item.productTypeId && r.source === source)
+          const resolvedRate = resolveUnitRate(
+            unitPricingConfig,
+            item.productTypeId,
+            source,
+            item.dimensionUnit,
+            activeRule?.unit_cost
+          )
+          if (!resolvedRate || resolvedRate <= 0) {
+            throw new Error('One or more products have no configured price. Only administrators can specify custom prices.')
+          }
+          effectiveUnitCost = resolvedRate
+        } else {
+          if (!effectiveUnitCost || effectiveUnitCost <= 0) {
+            throw new Error('Unit cost must be greater than 0 for all items.')
+          }
         }
-        effectiveUnitCost = resolvedRate
-      } else {
-        if (!effectiveUnitCost || effectiveUnitCost <= 0) {
-          throw new Error('Unit cost must be greater than 0 for all items.')
-        }
-      }
 
+        return {
+          product_type_id: item.productTypeId,
+          width: item.width,
+          height: item.height,
+          dimension_unit: item.dimensionUnit || 'cm',
+          quantity: item.quantity,
+          unit_cost: effectiveUnitCost,
+          notes: item.notes || null,
+          artwork_url: item.artworkUrl || null,
+          print_room: item.printRoom || null,
+        }
+      })
+    } catch (err: any) {
+      return { error: err.message }
+    }
+
+    const serviceSupabase = createServiceClient() as any
+
+    // 1. Insert Job Group
+    const { data: groupData, error: groupError } = await serviceSupabase
+      .from('job_groups')
+      .insert({
+        tenant_id: profile.tenant_id,
+        customer_name: customerName,
+        customer_phone: customerPhone || null,
+        source: source,
+        created_by: user.id
+      })
+      .select('id')
+      .single()
+
+    if (groupError || !groupData) {
+      console.error('Create job group error:', groupError)
+      return { error: groupError?.message || 'Failed to create job group' }
+    }
+
+    const groupId = groupData.id
+
+    // 2. Precalculate items & totals
+    let grandTotal = 0
+    const processedItems = itemsPayload.map(item => {
+      const area = item.width * item.height
+      const lineTotal = Math.round(area * item.unit_cost * item.quantity * 100) / 100
+      grandTotal = Math.round((grandTotal + lineTotal) * 100) / 100
       return {
-        product_type_id: item.productTypeId,
-        width: item.width,
-        height: item.height,
-        dimension_unit: item.dimensionUnit,
-        quantity: item.quantity,
-        unit_cost: effectiveUnitCost,
-        notes: item.notes || null,
-        artwork_url: item.artworkUrl || null,
-        print_room: item.printRoom || null,
+        ...item,
+        area,
+        lineTotal,
       }
     })
-  } catch (err: any) {
-    return { error: err.message }
-  }
 
-  await ensureWorkdaySequenceReset(supabase, profile.tenant_id)
+    // 3. Assign collision-free date-based job numbers with automatic retry
+    let insertedJobs: any[] = []
+    let jobInsertAttempts = 0
+    let lastJobError: any = null
 
-  const { data, error } = await supabase.rpc('create_job_group', {
-    p_customer_name: customerName,
-    p_customer_phone: customerPhone || null,
-    p_source: source,
-    p_items: itemsPayload,
-  } as any)
+    while (jobInsertAttempts < 5) {
+      jobInsertAttempts++
+      const jobNumbers = await generateDateJobNumbers(serviceSupabase, profile.tenant_id, processedItems.length)
 
-  if (error) {
-    console.error('Create job group error:', error)
-    return { error: error.message }
-  }
+      const jobsToInsert = processedItems.map((item, idx) => ({
+        tenant_id: profile.tenant_id,
+        group_id: groupId,
+        job_number: jobNumbers[idx],
+        source: source,
+        customer_name: customerName,
+        customer_phone: customerPhone || null,
+        product_type_id: item.product_type_id,
+        width: item.width,
+        height: item.height,
+        area: item.area,
+        quantity: item.quantity,
+        unit_cost_applied: item.unit_cost,
+        line_total: item.lineTotal,
+        notes: item.notes,
+        artwork_url: item.artwork_url,
+        dimension_unit: item.dimension_unit,
+        print_room: item.print_room,
+        status: 'awaiting_payment',
+        created_by: user.id,
+      }))
 
-  // UPSERT the customer into the dedicated customers table
-  if (profile) {
-    const { error: customerError } = await supabase
+      const { data: inserted, error: insertError } = await serviceSupabase
+        .from('jobs')
+        .insert(jobsToInsert)
+        .select('id, job_number, line_total')
+
+      if (!insertError && inserted && inserted.length > 0) {
+        insertedJobs = inserted
+        break
+      }
+
+      lastJobError = insertError
+      if (insertError?.code === '23505') {
+        // Concurrency collision, retry with next increment
+        await new Promise(r => setTimeout(r, 50 * jobInsertAttempts))
+        continue
+      }
+
+      console.error('Job insert error:', insertError)
+      return { error: insertError?.message || 'Failed to create jobs' }
+    }
+
+    if (insertedJobs.length === 0) {
+      return { error: lastJobError?.message || 'Failed to assign unique job numbers' }
+    }
+
+    // 4. Insert Job Status Events
+    const statusEvents = insertedJobs.map(j => ({
+      tenant_id: profile.tenant_id,
+      job_id: j.id,
+      from_status: null,
+      to_status: 'awaiting_payment',
+      actor_id: user.id,
+    }))
+    await serviceSupabase.from('job_status_events').insert(statusEvents)
+
+    // 5. Generate collision-free date-based invoice
+    let invoiceRecord: any = null
+    let invAttempts = 0
+    let lastInvError: any = null
+
+    while (invAttempts < 5) {
+      invAttempts++
+      const invoiceNumber = await generateDateInvoiceNumber(serviceSupabase, profile.tenant_id)
+
+      const { data: invData, error: invError } = await serviceSupabase
+        .from('invoices')
+        .insert({
+          tenant_id: profile.tenant_id,
+          job_id: null,
+          invoice_number: invoiceNumber,
+          total: grandTotal,
+          status: 'unpaid',
+          group_id: groupId,
+        })
+        .select('id, invoice_number')
+        .single()
+
+      if (!invError && invData) {
+        invoiceRecord = invData
+        break
+      }
+
+      lastInvError = invError
+      if (invError?.code === '23505') {
+        await new Promise(r => setTimeout(r, 50 * invAttempts))
+        continue
+      }
+
+      console.error('Invoice insert error:', invError)
+      return { error: invError?.message || 'Failed to create invoice' }
+    }
+
+    if (!invoiceRecord) {
+      return { error: lastInvError?.message || 'Failed to generate unique invoice number' }
+    }
+
+    // 6. Upsert customer in address book
+    const { error: customerError } = await serviceSupabase
       .from('customers')
       .upsert({
         tenant_id: profile.tenant_id,
         name: customerName,
         phone: customerPhone || null
-      } as any, { onConflict: 'tenant_id, name' })
-      
+      }, { onConflict: 'tenant_id, name' })
+
     if (customerError) {
       console.error('Error saving customer to database:', customerError)
-      // We don't fail the whole request just because saving to address book failed
     }
-  }
 
-  revalidatePath('/dashboard/jobs')
-  return { success: true, data }
+    revalidatePath('/dashboard/jobs')
+    revalidatePath('/dashboard/finance')
+    revalidatePath('/dashboard/queue')
+
+    return {
+      success: true,
+      data: {
+        group_id: groupId,
+        invoice_id: invoiceRecord.id,
+        invoice_number: invoiceRecord.invoice_number,
+        grand_total: grandTotal,
+        jobs: insertedJobs.map(j => ({
+          job_id: j.id,
+          job_number: j.job_number,
+          line_total: j.line_total,
+        }))
+      }
+    }
   } catch (globalErr: any) {
     console.error('FATAL Server Action Error:', globalErr)
     return { error: 'Server Error: ' + globalErr.message }
   }
 }
 
-// Legacy single-job create (kept for compatibility)
+// Legacy single-job create (delegates to createJobGroupAction)
 export async function createJob(formData: FormData): Promise<ActionResponse> {
-  const supabase = await createClient()
-
   const customerName = formData.get('customerName') as string
   const customerPhone = formData.get('customerPhone') as string
   const productTypeId = formData.get('productTypeId') as string
@@ -180,7 +403,7 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
   const width = parseFloat(formData.get('width') as string)
   const height = parseFloat(formData.get('height') as string)
   const quantity = parseInt(formData.get('quantity') as string, 10)
-  let unitCost = parseFloat(formData.get('unitCost') as string)
+  const unitCost = parseFloat(formData.get('unitCost') as string)
   const notes = formData.get('notes') as string
   const artworkUrl = formData.get('artworkUrl') as string | null
 
@@ -188,56 +411,17 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
     return { error: 'Missing required fields or invalid numbers' }
   }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Unauthorized' }
-
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single()
-  const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
-  if (!profile) return { error: 'Profile not found' }
-
-  // If user is not admin, enforce official pricing
-  if (profile.role !== 'admin') {
-    const [{ data: rulesData }, unitPricingConfig] = await Promise.all([
-      supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id).eq('product_type_id', productTypeId).eq('source', source),
-      getTenantUnitPricing(profile.tenant_id)
-    ])
-    const activeRule = (rulesData as any)?.[0]
-    const resolvedRate = resolveUnitRate(
-      unitPricingConfig,
-      productTypeId,
-      source,
-      'cm',
-      activeRule?.unit_cost
-    )
-    if (!resolvedRate || resolvedRate <= 0) {
-      return { error: 'Product has no configured price. Only administrators can specify custom prices.' }
-    }
-    unitCost = resolvedRate
-  } else if (isNaN(unitCost) || unitCost <= 0) {
-    return { error: 'Unit cost must be greater than 0' }
-  }
-  
-
-  const { data, error } = await supabase.rpc('create_job', {
-    p_customer_name: customerName,
-    p_customer_phone: customerPhone || null,
-    p_product_type_id: productTypeId,
-    p_source: source,
-    p_width: width,
-    p_height: height,
-    p_quantity: quantity,
-    p_unit_cost: unitCost,
-    p_notes: notes || null,
-    p_artwork_url: artworkUrl
-  } as any)
-
-  if (error) {
-    console.error('Create job error:', error)
-    return { error: error.message }
-  }
-
-  revalidatePath('/dashboard/jobs')
-  return { success: true, data }
+  return await createJobGroupAction(customerName, customerPhone || null, source, [{
+    productTypeId,
+    width,
+    height,
+    dimensionUnit: 'cm',
+    quantity,
+    unitCost,
+    notes,
+    artworkUrl,
+    printRoom: null
+  }])
 }
 
 export async function recordPaymentAction(formData: FormData) {
@@ -388,42 +572,58 @@ export async function transitionJobStatusAction(
 }
 
 export async function createInvoiceForJobAction(jobId: string): Promise<ActionResponse> {
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
+    const serviceSupabase = createServiceClient() as any
 
-  const { data: jobData, error: jobError } = await supabase
-    .from('jobs')
-    .select('id, tenant_id, line_total, status')
-    .eq('id', jobId)
-    .single()
+    const { data: jobData, error: jobError } = await supabase
+      .from('jobs')
+      .select('id, tenant_id, line_total, status')
+      .eq('id', jobId)
+      .single()
 
-  const job = jobData as { id: string; tenant_id: string; line_total: number; status: string } | null
+    const job = jobData as { id: string; tenant_id: string; line_total: number; status: string } | null
+    if (jobError || !job) return { error: 'Job not found' }
 
-  if (jobError || !job) return { error: 'Job not found' }
-  // Removed strict awaiting_payment check to allow generating invoices for manually forwarded jobs
+    let invoiceRecord: any = null
+    let attempts = 0
+    while (attempts < 5) {
+      attempts++
+      const invNumber = await generateDateInvoiceNumber(serviceSupabase, job.tenant_id)
+      const { data: invData, error: insertError } = await serviceSupabase
+        .from('invoices')
+        .insert({
+          tenant_id: job.tenant_id,
+          job_id: jobId,
+          invoice_number: invNumber,
+          total: job.line_total,
+          status: 'unpaid',
+        })
+        .select('id, invoice_number')
+        .single()
 
-  const { data: invNum, error: numError } = await supabase.rpc('get_next_invoice_number', {
-    p_tenant_id: job.tenant_id
-  } as any)
-  if (numError) return { error: numError.message }
+      if (!insertError && invData) {
+        invoiceRecord = invData
+        break
+      }
 
-  const { error: insertError } = await supabase.from('invoices').insert({
-    tenant_id: job.tenant_id,
-    job_id: jobId,
-    invoice_number: invNum as string,
-    total: job.line_total,
-    status: 'unpaid',
-  } as any)
+      if (insertError?.code === '23505') {
+        if (insertError.message?.includes('job_id')) {
+          revalidatePath(`/dashboard/jobs/${jobId}`)
+          return { success: true }
+        }
+        await new Promise(r => setTimeout(r, 50 * attempts))
+        continue
+      }
 
-  if (insertError) {
-    if (insertError.code === '23505') {
-      revalidatePath(`/dashboard/jobs/${jobId}`)
-      return { success: true }
+      return { error: insertError.message }
     }
-    return { error: insertError.message }
-  }
 
-  revalidatePath(`/dashboard/jobs/${jobId}`)
-  return { success: true }
+    revalidatePath(`/dashboard/jobs/${jobId}`)
+    return { success: true, data: invoiceRecord }
+  } catch (err: any) {
+    return { error: err.message }
+  }
 }
 
 export async function updateJobAction(jobId: string, updates: { width: number, height: number, quantity: number, unitCost: number, notes: string }): Promise<ActionResponse> {
@@ -594,9 +794,34 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
 }
 
 export async function startNewDayAction(): Promise<ActionResponse> {
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('start_new_day')
-  if (error) return { error: error.message }
-  revalidatePath('/dashboard/jobs')
-  return { success: true }
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Unauthorized' }
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('tenant_id, role')
+      .eq('id', user.id)
+      .single()
+
+    const profile = profileData as Pick<Profile, 'tenant_id' | 'role'> | null
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'front_desk')) {
+      return { error: 'Unauthorized' }
+    }
+
+    const serviceSupabase = createServiceClient() as any
+    await serviceSupabase
+      .from('job_sequences')
+      .upsert({
+        tenant_id: profile.tenant_id,
+        last_reset_time: new Date().toISOString()
+      }, { onConflict: 'tenant_id' })
+
+    revalidatePath('/dashboard/jobs')
+    revalidatePath('/dashboard/finance')
+    return { success: true }
+  } catch (err: any) {
+    return { error: err.message }
+  }
 }
