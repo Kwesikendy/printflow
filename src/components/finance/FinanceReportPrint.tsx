@@ -151,7 +151,7 @@ export function FinanceReportPrint({ tenantName, logoUrl, payments, unpaidInvoic
                 <tr key={inv.id}>
                   <td className="py-3 px-4 font-bold text-slate-700">{inv.invoice_number}</td>
                   <td className="py-3 px-4 text-slate-600">{new Date(inv.issued_at).toLocaleDateString()}</td>
-                  <td className="py-3 px-4 font-medium text-slate-700">{inv.jobs?.customer_name || 'Unknown'}</td>
+                  <td className="py-3 px-4 font-medium text-slate-700">{inv.jobs?.customer_name || inv.job_groups?.customer_name || 'Unknown'}</td>
                   <td className="py-3 px-4">
                     <span className="uppercase text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
                       {inv.status}

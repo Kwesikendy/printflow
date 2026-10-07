@@ -38,7 +38,8 @@ export default async function PrintFinanceReportPage() {
       .from('invoices')
       .select(`
         *,
-        jobs ( customer_name )
+        jobs ( customer_name ),
+        job_groups ( customer_name )
       `)
       .in('status', ['unpaid', 'partial'])
       .order('issued_at', { ascending: false })
