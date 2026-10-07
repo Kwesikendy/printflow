@@ -410,7 +410,8 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
     return { error: 'Insufficient permissions' }
   }
 
-  const { data: job } = await supabase.from('jobs').select('*').eq('id', jobId).single()
+  const { data: jobData } = await supabase.from('jobs').select('*').eq('id', jobId).single()
+  const job = jobData as any
   if (!job) return { error: 'Job not found' }
   
   const finalUnitCost = profile?.role === 'admin' ? updates.unitCost : job.unit_cost_applied
@@ -431,8 +432,9 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
 
   // Update invoice total
   if (job.group_id) {
-    const { data: allJobs } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
-    const newTotal = allJobs?.reduce((sum, j) => sum + Number(j.line_total), 0) || 0
+    const { data: allJobsData } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
+    const allJobs = allJobsData as any[] | null
+    const newTotal = allJobs?.reduce((sum: number, j: any) => sum + Number(j.line_total), 0) || 0
     await supabase.from('invoices').update({ total: newTotal }).eq('group_id', job.group_id)
   } else {
     await supabase.from('invoices').update({ total: lineTotal }).eq('job_id', jobId)
