@@ -32,7 +32,7 @@ async function createUsers() {
 
   for (const u of usersToCreate) {
     console.log(`Creating user ${u.email}...`)
-    
+
     // 1. Create user in Supabase Auth
     const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
       email: u.email,
@@ -65,22 +65,22 @@ async function createUsers() {
 }
 
 async function updateProfile(userId, tenantId, role, name, email) {
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: userId,
-        tenant_id: tenantId,
-        role: role,
-        full_name: name,
-        email: email,
-        is_active: true
-      })
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .upsert({
+      id: userId,
+      tenant_id: tenantId,
+      role: role,
+      full_name: name,
+      email: email,
+      is_active: true
+    })
 
-    if (profileError) {
-      console.error('Failed to insert profile:', profileError.message)
-    } else {
-      console.log(`Profile mapped for ${name} (${role})`)
-    }
+  if (profileError) {
+    console.error('Failed to insert profile:', profileError.message)
+  } else {
+    console.log(`Profile mapped for ${name} (${role})`)
+  }
 }
 
 createUsers().then(() => console.log('Done!'))
