@@ -2,6 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'printflow',
+      cwd: __dirname,
       script: 'server.js',
       instances: 1,
       autorestart: true,
