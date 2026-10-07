@@ -11,7 +11,12 @@ This document details common issues encountered during local development and Win
 4. [VPS Issue: Port Collision (`EADDRINUSE: address already in use :::3000`)](#4-vps-issue-port-collision-eaddrinuse-address-already-in-use-3000)
 5. [VPS Issue: Extensionless Next Binary on Windows](#5-vps-issue-extensionless-next-binary-on-windows)
 6. [VPS Issue: Git Pull Blocked by Untracked Files](#6-vps-issue-git-pull-blocked-by-untracked-files)
-7. [Standard Operations Quick-Reference Runbook](#7-standard-operations-quick-reference-runbook)
+7. [VPS Issue: Corrupted `.next` Cache (CSS/JS 404 Errors)](#7-vps-issue-corrupted-next-cache-cssjs-404-errors)
+8. [VPS Issue: 35MB File Upload Failure ("Something went wrong")](#8-vps-issue-35mb-file-upload-failure-something-went-wrong)
+9. [Database Issue: Duplicate Key Violation on Job Number (`jobs_tenant_id_job_number_key`)](#9-database-issue-duplicate-key-violation-on-job-number-jobs_tenant_id_job_number_key)
+10. [Frontend Issue: Customer Autocomplete & Autofill Not Triggering](#10-frontend-issue-customer-autocomplete--autofill-not-triggering)
+11. [Windows VPS: Safe PM2 Restart Procedure (`listen EACCES: permission denied`)](#11-windows-vps-safe-pm2-restart-procedure-listen-eacces-permission-denied)
+12. [Standard Operations Quick-Reference Runbook](#12-standard-operations-quick-reference-runbook)
 
 ---
 
@@ -206,22 +211,119 @@ If a previous `npm run build` failed halfway through or was interrupted, Next.js
 
 ---
 
-## 8. Standard Operations Quick-Reference Runbook
+## 8. VPS Issue: 35MB File Upload Failure ("Something went wrong")
+
+### Symptom
+When users try to upload files around 30MB or larger (e.g. a 35MB artwork file), the upload instantly fails and the Next.js React Error Boundary catches an unhandled error ("Something went wrong"). However, 1MB files upload perfectly fine.
+
+### Root Cause
+This is **not** a Next.js `bodySizeLimit` issue, and it is **not** an OOM issue. 
+The Windows VPS is physically sitting behind an InterServer network-edge reverse proxy (Caddy). This proxy has a hard limit on `request_body` size (likely around 10-20MB). When a large payload hits this network edge, Caddy instantly drops the TCP connection. Next.js receives a malformed/dropped connection, crashes the Server Action parser, and triggers the Error Boundary.
+
+### Resolution
+The Next.js app itself is configured to allow `400MB` in `next.config.ts`. To fix the network layer, you must:
+1. **Contact InterServer Support** and request that they increase the `request_body` limit on the proxy for your server IP/domain to `400MB`.
+2. **Temporary Bypass (Cloudflare):** Moving your DNS to Cloudflare and enabling Proxy (Orange Cloud) temporarily bypasses this by routing through Cloudflare's edge. However, Cloudflare's free tier has a strict **100MB** limit. 
+3. **Important Note:** Once InterServer grants the 400MB limit, you **MUST** either disable Cloudflare Proxy (turn to Grey Cloud "DNS Only") or revert your nameservers back to `cdns1.interserver.net`, otherwise Cloudflare's 100MB limit will block your 400MB files.
+
+---
+
+## 9. Database Issue: Duplicate Key Violation on Job Number (`jobs_tenant_id_job_number_key`)
+
+### Symptom
+When attempting to create a job or order on the New Job page (`/dashboard/jobs/new`), submission fails with an error toast:
+```text
+duplicate key value violates unique constraint "jobs_tenant_id_job_number_key"
+Key (tenant_id, job_number)=(..., PF-00001) already exists.
+```
+
+### Root Cause
+1. **Sequence Counter Reset**: In legacy versions, job numbers followed a flat sequential format (`PF-00001`, `PF-00002`). At the daily 5:00 PM shift boundary or when clicking "Start New Day", the database sequence counter (`job_sequences.last_job`) was reset to `0`.
+2. **Collision with Past Records**: The next order called PostgreSQL RPC `get_next_job_number`, generating `PF-00001`. Because `PF-00001` was already committed to the database on a prior workday, PostgreSQL threw a unique constraint violation on `(tenant_id, job_number)`.
+3. **Network Inaccessibility for Direct SQL Migrations**: Running database fix scripts via `node apply-sql.js` failed on the VPS with `ENOTFOUND db.zrnnrnnzywqnvdmnpbws.supabase.co` because Supabase deprecated direct IPv4 connections to the pooler, while the VPS network interface lacked direct IPv6 routing.
+
+### Resolution
+1. **Date-Prefixed Key Numbering**:
+   Job and invoice numbers now incorporate the calendar date (`YYMMDD`):
+   - **Job Numbers**: `PF-YYMMDD-001`, `PF-YYMMDD-002`, `PF-YYMMDD-003` (e.g. `PF-261007-001` today, `PF-261008-001` tomorrow).
+   - **Invoice Numbers**: `INV-YYMMDD-001`, `INV-YYMMDD-002`.
+   - Each calendar date has its own independent namespace, making cross-day collisions mathematically impossible.
+2. **Decoupled from Database RPCs**:
+   Job group creation, job line-item insertion, and invoice generation were migrated out of the PostgreSQL RPC and implemented directly in the Next.js Server Action (`createJobGroupAction` in `src/app/actions/jobs.ts`) using `createServiceClient()` over HTTPS. This works 100% reliably regardless of server IPv6 network status.
+3. **Collision Resistance & Concurrency Safe**:
+   The server queries the highest numeric suffix matching today's prefix (`PF-YYMMDD-%`) and increments from there. An automatic retry loop handles simultaneous submissions gracefully.
+
+---
+
+## 10. Frontend Issue: Customer Autocomplete & Autofill Not Triggering
+
+### Symptom
+When creating a job on `/dashboard/jobs/new`, typing into the **Customer Name** field did not display matching customer suggestions from the database, or failed to autofill the name and phone number.
+
+### Root Cause
+1. **High Character Threshold**: `CustomerAutocomplete` had `value.length < 2`, blocking searches on 1-character input.
+2. **Phone Number Omission**: The search action only queried `ilike('name', ...)`. Searching by phone prefix (e.g. `024...`) returned 0 results.
+3. **Missing Address Book Records**: Customers from historical jobs and job groups were never synced into the dedicated `customers` directory table.
+4. **Dropdown Loop Bug**: Selecting a customer updated `customerName`, which re-triggered the `useEffect` and popped the dropdown back open 300ms later.
+
+### Resolution
+1. **Backfilled Customers Directory**: Synced all historical unique customers from `jobs` and `job_groups` directly into the `customers` directory table with their phone numbers.
+2. **Dual Name & Phone Search**: In `src/app/actions/customers.ts`, `searchCustomers` searches across both `name` AND `phone` columns using `or('name.ilike.%q%,phone.ilike.%q%')`.
+3. **Instant Search**: Lowered debounce to 150ms and enabled search on single-character inputs (`value.trim().length >= 1`).
+4. **Clean Selection & Autofill**: Added `justSelectedRef` to cleanly close the dropdown upon selection. Clicking any customer immediately autofills both **Customer Name** and **Phone Number**.
+5. **UI Enhancements**: Added scrollable dropdown (`max-h-64 overflow-y-auto`), customer initials avatar badges, and inline loading spinner.
+
+---
+
+## 11. Windows VPS: Safe PM2 Restart Procedure (`listen EACCES: permission denied`)
+
+### Symptom
+Running `pm2 restart printflow` after a build causes the application to rapidly crash (`↺ 2 stopped` or `↺ 30 stopped`). Checking `pm2 logs printflow --lines 20 --nostream` reveals:
+```text
+Error: listen EACCES: permission denied 0.0.0.0:3000
+    at <unknown> (Error: listen EACCES: permission denied 0.0.0.0:3000) {
+  code: 'EACCES',
+  errno: -4092,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3000
+}
+```
+
+### Root Cause
+On Windows Server, when PM2 receives a restart command, it spawns a replacement process immediately before the old Node.js process has released its TCP socket. Windows holds network sockets in `TIME_WAIT` / `CLOSE_WAIT` for 1–2 seconds after process termination. Because Windows does not support port sharing without specific flags, the new process encounters `WSAEACCES` (10013 / `EACCES: permission denied`), fails to start, and PM2 exhausts its restart limit.
+
+### Resolution
+**Never use bare `pm2 restart printflow` on Windows Server.**
+Always use the safe one-line command that forcefully stops any lingering Node process and launches PM2 cleanly:
+```powershell
+Stop-Process -Name node -Force -ErrorAction SilentlyContinue; pm2 start ecosystem.config.cjs
+pm2 status
+```
+
+---
+
+## 12. Standard Operations Quick-Reference Runbook
 
 ### Deploy New Code Changes to VPS (Day-to-Day)
-*Note: Do not just run `pm2 restart`. Always use this sequence to prevent phantom daemons and cache corruption.*
+*Always use this sequence to prevent phantom daemons, port locks, and cache corruption:*
 ```powershell
 cd C:\Apps\printflow
-git pull
+git pull origin main
 npm run build
-pm2 delete all
-taskkill /F /IM node.exe /T
-pm2 start ecosystem.config.cjs
+Stop-Process -Name node -Force -ErrorAction SilentlyContinue; pm2 start ecosystem.config.cjs
 pm2 save
+pm2 status
+```
+
+### Safe Server Restart (Without Rebuilding)
+```powershell
+Stop-Process -Name node -Force -ErrorAction SilentlyContinue; pm2 start ecosystem.config.cjs
+pm2 status
 ```
 
 ### The Ultimate "Nuke From Orbit" Reset (If Server Fails to Start or Hangs)
-If PM2 crashes instantly with `EACCES` on port 3000, it means a phantom PM2 daemon is silently respawning zombie Node instances in the background. Because PM2 itself is a Node program, we must kill the entire process tree (`/T`).
+If PM2 crashes or port 3000 is locked:
 
 ```powershell
 cd C:\Apps\printflow
@@ -237,7 +339,7 @@ net stop winnat
 net start winnat
 
 # 4. Pull latest repository state
-git pull
+git pull origin main
 
 # 5. Obliterate corrupted build cache
 Remove-Item .next -Recurse -Force
@@ -264,20 +366,3 @@ Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in (Get-NetTCPConne
 # View PM2 error logs without live streaming
 pm2 logs printflow --lines 30 --nostream
 ```
-
----
-
-## 8. VPS Issue: 35MB File Upload Failure ("Something went wrong")
-
-### Symptom
-When users try to upload files around 30MB or larger (e.g. a 35MB artwork file), the upload instantly fails and the Next.js React Error Boundary catches an unhandled error ("Something went wrong"). However, 1MB files upload perfectly fine.
-
-### Root Cause
-This is **not** a Next.js `bodySizeLimit` issue, and it is **not** an OOM issue. 
-The Windows VPS is physically sitting behind an InterServer network-edge reverse proxy (Caddy). This proxy has a hard limit on `request_body` size (likely around 10-20MB). When a large payload hits this network edge, Caddy instantly drops the TCP connection. Next.js receives a malformed/dropped connection, crashes the Server Action parser, and triggers the Error Boundary.
-
-### Resolution
-The Next.js app itself is configured to allow `400MB` in `next.config.ts`. To fix the network layer, you must:
-1. **Contact InterServer Support** and request that they increase the `request_body` limit on the proxy for your server IP/domain to `400MB`.
-2. **Temporary Bypass (Cloudflare):** Moving your DNS to Cloudflare and enabling Proxy (Orange Cloud) temporarily bypasses this by routing through Cloudflare's edge. However, Cloudflare's free tier has a strict **100MB** limit. 
-3. **Important Note:** Once InterServer grants the 400MB limit, you **MUST** either disable Cloudflare Proxy (turn to Grey Cloud "DNS Only") or revert your nameservers back to `cdns1.interserver.net`, otherwise Cloudflare's 100MB limit will block your 400MB files.
