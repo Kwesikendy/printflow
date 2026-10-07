@@ -6,7 +6,11 @@ export const metadata: Metadata = {
   title: 'Financial Report',
 }
 
-export default async function PrintFinanceReportPage() {
+export default async function PrintFinanceReportPage(props: {
+  searchParams: Promise<{ date?: string }>
+}) {
+  const searchParams = await props.searchParams
+  const dateParam = searchParams.date || null
   const supabase = await createClient()
 
   // Get tenant profile
@@ -24,7 +28,7 @@ export default async function PrintFinanceReportPage() {
 
   const tenant = anyProfile.tenants
 
-  // Fetch all payments and unpaid invoices
+  // Fetch all payments and unpaid invoices with payments joined
   const [{ data: payments }, { data: unpaidInvoices }] = await Promise.all([
     supabase
       .from('payments')
@@ -39,7 +43,8 @@ export default async function PrintFinanceReportPage() {
       .select(`
         *,
         jobs ( customer_name ),
-        job_groups ( customer_name )
+        job_groups ( customer_name ),
+        payments ( amount )
       `)
       .in('status', ['unpaid', 'partial'])
       .order('issued_at', { ascending: false })
@@ -51,6 +56,7 @@ export default async function PrintFinanceReportPage() {
       logoUrl={tenant.logo_url}
       payments={payments || []}
       unpaidInvoices={unpaidInvoices || []}
+      initialDateFilter={dateParam}
     />
   )
 }

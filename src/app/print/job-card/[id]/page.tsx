@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
-import { JobBarcode } from '@/components/print/JobBarcode'
 import QRCode from 'react-qr-code'
 
 export default async function JobCardPrintPage(props: {
@@ -53,30 +52,38 @@ export default async function JobCardPrintPage(props: {
     other: 'Other',
   }
 
-  // Extract job number digits for the "barcode" number display
-  const jobNumDigits = job.job_number?.replace(/\D/g, '') || ''
-
   return (
-    <div className="bg-white min-h-screen flex items-start justify-center py-10 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
+    <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
       <AutoPrint />
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
-            margin: 0;
-            size: auto;
+            margin: 0mm !important;
+            size: 80mm auto !important;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
             min-height: 0 !important;
-            height: max-content !important;
+            height: auto !important;
             background: #ffffff !important;
+            overflow: visible !important;
+          }
+          .ticket-container {
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 2mm 3mm 1mm 3mm !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
         }
       `}} />
 
-      {/* Receipt card — compact for both thermal roll and desktop printers */}
-      <div className="w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0 print:pb-0">
+      {/* Receipt card — compact for 80mm thermal roll printers */}
+      <div className="ticket-container w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0 print:pb-0">
 
         {/* Logo + Shop Header */}
         <div className="text-center mb-2">
@@ -128,16 +135,11 @@ export default async function JobCardPrintPage(props: {
           <p className="font-bold text-[11px] text-black">Date: {formatDateTime(job.created_at)}</p>
         </div>
 
-        {/* Real Code 128 barcode */}
-        <div className="flex justify-center mb-2">
-          <JobBarcode value={job.job_number} />
-        </div>
-
         {/* Tracking QR Code */}
         {invoice && (
-          <div className="flex flex-col items-center justify-center mb-2">
+          <div className="flex flex-col items-center justify-center my-1.5">
             <p className="text-[10px] font-bold text-black mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
-            <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={64} level="L" />
+            <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={72} level="M" />
           </div>
         )}
 

@@ -28,9 +28,11 @@ export default async function FinancePage() {
       .from('invoices')
       .select(`
         *,
-        jobs ( job_number, customer_name )
+        jobs ( job_number, customer_name ),
+        job_groups ( customer_name ),
+        payments ( amount )
       `)
-      .eq('status', 'unpaid')
+      .in('status', ['unpaid', 'partial'])
       .order('issued_at', { ascending: false })
   ])
 

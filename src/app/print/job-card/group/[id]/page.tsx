@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
-import { JobBarcode } from '@/components/print/JobBarcode'
 import QRCode from 'react-qr-code'
 
 export default async function GroupJobCardPrintPage(props: {
@@ -70,29 +69,42 @@ export default async function GroupJobCardPrintPage(props: {
     ? (PRINT_ROOM_LABELS[roomFilter] || roomFilter)
     : (printRooms.length === 1 ? (PRINT_ROOM_LABELS[printRooms[0]] || printRooms[0]) : 'ALL ROOMS')
 
-  // Use first job number for barcode; show all job numbers in card
+  // Use first job number for reference; show all job numbers in card
   const firstJob = jobs[0]
 
   return (
-    <div className="bg-white flex items-start justify-center py-10 font-mono print:py-0 print:px-0 print:m-0 print:block">
+    <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
       <AutoPrint />
       <title>{`JOB CARD — ${group.customer_name}`}</title>
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
-            margin: 0;
-            size: 80mm auto;
+            margin: 0mm !important;
+            size: 80mm auto !important;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+            min-height: 0 !important;
+            height: auto !important;
             background: #ffffff !important;
+            overflow: visible !important;
+          }
+          .ticket-container {
+            width: 80mm !important;
+            max-width: 80mm !important;
+            margin: 0 !important;
+            padding: 2mm 3mm 1mm 3mm !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
           }
         }
       `}} />
 
       {/* Receipt card — compact 80mm thermal width */}
-      <div className="w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0">
+      <div className="ticket-container w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0">
 
         {/* Logo + Shop Header */}
         <div className="text-center mb-2">
@@ -139,16 +151,11 @@ export default async function GroupJobCardPrintPage(props: {
           <p className="font-bold text-[11px] text-black">Date: {formatDateTime(group.created_at)}</p>
         </div>
 
-        {/* Barcode — use first job number */}
-        <div className="flex justify-center mb-2">
-          <JobBarcode value={firstJob.job_number} />
-        </div>
-
-        {/* QR Code */}
+        {/* Tracking QR Code */}
         {invoice && (
-          <div className="flex flex-col items-center justify-center mb-2">
+          <div className="flex flex-col items-center justify-center my-1.5">
             <p className="text-[10px] font-bold text-black mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
-            <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={64} level="L" />
+            <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={72} level="M" />
           </div>
         )}
 
