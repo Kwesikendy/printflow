@@ -2,8 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'printflow',
-      script: 'npm.cmd',
-      args: 'run start',
+      script: 'server.js',
       instances: 1,
       autorestart: true,
       watch: false,
