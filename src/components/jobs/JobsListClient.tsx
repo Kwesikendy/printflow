@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { Search, FileText, User } from 'lucide-react'
+import { Search, FileText, User, Calendar } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
@@ -16,17 +16,28 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
   const [isFocused, setIsFocused] = useState(false)
   const [query, setQuery] = useState(initialQuery)
   const [isPending, startTransition] = useTransition()
+  const [showTodayOnly, setShowTodayOnly] = useState(false)
   
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<{customer_name: string}[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Local instant filtering for jobs already on screen
-  const visibleJobs = initialJobs.filter(job => 
-    !query || 
-    job.job_number.toLowerCase().includes(query.toLowerCase()) || 
-    job.customer_name.toLowerCase().includes(query.toLowerCase())
-  )
+  const visibleJobs = initialJobs.filter(job => {
+    const matchesSearch = !query || 
+      job.job_number.toLowerCase().includes(query.toLowerCase()) || 
+      job.customer_name.toLowerCase().includes(query.toLowerCase())
+
+    if (!matchesSearch) return false;
+
+    if (showTodayOnly) {
+      const jobDate = new Date(job.created_at);
+      const today = new Date();
+      return jobDate.toDateString() === today.toDateString();
+    }
+
+    return true;
+  })
 
   // Debounced search for autocomplete dropdown
   useEffect(() => {
@@ -74,9 +85,11 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
 
   return (
     <div className="space-y-6">
-      {/* Floating Modern Search Bar */}
-      <div className="relative max-w-2xl z-20" ref={dropdownRef}>
-        <motion.div 
+      {/* Action Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between relative z-20">
+        {/* Floating Modern Search Bar */}
+        <div className="relative w-full max-w-2xl" ref={dropdownRef}>
+          <motion.div 
           animate={{
             boxShadow: isFocused 
               ? '0 10px 25px -5px rgba(99, 102, 241, 0.15), 0 8px 10px -6px rgba(99, 102, 241, 0.1)' 
@@ -136,6 +149,19 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
             )}
           </AnimatePresence>
         </motion.div>
+      </div>
+
+      {/* Filter / Actions */}
+      <div className="flex items-center gap-3">
+        <Button 
+          variant={showTodayOnly ? "default" : "outline"}
+          onClick={() => setShowTodayOnly(!showTodayOnly)}
+          className={`flex items-center gap-2 transition-all ${showTodayOnly ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 'bg-white/80 backdrop-blur-xl border-slate-200/80 hover:bg-slate-50 text-slate-700'}`}
+        >
+          <Calendar className="w-4 h-4" />
+          {showTodayOnly ? "Showing Today" : "Show Today Only"}
+        </Button>
+      </div>
       </div>
 
       {/* Jobs List Container */}
