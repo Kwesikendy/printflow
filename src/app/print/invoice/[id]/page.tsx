@@ -60,8 +60,6 @@ export default async function InvoicePrintPage(props: {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const qrData = `${siteUrl}/track/invoice/${invoice.id}`
 
-  // PDF filename format: "inv0045[Nameofclient]"
-  // The DB returns invoice_number like "INV-00045", we can strip the hyphen or format it.
   const docTitle = `${invoice.invoice_number.replace('-', '')}[${customerName}]`.toLowerCase()
 
   return (
@@ -73,96 +71,112 @@ export default async function InvoicePrintPage(props: {
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
-            margin: 0;
+            margin: 8mm;
             size: A4;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
+            color: #000000 !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}} />
 
-      <div className="flex justify-center mb-6 relative">
-        <img src="/Print_DPI_Logo.png" alt="Print dpi DIGITAL PRESS" className="h-24" />
-        <div className="absolute right-0 top-0">
-          <QRCode value={qrData} size={80} level="M" />
+      {/* Header with Shop Logo and QR Code */}
+      <div className="flex justify-between items-center mb-6 pb-2">
+        <img src="/Print_DPI_Logo.png" alt="Print DPI DIGITAL PRESS" className="h-20 object-contain" />
+        <div className="flex flex-col items-end">
+          <QRCode value={qrData} size={84} level="M" />
+          <span className="text-[10px] font-bold text-black uppercase mt-1 tracking-wider">Scan to Track</span>
         </div>
       </div>
 
-      <div className="text-sm font-semibold border-b-[1.5px] border-black pb-1 mb-1">
-        INVOICE NO.{invoice.invoice_number}
+      <div className="text-base font-extrabold text-black border-b-2 border-black pb-1 mb-1 tracking-wide">
+        INVOICE NO. {invoice.invoice_number}
       </div>
       
-      <div className="flex justify-between items-center border-b-[1.5px] border-[#c8b488] pb-1 mb-1">
-        <div className="text-sm font-semibold">{formatDate(invoice.issued_at)}</div>
-        <div className="text-[#ec008c] font-bold text-sm uppercase">GHS {invoice.total}</div>
+      <div className="flex justify-between items-center border-b-2 border-black pb-1 mb-1">
+        <div className="text-sm font-bold text-black">{formatDate(invoice.issued_at)}</div>
+        <div className="text-black font-extrabold text-base uppercase">GHS {Number(invoice.total).toFixed(2)}</div>
       </div>
       
-      <div className="text-sm font-bold border-b-[1.5px] border-black pb-1 mb-1">
+      <div className="text-sm font-extrabold text-black border-b-2 border-black pb-1 mb-1">
         PAYMENT DUE BY &nbsp; {formatDate(invoice.issued_at)}
       </div>
       
-      <div className="text-sm border-b-[1.5px] border-black pb-1 mb-6">
-        <span className="font-bold border-b-[1.5px] border-black inline-block uppercase">
+      <div className="text-sm border-b-2 border-black pb-1 mb-6">
+        <span className="font-extrabold text-base text-black inline-block uppercase">
           {customerName}
         </span>
-        <div className="font-normal mt-1 text-xs">Accra</div>
+        {customerPhone && (
+          <span className="text-sm font-bold text-black ml-3">({customerPhone})</span>
+        )}
+        <div className="font-bold text-xs text-black mt-0.5">Accra, Ghana</div>
       </div>
 
       <table className="w-full mb-8 text-left border-collapse text-sm">
         <thead>
-          <tr className="border-y-2 border-black">
-            <th className="py-1 px-2 font-bold uppercase w-24">QUANTITY</th>
-            <th className="py-1 px-2 font-bold uppercase">DETAILS</th>
-            <th className="py-1 px-2 font-bold uppercase text-center w-32">UNIT PRICE</th>
-            <th className="py-1 px-2 font-bold uppercase text-center w-32">LINE TOTAL</th>
+          <tr className="border-y-2 border-black bg-slate-100">
+            <th className="py-2 px-3 font-extrabold text-black uppercase w-24">QUANTITY</th>
+            <th className="py-2 px-3 font-extrabold text-black uppercase">DETAILS</th>
+            <th className="py-2 px-3 font-extrabold text-black uppercase text-center w-32">UNIT PRICE</th>
+            <th className="py-2 px-3 font-extrabold text-black uppercase text-center w-32">LINE TOTAL</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="divide-y divide-black/40 border-b-2 border-black font-bold text-black">
           {jobsList.map((job: any, index: number) => (
-            <tr key={job.id} className={index % 2 === 0 ? "bg-[#e5e5e5]" : "bg-white"}>
-              <td className="py-1 px-2">{job.quantity}</td>
-              <td className="py-1 px-2 uppercase">{job.product_types?.name} {job.width} x {job.height} {job.dimension_unit}</td>
-              <td className="py-1 px-2 text-center">{(job.line_total / job.quantity).toFixed(2)}</td>
-              <td className="py-1 px-2 text-center">{job.line_total.toFixed(2)}</td>
+            <tr key={job.id} className={index % 2 === 0 ? "bg-slate-50" : "bg-white"}>
+              <td className="py-2 px-3 font-black text-black text-center">{job.quantity}</td>
+              <td className="py-2 px-3 uppercase text-black font-bold">
+                {job.product_types?.name} {job.width} × {job.height} {job.dimension_unit}
+                {job.notes && <div className="text-xs text-black normal-case font-semibold">{job.notes}</div>}
+              </td>
+              <td className="py-2 px-3 text-center text-black font-bold">{(job.line_total / job.quantity).toFixed(2)}</td>
+              <td className="py-2 px-3 text-center font-black text-black">{Number(job.line_total).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <div className="mb-8">
-        <div className="bg-[#e5e5e5] font-bold px-2 py-1 text-sm uppercase mb-1">
+      <div className="mb-6">
+        <div className="bg-slate-100 font-black text-black px-3 py-1 text-xs uppercase mb-1 border-l-4 border-black">
           NOTE
         </div>
-        <div className="px-2 text-sm uppercase">
+        <div className="px-3 text-sm font-black text-black uppercase tracking-wide">
           UPFRONT PAYMENT
         </div>
       </div>
 
-      <div className="flex flex-col items-end mb-8 text-sm">
-        <div className="w-64 space-y-1 text-right">
+      <div className="flex flex-col items-end mb-6 text-sm">
+        <div className="w-72 space-y-1.5 text-right font-bold text-black">
           <div className="flex justify-between">
-            <span>Discount</span>
-            <span></span>
+            <span className="text-black font-bold">Discount</span>
+            <span className="text-black font-bold">0.00</span>
           </div>
           <div className="flex justify-between">
-            <span>Net Total</span>
-            <span>GHS {invoice.total}</span>
+            <span className="text-black font-bold">Net Total</span>
+            <span className="text-black font-black">GHS {Number(invoice.total).toFixed(2)}</span>
           </div>
-          <div className="flex justify-between border-b border-gray-200 pb-1">
-            <span>Add VAT</span>
-            <span></span>
+          <div className="flex justify-between border-b-2 border-black pb-1.5">
+            <span className="text-black font-bold">Add VAT</span>
+            <span className="text-black font-bold">0.00</span>
           </div>
-          <div className="flex justify-between font-semibold text-green-700 pt-1">
+          <div className="flex justify-between font-black text-black pt-1">
             <span>Amount Paid</span>
-            <span>- GHS {totalPaid}</span>
+            <span>- GHS {Number(totalPaid).toFixed(2)}</span>
           </div>
         </div>
         
-        <div className="w-[450px] flex justify-between border-y-2 border-black mt-2 font-bold text-[#ec008c]">
-          <div className="py-1 uppercase text-right flex-1 border-r-[1.5px] border-black pr-2">BALANCE DUE</div>
-          <div className="py-1 pl-2 w-32 text-center">GHS {balance}</div>
+        <div className="w-[450px] flex justify-between border-y-2 border-black mt-3 font-black text-black bg-slate-50 text-base">
+          <div className="py-2 uppercase text-right flex-1 border-r-2 border-black pr-3 tracking-wider">BALANCE DUE</div>
+          <div className="py-2 pl-3 w-36 text-center text-lg font-black text-black">GHS {Number(balance).toFixed(2)}</div>
         </div>
       </div>
 
@@ -170,39 +184,39 @@ export default async function InvoicePrintPage(props: {
       <div className="flex-1"></div>
 
       {/* Footer: Payment details */}
-      <div className="text-xs mt-8">
-        <h3 className="font-bold text-[#ec008c] uppercase mb-2">PAYMENT DETAILS</h3>
-        <table className="w-80">
+      <div className="text-xs mt-6 border-t-2 border-black pt-3">
+        <h3 className="font-extrabold text-black text-sm uppercase mb-2 tracking-wider">PAYMENT DETAILS</h3>
+        <table className="w-96 text-black font-bold">
           <tbody>
             <tr>
-              <td className="py-[2px] text-gray-700">Name of Beneficiary:</td>
-              <td className="py-[2px] uppercase">PRINT DPI</td>
+              <td className="py-0.5 text-black font-bold w-44">Name of Beneficiary:</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">PRINT DPI</td>
             </tr>
             <tr>
-              <td className="py-[2px] text-gray-700">Mobile Money No.</td>
-              <td className="py-[2px] uppercase">598608209</td>
+              <td className="py-0.5 text-black font-bold">Mobile Money No.</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">0598608209</td>
             </tr>
             <tr>
-              <td className="py-[2px] text-gray-700">Name of Bank:</td>
-              <td className="py-[2px] uppercase">FIDELITY BANK</td>
+              <td className="py-0.5 text-black font-bold">Name of Bank:</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">FIDELITY BANK</td>
             </tr>
             <tr>
-              <td className="py-[2px] text-gray-700">Address of Bank:</td>
-              <td className="py-[2px] uppercase">KANESHIE</td>
+              <td className="py-0.5 text-black font-bold">Address of Bank:</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">KANESHIE</td>
             </tr>
             <tr>
-              <td className="py-[2px] text-gray-700">Account Number:</td>
-              <td className="py-[2px] uppercase">2400446763917</td>
+              <td className="py-0.5 text-black font-bold">Account Number:</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">2400446763917</td>
             </tr>
             <tr>
-              <td className="py-[2px] text-gray-700">SWIFT Code</td>
-              <td className="py-[2px] uppercase">FBLIGHAC</td>
+              <td className="py-0.5 text-black font-bold">SWIFT Code:</td>
+              <td className="py-0.5 uppercase font-extrabold text-black">FBLIGHAC</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="no-print mt-8 text-center text-sm text-gray-500">
+      <div className="no-print mt-6 text-center text-sm text-gray-500">
         <PrintButton />
       </div>
     </div>

@@ -235,8 +235,11 @@ body::before {
 
 /* === Print Utilities === */
 @media print {
-  .no-print {
+  .no-print,
+  [data-loading-screen],
+  .fixed.inset-0.z-\[9999\] {
     display: none !important;
+    visibility: hidden !important;
   }
 }
 

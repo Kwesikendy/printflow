@@ -15,18 +15,24 @@ import { toast } from 'sonner'
 
 export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { initialJobs: any[], initialQuery: string, lastResetTime?: string }) {
   const router = useRouter()
+  const [jobsList, setJobsList] = useState(initialJobs)
   const [isFocused, setIsFocused] = useState(false)
   const [query, setQuery] = useState(initialQuery)
   const [isPending, startTransition] = useTransition()
   const [showTodayOnly, setShowTodayOnly] = useState(true) // Default to true!
   const [isResetting, setIsResetting] = useState(false)
   
+  // Sync state if initialJobs prop changes from server
+  useEffect(() => {
+    setJobsList(initialJobs)
+  }, [initialJobs])
+
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<{customer_name: string}[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Local instant filtering for jobs already on screen
-  const visibleJobs = initialJobs.filter(job => {
+  const visibleJobs = jobsList.filter(job => {
     const matchesSearch = !query || 
       job.job_number.toLowerCase().includes(query.toLowerCase()) || 
       job.customer_name.toLowerCase().includes(query.toLowerCase())
@@ -98,6 +104,7 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
       } else {
         toast.success("New day started! Sequence reset to 1.")
         setShowTodayOnly(true)
+        router.refresh()
       }
     } catch (e) {
       toast.error("Failed to start new day")
@@ -287,11 +294,20 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
                             e.stopPropagation()
                             if (window.confirm('Are you sure you want to permanently delete this job? This will delete all payments and invoices associated with it.')) {
                               toast.loading('Deleting job...', { id: 'delete-job' })
-                              const res = await deleteJobAction(job.id)
-                              if (res.error) {
-                                toast.error('Failed to delete job: ' + res.error, { id: 'delete-job' })
-                              } else {
-                                toast.success('Job deleted successfully!', { id: 'delete-job' })
+                              const previousJobs = [...jobsList]
+                              setJobsList(prev => prev.filter(j => j.id !== job.id))
+                              try {
+                                const res = await deleteJobAction(job.id)
+                                if (res.error) {
+                                  setJobsList(previousJobs)
+                                  toast.error('Failed to delete job: ' + res.error, { id: 'delete-job' })
+                                } else {
+                                  toast.success('Job deleted successfully!', { id: 'delete-job' })
+                                  router.refresh()
+                                }
+                              } catch (err: any) {
+                                setJobsList(previousJobs)
+                                toast.error('Failed to delete job: ' + (err?.message || 'Unexpected error'), { id: 'delete-job' })
                               }
                             }
                           }}

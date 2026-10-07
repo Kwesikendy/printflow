@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom } from '@/types/database'
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
@@ -483,26 +483,115 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   // Verify user role
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
-  const { data } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
-  const profile = data as { role: string, tenant_id: string } | null
+  const { data: profileData } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  const profile = profileData as { role: string, tenant_id: string } | null
   
   if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
     return { error: 'Insufficient permissions to delete jobs' }
   }
 
-  // Delete dependencies first (status events, payments, invoices)
-  await supabase.from('job_status_events').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
-  await supabase.from('payments').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
-  await supabase.from('invoices').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
-  
-  // Finally delete the job
-  const { error } = await supabase.from('jobs').delete().eq('id', jobId).eq('tenant_id', profile.tenant_id)
-  
-  if (error) return { error: error.message }
-  
+  const serviceSupabase = createServiceClient()
+
+  // 1. Fetch the job details
+  const { data: jobData, error: jobFetchError } = await serviceSupabase
+    .from('jobs')
+    .select('id, group_id, tenant_id, line_total')
+    .eq('id', jobId)
+    .eq('tenant_id', profile.tenant_id)
+    .single()
+
+  if (jobFetchError || !jobData) {
+    return { error: 'Job not found or already deleted' }
+  }
+
+  const job = jobData as { id: string; group_id: string | null; tenant_id: string; line_total: number }
+
+  if (job.group_id) {
+    // Multi-job group
+    const { data: groupJobs } = await serviceSupabase
+      .from('jobs')
+      .select('id, line_total')
+      .eq('group_id', job.group_id)
+      .eq('tenant_id', profile.tenant_id)
+
+    const allGroupJobs = (groupJobs || []) as { id: string; line_total: number }[]
+    const remainingJobs = allGroupJobs.filter((j) => j.id !== jobId)
+
+    if (remainingJobs.length === 0) {
+      // Last job in the group - delete the whole group, its invoice and payments
+      const { data: invData } = await serviceSupabase
+        .from('invoices')
+        .select('id')
+        .eq('group_id', job.group_id)
+        .eq('tenant_id', profile.tenant_id)
+      
+      const invoiceIds = (invData || []).map((inv: any) => inv.id)
+      if (invoiceIds.length > 0) {
+        await serviceSupabase.from('payments').delete().in('invoice_id', invoiceIds)
+        await serviceSupabase.from('invoices').delete().in('id', invoiceIds)
+      }
+
+      await serviceSupabase.from('job_status_events').delete().eq('job_id', jobId)
+      const { error: delErr } = await serviceSupabase.from('jobs').delete().eq('id', jobId).eq('tenant_id', profile.tenant_id)
+      if (delErr) return { error: delErr.message }
+
+      await serviceSupabase.from('job_groups').delete().eq('id', job.group_id).eq('tenant_id', profile.tenant_id)
+    } else {
+      // Other jobs still remain in group
+      await serviceSupabase.from('job_status_events').delete().eq('job_id', jobId)
+      // Unlink any payments referencing this job specifically
+      await (serviceSupabase.from('payments') as any).update({ job_id: null }).eq('job_id', jobId)
+      
+      const { error: delErr } = await serviceSupabase
+        .from('jobs')
+        .delete()
+        .eq('id', jobId)
+        .eq('tenant_id', profile.tenant_id)
+
+      if (delErr) {
+        return { error: delErr.message }
+      }
+
+      // Recalculate group invoice total
+      const newTotal = remainingJobs.reduce((sum: number, j: any) => sum + Number(j.line_total), 0)
+      await (serviceSupabase.from('invoices') as any)
+        .update({ total: Math.round(newTotal * 100) / 100 })
+        .eq('group_id', job.group_id)
+        .eq('tenant_id', profile.tenant_id)
+    }
+  } else {
+    // Standalone job
+    const { data: invData } = await serviceSupabase
+      .from('invoices')
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('tenant_id', profile.tenant_id)
+
+    const invoiceIds = (invData || []).map((inv: any) => inv.id)
+    if (invoiceIds.length > 0) {
+      await serviceSupabase.from('payments').delete().in('invoice_id', invoiceIds)
+      await serviceSupabase.from('invoices').delete().in('id', invoiceIds)
+    }
+    await serviceSupabase.from('payments').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
+    await serviceSupabase.from('job_status_events').delete().eq('job_id', jobId)
+    const { error: delErr } = await serviceSupabase
+      .from('jobs')
+      .delete()
+      .eq('id', jobId)
+      .eq('tenant_id', profile.tenant_id)
+
+    if (delErr) {
+      return { error: delErr.message }
+    }
+  }
+
   revalidatePath('/dashboard/jobs')
   revalidatePath('/dashboard/queue')
   revalidatePath('/dashboard/pickup')
+  revalidatePath('/dashboard/finance')
+  if (job.group_id) {
+    revalidatePath(`/dashboard/jobs/group/${job.group_id}`)
+  }
   return { success: true }
 }
 

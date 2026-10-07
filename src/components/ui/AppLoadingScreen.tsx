@@ -36,7 +36,7 @@ export function AppLoadingScreen({ visible, tenantName, logoUrl }: AppLoadingScr
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, scale: 1.01 }}
           transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden"
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden print:hidden"
           style={{
             background: 'radial-gradient(ellipse 80% 60% at 50% 30%, rgba(99,102,241,0.07) 0%, #f8fafc 60%, #f1f5f9 100%)',
           }}
