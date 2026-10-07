@@ -2,8 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'printflow',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start',
+      script: 'npm.cmd',
+      args: 'run start',
       instances: 1,
       autorestart: true,
       watch: false,
