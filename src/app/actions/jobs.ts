@@ -418,7 +418,7 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
   const area = updates.width * updates.height
   const lineTotal = Math.round(area * finalUnitCost * updates.quantity * 100) / 100
 
-  const { error } = await supabase.from('jobs').update({
+  const { error } = await (supabase.from('jobs') as any).update({
     width: updates.width,
     height: updates.height,
     area: area,
@@ -435,9 +435,9 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
     const { data: allJobsData } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
     const allJobs = allJobsData as any[] | null
     const newTotal = allJobs?.reduce((sum: number, j: any) => sum + Number(j.line_total), 0) || 0
-    await supabase.from('invoices').update({ total: newTotal }).eq('group_id', job.group_id)
+    await (supabase.from('invoices') as any).update({ total: newTotal }).eq('group_id', job.group_id)
   } else {
-    await supabase.from('invoices').update({ total: lineTotal }).eq('job_id', jobId)
+    await (supabase.from('invoices') as any).update({ total: lineTotal }).eq('job_id', jobId)
   }
 
   revalidatePath('/dashboard/jobs')
