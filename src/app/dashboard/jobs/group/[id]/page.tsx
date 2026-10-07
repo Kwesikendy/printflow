@@ -56,6 +56,11 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
           {['front_desk', 'admin'].includes(role) && (
             <GroupReleaseButton groupId={id} awaitingCount={awaitingJobsCount} />
           )}
+          {role !== 'printer' && (
+            <Link href={`/print/job-card/group/${id}`} target="_blank" className="btn btn-outline bg-white hover:bg-slate-50">
+              <FileText className="w-4 h-4 mr-2" /> Print Job Card
+            </Link>
+          )}
           {invoice && role !== 'printer' && (
             <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline bg-white hover:bg-slate-50">
               <FileText className="w-4 h-4 mr-2" /> Print Invoice
@@ -158,6 +163,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     )}
                   </div>
 
+                  {/* Show payment form whenever invoice is not fully paid — even if jobs are already in print room */}
                   {invoice.status !== 'paid' && ['front_desk', 'admin'].includes(role) && (
                     <PaymentForm invoice={invoice} jobId={jobs[0]?.id || ''} payments={payments} />
                   )}

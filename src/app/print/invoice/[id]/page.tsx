@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDate } from '@/lib/utils'
-
 import QRCode from 'react-qr-code'
 
 export default async function InvoicePrintPage(props: {
@@ -11,8 +10,6 @@ export default async function InvoicePrintPage(props: {
   const params = await props.params
   const supabase = await createClient()
 
-  // Fetch the invoice using the provided ID.
-  // Then fetch the associated jobs either via single job_id or group_id.
   const { data } = await supabase
     .from('invoices')
     .select(`
@@ -60,13 +57,31 @@ export default async function InvoicePrintPage(props: {
   const totalPaid = (invoice.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0)
   const balance = invoice.total - totalPaid
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-  const qrData = `${siteUrl}/track/invoice/${invoice.id}`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const qrData = `${siteUrl}/track/invoice/${invoice.id}`
+
+  // PDF filename format: "INVOICE No.000048 CUSTOMER NAME"
+  const docTitle = `INVOICE No.${invoice.invoice_number} ${customerName.toUpperCase()}`
 
   return (
     <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">
       <AutoPrint />
-      
+
+      {/* Set the page title for PDF filename & suppress browser header/footer */}
+      <title>{docTitle}</title>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            margin: 0;
+            size: A4;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+      `}} />
+
       <div className="flex justify-center mb-6 relative">
         <img src="/Print_DPI_Logo.png" alt="Print dpi DIGITAL PRESS" className="h-24" />
         <div className="absolute right-0 top-0">
@@ -150,10 +165,10 @@ export default async function InvoicePrintPage(props: {
         </div>
       </div>
 
-      {/* Spacer to push everything below it to the bottom */}
+      {/* Spacer to push footer to the bottom */}
       <div className="flex-1"></div>
 
-      {/* Footer section: Payment details on the left */}
+      {/* Footer: Payment details */}
       <div className="text-xs mt-8">
         <h3 className="font-bold text-[#ec008c] uppercase mb-2">PAYMENT DETAILS</h3>
         <table className="w-80">
@@ -168,11 +183,11 @@ export default async function InvoicePrintPage(props: {
             </tr>
             <tr>
               <td className="py-[2px] text-gray-700">Name of Bank:</td>
-              <td className="py-[2px] uppercase">FIDELIITY BANK</td>
+              <td className="py-[2px] uppercase">FIDELITY BANK</td>
             </tr>
             <tr>
               <td className="py-[2px] text-gray-700">Address of Bank:</td>
-              <td className="py-[2px] uppercase">KANESHHIE</td>
+              <td className="py-[2px] uppercase">KANESHIE</td>
             </tr>
             <tr>
               <td className="py-[2px] text-gray-700">Account Number:</td>
@@ -186,7 +201,7 @@ export default async function InvoicePrintPage(props: {
         </table>
       </div>
 
-      <div className="no-print mt-16 text-center text-sm text-gray-500">
+      <div className="no-print mt-8 text-center text-sm text-gray-500">
         <PrintButton />
       </div>
     </div>
