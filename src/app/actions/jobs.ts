@@ -398,6 +398,53 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   return { success: true }
 }
 
+export async function updateJobAction(jobId: string, updates: { width: number, height: number, quantity: number, unitCost: number, notes: string }): Promise<ActionResponse> {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+  const { data } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  const profile = data as { role: string, tenant_id: string } | null
+  
+  if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
+    return { error: 'Insufficient permissions' }
+  }
+
+  const { data: job } = await supabase.from('jobs').select('*').eq('id', jobId).single()
+  if (!job) return { error: 'Job not found' }
+  
+  const finalUnitCost = profile?.role === 'admin' ? updates.unitCost : job.unit_cost_applied
+  const area = updates.width * updates.height
+  const lineTotal = Math.round(area * finalUnitCost * updates.quantity * 100) / 100
+
+  const { error } = await supabase.from('jobs').update({
+    width: updates.width,
+    height: updates.height,
+    area: area,
+    quantity: updates.quantity,
+    unit_cost_applied: finalUnitCost,
+    line_total: lineTotal,
+    notes: updates.notes || null
+  }).eq('id', jobId)
+
+  if (error) return { error: error.message }
+
+  // Update invoice total
+  if (job.group_id) {
+    const { data: allJobs } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
+    const newTotal = allJobs?.reduce((sum, j) => sum + Number(j.line_total), 0) || 0
+    await supabase.from('invoices').update({ total: newTotal }).eq('group_id', job.group_id)
+  } else {
+    await supabase.from('invoices').update({ total: lineTotal }).eq('job_id', jobId)
+  }
+
+  revalidatePath('/dashboard/jobs')
+  revalidatePath(`/dashboard/jobs/${jobId}`)
+  if (job.group_id) revalidatePath(`/dashboard/jobs/group/${job.group_id}`)
+  
+  return { success: true }
+}
+
 export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   const supabase = await createClient()
   

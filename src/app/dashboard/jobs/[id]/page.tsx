@@ -6,6 +6,7 @@ import { formatCurrency, formatDateTime, SOURCE_LABELS, PRINT_ROOM_LABELS, canCa
 import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
+import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { Printer, FileText, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -74,6 +75,9 @@ export default async function JobDetailPage(props: {
             <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline">
               <FileText className="w-4 h-4" /> Print Invoice
             </Link>
+          )}
+          {['admin', 'front_desk'].includes(role) && (
+            <EditJobModal job={job} role={role} />
           )}
           <JobActions job={job} role={role} />
         </div>

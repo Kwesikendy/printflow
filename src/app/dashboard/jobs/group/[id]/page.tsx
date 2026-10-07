@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { GroupReleaseButton } from '@/components/jobs/GroupReleaseButton'
 import { JobActions } from '@/components/jobs/JobActions'
+import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react'
 
@@ -94,7 +95,10 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                   <div className="flex items-center gap-2 flex-wrap">
                     <StatusBadge status={job.status} />
                     {['front_desk', 'admin'].includes(role) && (
-                      <JobActions job={job} role={role} hasPaymentOverride={hasPayment} />
+                      <>
+                        <EditJobModal job={job} role={role} />
+                        <JobActions job={job} role={role} hasPaymentOverride={hasPayment} />
+                      </>
                     )}
                     <Link href={`/dashboard/jobs/${job.id}`} className="text-xs text-indigo-600 hover:underline font-medium ml-1">View detail →</Link>
                   </div>
