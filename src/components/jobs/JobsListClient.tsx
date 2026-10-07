@@ -5,12 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { Search, FileText, User, Calendar } from 'lucide-react'
+import { Search, FileText, User, Calendar, Trash2 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
 import { searchCustomers } from '@/app/actions/customers'
-import { startNewDayAction } from '@/app/actions/jobs'
+import { startNewDayAction, deleteJobAction } from '@/app/actions/jobs'
 import { toast } from 'sonner'
 
 export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { initialJobs: any[], initialQuery: string, lastResetTime?: string }) {
@@ -208,7 +208,8 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
                 <th className="text-right">Total</th>
                 <th>Status</th>
                 <th>Created</th>
-                <th className="pr-6">Completed</th>
+                <th>Completed</th>
+                <th className="pr-6 text-right">Actions</th>
               </tr>
             </thead>
             
@@ -220,7 +221,7 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <td colSpan={7} className="p-0 border-none">
+                    <td colSpan={8} className="p-0 border-none">
                       <EmptyState 
                         icon={<FileText />}
                         title="No jobs found"
@@ -270,8 +271,28 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
                       <td className="text-slate-500 text-sm">
                         {formatDateTime(job.created_at)}
                       </td>
-                      <td className="text-slate-500 text-sm pr-6">
+                      <td className="text-slate-500 text-sm">
                         {job.status === 'completed' || job.status === 'picked_up' ? formatDateTime(job.updated_at) : '-'}
+                      </td>
+                      <td className="pr-6 text-right">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            if (window.confirm('Are you sure you want to permanently delete this job? This will delete all payments and invoices associated with it.')) {
+                              toast.loading('Deleting job...', { id: 'delete-job' })
+                              const res = await deleteJobAction(job.id)
+                              if (res.error) {
+                                toast.error('Failed to delete job: ' + res.error, { id: 'delete-job' })
+                              } else {
+                                toast.success('Job deleted successfully!', { id: 'delete-job' })
+                              }
+                            }
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Delete Job"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </motion.tr>
                   ))}

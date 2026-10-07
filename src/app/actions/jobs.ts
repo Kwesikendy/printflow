@@ -398,6 +398,34 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   return { success: true }
 }
 
+export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+  
+  // Verify user role
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  
+  if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
+    return { error: 'Insufficient permissions to delete jobs' }
+  }
+
+  // Delete dependencies first (status events, payments, invoices)
+  await supabase.from('job_status_events').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
+  await supabase.from('payments').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
+  await supabase.from('invoices').delete().eq('job_id', jobId).eq('tenant_id', profile.tenant_id)
+  
+  // Finally delete the job
+  const { error } = await supabase.from('jobs').delete().eq('id', jobId).eq('tenant_id', profile.tenant_id)
+  
+  if (error) return { error: error.message }
+  
+  revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/queue')
+  revalidatePath('/dashboard/pickup')
+  return { success: true }
+}
+
 export async function startNewDayAction(): Promise<ActionResponse> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('start_new_day')
