@@ -5,6 +5,7 @@ import { FileText, Users, Package, Clock } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDateTime } from '@/lib/utils'
 import Link from 'next/link'
+import { Button } from '@/components/ui/Button'
 
 export default async function AdminOverviewPage() {
   const supabase = await createClient()
@@ -37,6 +38,19 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
+      <div className="page-header flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+          <p className="text-slate-500 mt-1">Operational summary and staff oversight.</p>
+        </div>
+        <Link href="/dashboard/staff-activity">
+          <Button variant="primary" className="shadow-sm">
+            <Users className="w-4 h-4 mr-2" />
+            Staff Work Rate & Activity
+          </Button>
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-6 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">

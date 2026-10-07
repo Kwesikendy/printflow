@@ -133,7 +133,7 @@ export function canAccessRoute(role: Role, pathname: string): boolean {
   if (role === 'admin') return true
 
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
-  const accountantRoutes = ['/dashboard/finance']
+  const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity']
   const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
 
   if (role === 'printer') {

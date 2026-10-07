@@ -17,6 +17,7 @@ import {
   Settings, 
   LogOut,
   Key,
+  Users,
   X
 } from 'lucide-react'
 
@@ -26,6 +27,7 @@ const navItems = [
   { name: 'Pickup Queue', href: '/dashboard/pickup', icon: ListChecks, roles: ['admin', 'front_desk'] },
   { name: 'Print Queue', href: '/dashboard/queue', icon: Printer, roles: ['admin', 'printer'] },
   { name: 'Finance', href: '/dashboard/finance', icon: PieChart, roles: ['admin', 'accountant'] },
+  { name: 'Staff Activity', href: '/dashboard/staff-activity', icon: Users, roles: ['admin', 'accountant'] },
 ]
 
 export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boolean, setMobileOpenAction: (open: boolean) => void }) {

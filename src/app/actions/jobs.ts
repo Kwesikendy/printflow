@@ -5,6 +5,34 @@ import { revalidatePath } from 'next/cache'
 import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom } from '@/types/database'
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
+import { getWorkdayBounds } from '@/lib/workday'
+
+export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
+  try {
+    const { start } = getWorkdayBounds()
+    const { data: seq } = await supabase
+      .from('job_sequences')
+      .select('last_reset_time')
+      .eq('tenant_id', tenantId)
+      .single()
+
+    if (seq) {
+      const lastReset = new Date(seq.last_reset_time)
+      if (lastReset.getTime() < start.getTime()) {
+        await supabase
+          .from('job_sequences')
+          .update({
+            last_job: 0,
+            last_inv: 0,
+            last_reset_time: start.toISOString()
+          })
+          .eq('tenant_id', tenantId)
+      }
+    }
+  } catch (err) {
+    console.error('Error in ensureWorkdaySequenceReset:', err)
+  }
+}
 
 export type ActionResponse = {
   error?: string
@@ -104,6 +132,8 @@ export async function createJobGroupAction(
   } catch (err: any) {
     return { error: err.message }
   }
+
+  await ensureWorkdaySequenceReset(supabase, profile.tenant_id)
 
   const { data, error } = await supabase.rpc('create_job_group', {
     p_customer_name: customerName,

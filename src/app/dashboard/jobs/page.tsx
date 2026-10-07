@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button'
 import { Plus } from 'lucide-react'
 import { JobsListClient } from '@/components/jobs/JobsListClient'
 
+import { getWorkdayBounds } from '@/lib/workday'
+
 export default async function JobsPage(props: {
   searchParams: Promise<{ q?: string }>
 }) {
@@ -27,8 +29,16 @@ export default async function JobsPage(props: {
 
   const { data: jobs, error } = await supaQuery
 
+  const { start: workdayStart } = getWorkdayBounds()
   const { data: seqData } = await supabase.from('job_sequences').select('last_reset_time').single()
-  const lastResetTime = (seqData as any)?.last_reset_time || new Date().toISOString()
+  const dbResetTime = (seqData as any)?.last_reset_time ? new Date((seqData as any).last_reset_time) : null
+
+  // Use the later of DB reset time or current 5 PM shift start
+  const effectiveReset = (dbResetTime && dbResetTime.getTime() > workdayStart.getTime()) 
+    ? dbResetTime 
+    : workdayStart
+
+  const lastResetTime = effectiveReset.toISOString()
 
   return (
     <div className="max-w-7xl mx-auto">
