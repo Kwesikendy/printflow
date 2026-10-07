@@ -154,7 +154,7 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
       {/* Filter / Actions */}
       <div className="flex items-center gap-3">
         <Button 
-          variant={showTodayOnly ? "default" : "outline"}
+          variant={showTodayOnly ? "primary" : "outline"}
           onClick={() => setShowTodayOnly(!showTodayOnly)}
           className={`flex items-center gap-2 transition-all ${showTodayOnly ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 'bg-white/80 backdrop-blur-xl border-slate-200/80 hover:bg-slate-50 text-slate-700'}`}
         >
