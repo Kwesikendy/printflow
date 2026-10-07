@@ -404,7 +404,8 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   // Verify user role
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
-  const { data: profile } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  const { data } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  const profile = data as { role: string, tenant_id: string } | null
   
   if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
     return { error: 'Insufficient permissions to delete jobs' }
