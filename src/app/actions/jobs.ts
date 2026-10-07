@@ -371,7 +371,7 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   const job = jobData as { id: string; tenant_id: string; line_total: number; status: string } | null
 
   if (jobError || !job) return { error: 'Job not found' }
-  if (job.status !== 'awaiting_payment') return { error: 'Job is not awaiting payment' }
+  // Removed strict awaiting_payment check to allow generating invoices for manually forwarded jobs
 
   const { data: invNum, error: numError } = await supabase.rpc('get_next_invoice_number', {
     p_tenant_id: job.tenant_id
@@ -395,5 +395,13 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   }
 
   revalidatePath(`/dashboard/jobs/${jobId}`)
+  return { success: true }
+}
+
+export async function startNewDayAction(): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('start_new_day')
+  if (error) return { error: error.message }
+  revalidatePath('/dashboard/jobs')
   return { success: true }
 }

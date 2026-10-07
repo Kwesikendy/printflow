@@ -60,8 +60,9 @@ export default async function InvoicePrintPage(props: {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const qrData = `${siteUrl}/track/invoice/${invoice.id}`
 
-  // PDF filename format: "INVOICE No.000048 CUSTOMER NAME"
-  const docTitle = `INVOICE No.${invoice.invoice_number} ${customerName.toUpperCase()}`
+  // PDF filename format: "inv0045[Nameofclient]"
+  // The DB returns invoice_number like "INV-00045", we can strip the hyphen or format it.
+  const docTitle = `${invoice.invoice_number.replace('-', '')}[${customerName}]`.toLowerCase()
 
   return (
     <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">

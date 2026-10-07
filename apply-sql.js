@@ -8,7 +8,7 @@ async function run() {
   const client = new Client({ connectionString });
   try {
     await client.connect();
-    const sqlPath = path.join(__dirname, 'supabase', 'migrations', '003_functions.sql');
+    const sqlPath = path.join(__dirname, 'supabase', 'migrations', '013_manual_reset_and_payments.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
     
     console.log('Executing SQL...');

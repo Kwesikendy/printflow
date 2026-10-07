@@ -10,13 +10,16 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
 import { searchCustomers } from '@/app/actions/customers'
+import { startNewDayAction } from '@/app/actions/jobs'
+import { toast } from 'sonner'
 
-export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any[], initialQuery: string }) {
+export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { initialJobs: any[], initialQuery: string, lastResetTime?: string }) {
   const router = useRouter()
   const [isFocused, setIsFocused] = useState(false)
   const [query, setQuery] = useState(initialQuery)
   const [isPending, startTransition] = useTransition()
-  const [showTodayOnly, setShowTodayOnly] = useState(false)
+  const [showTodayOnly, setShowTodayOnly] = useState(true) // Default to true!
+  const [isResetting, setIsResetting] = useState(false)
   
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<{customer_name: string}[]>([])
@@ -30,10 +33,10 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
 
     if (!matchesSearch) return false;
 
-    if (showTodayOnly) {
-      const jobDate = new Date(job.created_at);
-      const today = new Date();
-      return jobDate.toDateString() === today.toDateString();
+    if (showTodayOnly && lastResetTime) {
+      const jobDate = new Date(job.created_at).getTime();
+      const resetTime = new Date(lastResetTime).getTime();
+      return jobDate >= resetTime;
     }
 
     return true;
@@ -81,6 +84,26 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     handleSearch(query)
+  }
+
+  const handleStartNewDay = async () => {
+    if (!window.confirm("Are you sure you want to start a new day? This will reset the sequence counter to 1 and filter out previous jobs.")) {
+      return;
+    }
+    setIsResetting(true)
+    try {
+      const res = await startNewDayAction()
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        toast.success("New day started! Sequence reset to 1.")
+        setShowTodayOnly(true)
+      }
+    } catch (e) {
+      toast.error("Failed to start new day")
+    } finally {
+      setIsResetting(false)
+    }
   }
 
   return (
@@ -154,12 +177,21 @@ export function JobsListClient({ initialJobs, initialQuery }: { initialJobs: any
       {/* Filter / Actions */}
       <div className="flex items-center gap-3">
         <Button 
+          variant="outline"
+          onClick={handleStartNewDay}
+          loading={isResetting}
+          className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 shadow-sm"
+        >
+          Start New Day
+        </Button>
+
+        <Button 
           variant={showTodayOnly ? "primary" : "outline"}
           onClick={() => setShowTodayOnly(!showTodayOnly)}
           className={`flex items-center gap-2 transition-all ${showTodayOnly ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 'bg-white/80 backdrop-blur-xl border-slate-200/80 hover:bg-slate-50 text-slate-700'}`}
         >
           <Calendar className="w-4 h-4" />
-          {showTodayOnly ? "Showing Today" : "Show Today Only"}
+          {showTodayOnly ? "Showing Today's Shift" : "Show Today's Shift Only"}
         </Button>
       </div>
       </div>

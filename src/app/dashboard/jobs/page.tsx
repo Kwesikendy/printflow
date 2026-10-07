@@ -27,6 +27,9 @@ export default async function JobsPage(props: {
 
   const { data: jobs, error } = await supaQuery
 
+  const { data: seqData } = await supabase.from('job_sequences').select('last_reset_time').single()
+  const lastResetTime = (seqData as any)?.last_reset_time || new Date().toISOString()
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -42,7 +45,7 @@ export default async function JobsPage(props: {
         </Link>
       </div>
 
-      <JobsListClient initialJobs={jobs || []} initialQuery={query} />
+      <JobsListClient initialJobs={jobs || []} initialQuery={query} lastResetTime={lastResetTime} />
     </div>
   )
 }
