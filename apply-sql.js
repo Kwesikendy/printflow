@@ -8,12 +8,12 @@ async function run() {
   const client = new Client({ connectionString });
   try {
     await client.connect();
-    const sqlPath = path.join(__dirname, 'supabase', 'migrations', '014_five_pm_workday_reset.sql');
+    const sqlPath = path.join(__dirname, 'supabase', 'migrations', '015_safe_unique_job_sequence.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
     
-    console.log('Executing 014_five_pm_workday_reset.sql...');
+    console.log('Executing 015_safe_unique_job_sequence.sql...');
     await client.query(sql);
-    console.log('Successfully applied 014_five_pm_workday_reset.sql');
+    console.log('Successfully applied 015_safe_unique_job_sequence.sql');
   } catch (err) {
     console.error('Error applying SQL:', err);
   } finally {

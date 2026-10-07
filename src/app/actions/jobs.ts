@@ -22,8 +22,6 @@ export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string
         await supabase
           .from('job_sequences')
           .update({
-            last_job: 0,
-            last_inv: 0,
             last_reset_time: start.toISOString()
           })
           .eq('tenant_id', tenantId)
