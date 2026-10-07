@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { JobBarcode } from '@/components/print/JobBarcode'
@@ -31,6 +31,13 @@ export default async function JobCardPrintPage(props: {
 
   const job = data as any
   if (!job) notFound()
+
+  // If this job is part of a multi-job group, automatically redirect to the consolidated group job card
+  // so all jobs for this client are printed together on one ticket!
+  if (job.group_id) {
+    const roomParam = job.print_room ? `?room=${job.print_room}` : ''
+    redirect(`/print/job-card/group/${job.group_id}${roomParam}`)
+  }
 
   // invoices join may return array or single object depending on the relationship
   const invoiceRaw = job.invoices

@@ -254,7 +254,14 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
                       className="group cursor-pointer"
                     >
                       <td className="pl-6 font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                        {job.job_number}
+                        <div className="flex items-center gap-2">
+                          <span>{job.job_number}</span>
+                          {job.group_id && (
+                            <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200/60" title="Part of multi-job order">
+                              Multi
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="font-medium text-slate-700">{job.customer_name}</td>
                       <td>

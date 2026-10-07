@@ -68,12 +68,16 @@ export default async function JobDetailPage(props: {
           <p className="text-slate-500 mt-1">Customer: <span className="text-slate-900">{job.customer_name}</span></p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href={`/print/job-card/${job.id}`} target="_blank" className="btn btn-outline">
-            <Printer className="w-4 h-4" /> Print Card
+          <Link 
+            href={job.group_id ? `/print/job-card/group/${job.group_id}${job.print_room ? `?room=${job.print_room}` : ''}` : `/print/job-card/${job.id}`} 
+            target="_blank" 
+            className="btn btn-outline"
+          >
+            <Printer className="w-4 h-4 mr-1.5" /> Print Job Card
           </Link>
           {invoice && role !== 'printer' && (
             <Link href={`/print/invoice/${invoice.id}`} target="_blank" className="btn btn-outline">
-              <FileText className="w-4 h-4" /> Print Invoice
+              <FileText className="w-4 h-4 mr-1.5" /> Print Invoice
             </Link>
           )}
           {['admin', 'front_desk'].includes(role) && (
@@ -82,6 +86,30 @@ export default async function JobDetailPage(props: {
           <JobActions job={job} role={role} />
         </div>
       </div>
+
+      {job.group_id && (
+        <div className="mb-6 p-4 rounded-xl bg-indigo-50 border border-indigo-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-indigo-950">
+                Part of a Multi-Job Order for {job.customer_name}
+              </p>
+              <p className="text-xs text-indigo-700">
+                This item is grouped with other jobs on one invoice and printed on one consolidated job card.
+              </p>
+            </div>
+          </div>
+          <Link 
+            href={`/dashboard/jobs/group/${job.group_id}`} 
+            className="btn btn-outline bg-white hover:bg-slate-50 text-indigo-700 border-indigo-200 text-xs px-3 py-1.5 self-start sm:self-auto font-semibold"
+          >
+            View Complete Order
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Job Details & Invoice */}

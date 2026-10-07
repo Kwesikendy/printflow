@@ -45,10 +45,13 @@ export default async function GroupJobCardPrintPage(props: {
   const totalPaid = payments.reduce((s: number, p: any) => s + Number(p.amount), 0)
   const isPaid = invoice?.status === 'paid' || totalPaid >= Number(invoice?.total || 0)
 
-  // Filter jobs by print room if specified, otherwise show all
+  // Filter jobs by print room if specified and matches exist, otherwise show all
   let jobs: any[] = group.jobs || []
   if (roomFilter) {
-    jobs = jobs.filter((j: any) => j.print_room === roomFilter)
+    const roomJobs = jobs.filter((j: any) => j.print_room === roomFilter)
+    if (roomJobs.length > 0) {
+      jobs = roomJobs
+    }
   }
 
   if (jobs.length === 0) notFound()
