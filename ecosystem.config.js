@@ -4,6 +4,7 @@ module.exports = {
       name: 'printflow',
       cwd: __dirname,
       script: 'server.js',
+      exec_mode: 'fork',
       instances: 1,
       autorestart: true,
       watch: false,
