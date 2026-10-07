@@ -23,6 +23,7 @@ const productsData = [
   { name: 'SAV with Lamination', aliases: ['SAV/LAM'], marketerFt: 3.6, clientFt: 4.5 },
   { name: 'SAV - Matte', aliases: ['SAV MATTE'], marketerFt: 2.5, clientFt: 3.0 },
   { name: 'Flexi - Black Back', aliases: ['BLACK BACK'], marketerFt: 2.5, clientFt: 3.0 },
+  { name: 'Flexi - Black Back Special', aliases: ['BLACK BACK SPECIAL', 'Black Back Special'], marketerFt: 2.3, clientFt: 3.0 },
   { name: 'SAV - Transparent', aliases: ['T-SAV', 'Transparent SAV'], marketerFt: 3.0, clientFt: 4.0 },
   { name: 'SAV - Reflective', aliases: ['R-SAV', 'Reflective SAV'], marketerFt: 5.0, clientFt: 6.0 },
   { name: 'Reflective SAV with Lamination', aliases: ['RSAV/LAM', 'R-SAV/LAM'], marketerFt: 6.6, clientFt: 8.0 },
