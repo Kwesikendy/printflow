@@ -110,20 +110,45 @@ function CustomerAutocomplete({
 }) {
   const [suggestions, setSuggestions] = useState<CustomerSuggestion[]>([])
   const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const justSelectedRef = useRef(false)
 
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (value.length < 2) { setSuggestions([]); setOpen(false); return }
-
-    debounceRef.current = setTimeout(async () => {
-      const results = await searchCustomers(value)
+  const fetchSuggestions = async (searchVal: string) => {
+    try {
+      setLoading(true)
+      const results = await searchCustomers(searchVal)
       setSuggestions(results)
       setOpen(results.length > 0)
-    }, 300)
+    } catch (err) {
+      console.error('Customer search error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  useEffect(() => {
+    if (justSelectedRef.current) {
+      justSelectedRef.current = false
+      return
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    if (!value || value.trim().length === 0) {
+      setSuggestions([])
+      setOpen(false)
+      return
+    }
+
+    debounceRef.current = setTimeout(() => {
+      fetchSuggestions(value.trim())
+    }, 150)
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
   }, [value])
 
   useEffect(() => {
@@ -136,6 +161,12 @@ function CustomerAutocomplete({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const handleSelect = (s: CustomerSuggestion) => {
+    justSelectedRef.current = true
+    onSelect(s)
+    setOpen(false)
+  }
+
   return (
     <div ref={wrapperRef} className="relative">
       <div className="relative">
@@ -144,41 +175,64 @@ function CustomerAutocomplete({
           type="text"
           value={value}
           onChange={e => onChange(e.target.value)}
-          onFocus={() => suggestions.length > 0 && setOpen(true)}
+          onFocus={() => {
+            if (suggestions.length > 0) {
+              setOpen(true)
+            } else if (value.trim().length > 0) {
+              fetchSuggestions(value.trim())
+            } else {
+              fetchSuggestions('')
+            }
+          }}
           required
-          className="input-standard bg-slate-50 border-slate-200 pl-9"
-          placeholder="Type name to search or add new..."
+          className="input-standard bg-slate-50 border-slate-200 pl-9 pr-8"
+          placeholder="Type name or phone to search..."
           autoComplete="off"
         />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
+
       <AnimatePresence>
-        {open && (
+        {open && suggestions.length > 0 && (
           <motion.ul
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
             style={{ zIndex: 9999 }}
-            className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden"
+            className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto divide-y divide-slate-100 z-50"
           >
             {suggestions.map((s, i) => (
               <li key={i}>
                 <button
                   type="button"
-                  className="w-full text-left px-4 py-3 hover:bg-indigo-50 flex items-center gap-3 transition-colors border-b border-slate-100 last:border-none"
+                  className="w-full text-left px-3.5 py-2.5 hover:bg-indigo-50/80 flex items-center gap-3 transition-colors group cursor-pointer"
                   onMouseDown={(e) => {
-                    e.preventDefault();
-                    onSelect(s);
-                    setOpen(false);
+                    e.preventDefault()
+                    handleSelect(s)
                   }}
+                  onClick={() => handleSelect(s)}
                 >
-                  <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                    <User className="w-3.5 h-3.5 text-indigo-600" />
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
+                    {s.customer_name.slice(0, 2).toUpperCase()}
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{s.customer_name}</p>
-                    {s.customer_phone && <p className="text-xs text-slate-500">{s.customer_phone}</p>}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-indigo-900">
+                      {s.customer_name}
+                    </p>
+                    {s.customer_phone ? (
+                      <p className="text-xs text-slate-500 font-mono">
+                        {s.customer_phone}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">No phone saved</p>
+                    )}
                   </div>
-                  <span className="ml-auto text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full capitalize">
+                  <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full capitalize flex-shrink-0 group-hover:bg-indigo-100 group-hover:text-indigo-700 transition-colors">
                     {s.source.replace('_', ' ')}
                   </span>
                 </button>
