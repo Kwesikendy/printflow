@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { Button } from '@/components/ui/Button'
-import { recordPaymentAction, roundInvoiceTotalAction } from '@/app/actions/jobs'
+import { recordPaymentAction, roundInvoiceTotalAction, editPaymentMethodAction } from '@/app/actions/jobs'
 import { toast } from 'sonner'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { Invoice, Payment } from '@/types/database'
 import { cn, formatCurrency } from '@/lib/utils'
-import { Banknote, Smartphone, MoreHorizontal, CheckCircle2, Clock, Edit3 } from 'lucide-react'
+import { Banknote, Smartphone, MoreHorizontal, CheckCircle2, Clock, Edit3, X, Edit } from 'lucide-react'
 
 const METHODS = [
   { value: 'cash',  label: 'Cash',         icon: Banknote },
@@ -18,6 +20,80 @@ interface PaymentFormProps {
   invoice: Invoice
   jobId: string
   payments?: Payment[]
+}
+
+function EditPaymentModal({ payment }: { payment: Payment }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [isPending, startTransition] = useTransition()
+  
+  const [method, setMethod] = useState(payment.method || 'cash')
+  const [reference, setReference] = useState(payment.reference || payment.notes || '')
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    startTransition(async () => {
+      const res = await editPaymentMethodAction(payment.id, method, reference)
+      if (res.error) toast.error(res.error)
+      else {
+        toast.success('Payment updated')
+        setIsOpen(false)
+      }
+    })
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(true)} className="text-slate-400 hover:text-indigo-600 transition-colors" title="Edit Payment">
+        <Edit className="w-3.5 h-3.5" />
+      </button>
+      
+      {mounted && createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: 15 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 15 }} className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900">Edit Payment Method</h3>
+                  <button onClick={() => setIsOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X className="w-4 h-4" /></button>
+                </div>
+                <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-2">Method</label>
+                    <div className="flex gap-2">
+                      {METHODS.map(m => (
+                        <button
+                          key={m.value} type="button" onClick={() => setMethod(m.value)}
+                          className={cn('flex-1 py-2 text-xs font-semibold rounded-lg border flex flex-col items-center gap-1', method === m.value ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-slate-200 text-slate-600')}
+                        >
+                          <m.icon className="w-4 h-4" />
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {(method === 'momo' || method === 'other') && (
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">Reference / Notes</label>
+                      <input type="text" value={reference} onChange={e => setReference(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" />
+                    </div>
+                  )}
+                  <Button type="submit" loading={isPending} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg py-2">
+                    Save Changes
+                  </Button>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>, document.body
+      )}
+    </>
+  )
 }
 
 export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps) {
@@ -87,11 +163,11 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
   return (
     <div className="space-y-4 mt-4">
       {/* Partial Payment History */}
-      {isPartial && payments.length > 0 && (
+      {payments.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="w-4 h-4 text-amber-600" />
-            <p className="text-sm font-bold text-amber-800">Partial Payment Recorded</p>
+            <p className="text-sm font-bold text-amber-800">Payment History</p>
           </div>
           <div className="space-y-1.5">
             {payments.map(p => {
@@ -109,7 +185,10 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
                       <span className="text-xs text-amber-500 font-normal"> · ID: {p.reference}</span>
                     )}
                   </span>
-                  <span className="font-semibold">+{formatCurrency(p.amount)}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-amber-700">+{formatCurrency(p.amount)}</span>
+                    <EditPaymentModal payment={p} />
+                  </div>
                 </div>
               )
             })}

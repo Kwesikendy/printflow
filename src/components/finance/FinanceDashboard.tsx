@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { TrendingUp, AlertCircle, Calendar, Printer, Filter } from 'lucide-react'
 import { CustomerSearchSection } from '@/components/finance/CustomerSearchSection'
 import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
+import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
 
 interface FinanceDashboardProps {
   payments: any[]
@@ -62,6 +63,26 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
   }, [payments, filterMode, selectedDay])
 
   // Summary Metrics
+  const filteredInvoices = useMemo(() => {
+    return unpaidInvoices.filter(inv => {
+      const date = new Date(inv.issued_at)
+      if (filterMode === 'day') return date.toISOString().startsWith(selectedDay)
+      if (filterMode === 'week') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setDate(d.getDate() - 7)
+        return date >= d
+      }
+      if (filterMode === 'month') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setMonth(d.getMonth() - 1)
+        return date >= d
+      }
+      return true
+    })
+  }, [unpaidInvoices, filterMode, selectedDay])
+
   const totalRevenue = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   }, [filteredPayments])
@@ -75,12 +96,12 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
 
   // Correctly compute outstanding balance (total minus payments made)
   const outstandingTotal = useMemo(() => {
-    return unpaidInvoices.reduce((sum, inv) => {
+    return filteredInvoices.reduce((sum, inv) => {
       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
       const balance = Math.max(0, Number(inv.total) - paid)
       return sum + balance
     }, 0)
-  }, [unpaidInvoices])
+  }, [filteredInvoices])
 
   // Chart Data: Revenue by Source
   const sourceData = useMemo(() => {
@@ -228,7 +249,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
 
         {/* Print Filtered Report Button */}
         <Link 
-          href={`/print/finance-report?date=${filterMode === 'day' ? selectedDay : 'all'}`} 
+          href={`/print/finance-report?mode=${filterMode}&day=${selectedDay}`} 
           target="_blank"
         >
           <Button variant="outline" size="sm" className="bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 font-semibold">
@@ -289,7 +310,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Outstanding Balance</p>
               </div>
               <p className="mt-4 text-4xl font-black text-amber-500 tracking-tight">{formatCurrency(outstandingTotal)}</p>
-              <p className="text-xs text-slate-400 mt-2">Pending across {unpaidInvoices.length} unpaid / partial invoices</p>
+              <p className="text-xs text-slate-400 mt-2">Sum of all unpaid balances in this period</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -399,7 +420,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
 
         <motion.div variants={itemVariants}>
           <Card className="h-full">
-            <CardHeader title="Outstanding Invoices (Unpaid & Partial)" description={`${unpaidInvoices.length} invoices pending`} />
+            <CardHeader title="Recent Invoices (All Statuses)" description={`${filteredInvoices.length} invoices generated in period`} />
             <CardContent className="p-0">
               <div className="table-container border-t border-slate-100 max-h-[420px] overflow-y-auto">
                 <table className="table-standard w-full">
@@ -435,20 +456,25 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                             </button>
                           </td>
                           <td className="text-right text-slate-500 text-xs font-medium">{formatCurrency(inv.total)}</td>
-                          <td className="text-right text-amber-600 font-bold text-xs">{formatCurrency(balance)}</td>
-                          <td className="text-right pr-4">
-                            <Link href={payUrl}>
-                              <Button variant="ghost" size="sm" className="hover:bg-amber-50 hover:text-amber-700 text-xs font-semibold px-2 py-1">
-                                Pay
-                              </Button>
-                            </Link>
+                          <td className="text-right text-amber-600 font-bold text-xs">
+                            {balance > 0 ? formatCurrency(balance) : <span className="text-emerald-600">Paid</span>}
+                          </td>
+                          <td className="text-right pr-4 flex items-center justify-end gap-1">
+                            <EditInvoiceModal invoice={inv} />
+                            {balance > 0 && (
+                              <Link href={payUrl}>
+                                <Button variant="ghost" size="sm" className="hover:bg-amber-50 hover:text-amber-700 text-xs font-semibold px-2 py-1">
+                                  Pay
+                                </Button>
+                              </Link>
+                            )}
                           </td>
                         </tr>
                       )
                     })}
                     {unpaidInvoices.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">No outstanding invoices.</td>
+                        <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">No recent invoices found.</td>
                       </tr>
                     )}
                   </tbody>

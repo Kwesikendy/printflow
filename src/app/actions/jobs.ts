@@ -865,3 +865,41 @@ export async function roundInvoiceTotalAction(invoiceId: string): Promise<Action
   
   return { success: true }
 }
+
+export async function editPaymentMethodAction(paymentId: string, method: string, reference?: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (!profile || !['admin', 'accountant', 'front_desk'].includes(profile.role)) {
+    return { error: 'Insufficient permissions' }
+  }
+
+  const { data: payment, error: fetchErr } = await (supabase.from('payments') as any)
+    .select('id, invoice_id, job_id')
+    .eq('id', paymentId)
+    .single()
+
+  if (fetchErr || !payment) return { error: 'Payment not found' }
+
+  const updateData: any = { method }
+  if (reference !== undefined) {
+    updateData.reference = reference || null
+  }
+
+  const { error } = await (supabase.from('payments') as any)
+    .update(updateData)
+    .eq('id', paymentId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/finance')
+  if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
+  
+  // To handle group paths properly:
+  revalidatePath('/dashboard/jobs')
+  
+  return { success: true }
+}

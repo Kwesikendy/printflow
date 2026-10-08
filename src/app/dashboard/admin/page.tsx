@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { PageLoader } from '@/components/ui/EmptyState'
 import { FileText, Users, Package, Clock } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 
@@ -35,6 +35,19 @@ export default async function AdminOverviewPage() {
     .select('*, product_types(name)')
     .order('created_at', { ascending: false })
     .limit(10)
+
+  // Fetch recent invoice edits (gracefully handle if table doesn't exist yet)
+  const { data: invoiceEditsData, error: editsError } = await supabase
+    .from('invoice_edits')
+    .select(`
+      *,
+      invoices ( invoice_number ),
+      profiles ( full_name )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  const invoiceEdits = editsError ? [] : (invoiceEditsData || [])
 
   return (
     <div className="space-y-6">
@@ -199,6 +212,44 @@ export default async function AdminOverviewPage() {
                 {(!recentJobs || recentJobs.length === 0) && (
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-slate-400 font-medium">No recent jobs found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Notifications / Invoice Edits */}
+      <Card>
+        <CardHeader title="Recent Invoice Adjustments" description="Notifications for manually edited invoices." />
+        <CardContent className="p-0">
+          <div className="table-container">
+            <table className="table-standard w-full">
+              <thead className="bg-slate-50/50">
+                <tr>
+                  <th className="pl-6">Date</th>
+                  <th>Invoice No.</th>
+                  <th>Edited By</th>
+                  <th>Previous Total</th>
+                  <th>New Total</th>
+                  <th className="pr-6">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100/50">
+                {invoiceEdits.map((edit: any) => (
+                  <tr key={edit.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="pl-6 text-slate-500 text-sm">{formatDateTime(edit.created_at)}</td>
+                    <td className="font-bold text-slate-900">{edit.invoices?.invoice_number || 'Unknown'}</td>
+                    <td className="text-slate-700 font-medium">{edit.profiles?.full_name || 'Staff'}</td>
+                    <td className="text-slate-500 line-through text-sm">{formatCurrency(edit.old_total)}</td>
+                    <td className="text-indigo-600 font-bold">{formatCurrency(edit.new_total)}</td>
+                    <td className="pr-6 text-slate-600 text-sm italic">"{edit.reason}"</td>
+                  </tr>
+                ))}
+                {invoiceEdits.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-slate-400 font-medium">No recent invoice adjustments.</td>
                   </tr>
                 )}
               </tbody>

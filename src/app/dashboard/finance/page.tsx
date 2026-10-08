@@ -32,8 +32,8 @@ export default async function FinancePage() {
         job_groups ( customer_name ),
         payments ( amount )
       `)
-      .in('status', ['unpaid', 'partial'])
       .order('issued_at', { ascending: false })
+      .limit(100)
   ])
 
   if (!payments || !unpaidInvoices) {

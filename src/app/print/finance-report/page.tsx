@@ -7,10 +7,11 @@ export const metadata: Metadata = {
 }
 
 export default async function PrintFinanceReportPage(props: {
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ mode?: string; day?: string }>
 }) {
   const searchParams = await props.searchParams
-  const dateParam = searchParams.date || null
+  const modeParam = searchParams.mode || 'day'
+  const dayParam = searchParams.day || new Date().toISOString().split('T')[0]
   const supabase = await createClient()
 
   // Get tenant profile
@@ -46,8 +47,8 @@ export default async function PrintFinanceReportPage(props: {
         job_groups ( customer_name ),
         payments ( amount )
       `)
-      .in('status', ['unpaid', 'partial'])
       .order('issued_at', { ascending: false })
+      .limit(300)
   ])
 
   return (
@@ -56,7 +57,8 @@ export default async function PrintFinanceReportPage(props: {
       logoUrl={tenant.logo_url}
       payments={payments || []}
       unpaidInvoices={unpaidInvoices || []}
-      initialDateFilter={dateParam}
+      initialMode={modeParam}
+      initialDay={dayParam}
     />
   )
 }

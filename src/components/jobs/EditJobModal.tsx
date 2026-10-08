@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/Button'
 import { X, Edit, User, FileText, Ruler, CreditCard, Box } from 'lucide-react'
 import { toast } from 'sonner'
@@ -16,6 +17,11 @@ interface EditJobModalProps {
 export function EditJobModal({ job, role }: EditJobModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   // Form state
   const [customerName, setCustomerName] = useState(job.customer_name || '')
@@ -73,9 +79,10 @@ export function EditJobModal({ job, role }: EditJobModalProps) {
         <Edit className="w-4 h-4" /> Edit Job
       </Button>
 
-      <AnimatePresence>
-        {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      {mounted && createPortal(
+        <AnimatePresence>
+          {isOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -250,7 +257,9 @@ export function EditJobModal({ job, role }: EditJobModalProps) {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   )
 }

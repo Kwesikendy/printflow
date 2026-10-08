@@ -10,8 +10,9 @@ interface FinanceReportPrintProps {
   tenantName: string
   logoUrl?: string | null
   payments: any[]
-  unpaidInvoices: any[]
-  initialDateFilter?: string | null
+  unpaidInvoices: any[] // this now contains all invoices
+  initialMode?: string
+  initialDay?: string
 }
 
 export function FinanceReportPrint({
@@ -19,18 +20,56 @@ export function FinanceReportPrint({
   logoUrl,
   payments,
   unpaidInvoices,
-  initialDateFilter
+  initialMode = 'day',
+  initialDay
 }: FinanceReportPrintProps) {
-  // Default to today in YYYY-MM-DD
   const todayStr = new Date().toISOString().split('T')[0]
-  const [selectedDate, setSelectedDate] = useState<string>(initialDateFilter || todayStr)
-  const [showAllDates, setShowAllDates] = useState<boolean>(initialDateFilter === 'all')
+  const [filterMode, setFilterMode] = useState<string>(initialMode)
+  const [selectedDay, setSelectedDay] = useState<string>(initialDay || todayStr)
 
-  // Filter payments by date if not 'all'
+  // Filter payments by selected period
   const filteredPayments = useMemo(() => {
-    if (showAllDates || !selectedDate) return payments
-    return payments.filter(p => p.recorded_at && p.recorded_at.startsWith(selectedDate))
-  }, [payments, selectedDate, showAllDates])
+    return payments.filter(p => {
+      if (filterMode === 'all') return true
+      const date = new Date(p.recorded_at)
+      if (filterMode === 'day') return date.toISOString().startsWith(selectedDay)
+      if (filterMode === 'week') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setDate(d.getDate() - 7)
+        return date >= d
+      }
+      if (filterMode === 'month') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setMonth(d.getMonth() - 1)
+        return date >= d
+      }
+      return true
+    })
+  }, [payments, filterMode, selectedDay])
+
+  // Filter invoices by selected period
+  const filteredInvoices = useMemo(() => {
+    return unpaidInvoices.filter(inv => {
+      if (filterMode === 'all') return true
+      const date = new Date(inv.issued_at)
+      if (filterMode === 'day') return date.toISOString().startsWith(selectedDay)
+      if (filterMode === 'week') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setDate(d.getDate() - 7)
+        return date >= d
+      }
+      if (filterMode === 'month') {
+        const d = new Date()
+        d.setHours(0,0,0,0)
+        d.setMonth(d.getMonth() - 1)
+        return date >= d
+      }
+      return true
+    })
+  }, [unpaidInvoices, filterMode, selectedDay])
 
   const totalRevenue = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
@@ -38,12 +77,12 @@ export function FinanceReportPrint({
 
   // Correctly compute total outstanding balance (total minus paid so far)
   const totalOutstanding = useMemo(() => {
-    return unpaidInvoices.reduce((sum, inv) => {
+    return filteredInvoices.reduce((sum, inv) => {
       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
       const balance = Math.max(0, Number(inv.total) - paid)
       return sum + balance
     }, 0)
-  }, [unpaidInvoices])
+  }, [filteredInvoices])
 
   const paymentsByMethod = useMemo(() => {
     const map = new Map<string, number>()
@@ -59,27 +98,29 @@ export function FinanceReportPrint({
   }
 
   const setToday = () => {
-    setShowAllDates(false)
-    setSelectedDate(todayStr)
+    setFilterMode('day')
+    setSelectedDay(todayStr)
   }
 
   const setYesterday = () => {
-    setShowAllDates(false)
+    setFilterMode('day')
     const y = new Date()
     y.setDate(y.getDate() - 1)
-    setSelectedDate(y.toISOString().split('T')[0])
+    setSelectedDay(y.toISOString().split('T')[0])
   }
 
   const formattedPeriodLabel = useMemo(() => {
-    if (showAllDates) return 'All Recorded Dates'
+    if (filterMode === 'all') return 'All Time'
+    if (filterMode === 'week') return 'Last 7 Days'
+    if (filterMode === 'month') return 'Last 30 Days'
     try {
-      const [year, month, day] = selectedDate.split('-').map(Number)
+      const [year, month, day] = selectedDay.split('-').map(Number)
       const d = new Date(year, month - 1, day)
       return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
     } catch {
-      return selectedDate
+      return selectedDay
     }
-  }, [selectedDate, showAllDates])
+  }, [selectedDay, filterMode])
 
   return (
     <div className="max-w-4xl mx-auto p-8 bg-white min-h-screen text-slate-900">
@@ -87,14 +128,14 @@ export function FinanceReportPrint({
       <div className="print:hidden mb-8 p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">
-            <Filter className="w-3.5 h-3.5" /> Filter Day:
+            <Filter className="w-3.5 h-3.5" /> Filter Period:
           </div>
 
           <button
             type="button"
             onClick={setToday}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              !showAllDates && selectedDate === todayStr
+              filterMode === 'day' && selectedDay === todayStr
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
@@ -106,7 +147,7 @@ export function FinanceReportPrint({
             type="button"
             onClick={setYesterday}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              !showAllDates && selectedDate !== todayStr && selectedDate === (new Date(Date.now() - 86400000).toISOString().split('T')[0])
+              filterMode === 'day' && selectedDay === (new Date(Date.now() - 86400000).toISOString().split('T')[0])
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
@@ -114,14 +155,38 @@ export function FinanceReportPrint({
             Yesterday
           </button>
 
+          <button
+            type="button"
+            onClick={() => setFilterMode('week')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              filterMode === 'week'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Last 7 Days
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterMode('month')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              filterMode === 'month'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            Last 30 Days
+          </button>
+
           <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
               type="date"
-              value={showAllDates ? '' : selectedDate}
+              value={filterMode === 'day' ? selectedDay : ''}
               onChange={e => {
-                setShowAllDates(false)
-                setSelectedDate(e.target.value)
+                setFilterMode('day')
+                setSelectedDay(e.target.value)
               }}
               className="text-xs font-medium bg-transparent border-none text-slate-800 focus:outline-none"
             />
@@ -129,14 +194,14 @@ export function FinanceReportPrint({
 
           <button
             type="button"
-            onClick={() => setShowAllDates(true)}
+            onClick={() => setFilterMode('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              showAllDates
+              filterMode === 'all'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
             }`}
           >
-            All Dates
+            All Time
           </button>
         </div>
 
@@ -178,20 +243,20 @@ export function FinanceReportPrint({
         <div className="text-right text-sm text-slate-600">
           <p><strong>Generated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
           <p><strong>Payments Logged:</strong> {filteredPayments.length}</p>
-          <p><strong>Outstanding Invoices:</strong> {unpaidInvoices.length}</p>
+          <p><strong>Invoices Issued:</strong> {filteredInvoices.length}</p>
         </div>
       </div>
 
       {/* Summary Metrics */}
       <div className="grid grid-cols-2 gap-8 mb-10">
         <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl">
-          <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Revenue Received ({showAllDates ? 'All Time' : 'Selected Day'})</p>
+          <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Revenue Received ({filterMode === 'day' ? 'Selected Day' : filterMode === 'all' ? 'All Time' : 'Period'})</p>
           <p className="text-4xl font-black text-emerald-600 tracking-tight">{formatCurrency(totalRevenue)}</p>
         </div>
         <div className="bg-slate-50 border border-slate-100 p-6 rounded-xl">
           <p className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">Total Outstanding Balance (Pending)</p>
           <p className="text-4xl font-black text-amber-500 tracking-tight">{formatCurrency(totalOutstanding)}</p>
-          <p className="text-xs text-slate-500 mt-1">Across {unpaidInvoices.length} unpaid / partial invoices</p>
+          <p className="text-xs text-slate-500 mt-1">Across all invoices issued in period</p>
         </div>
       </div>
 
@@ -242,8 +307,8 @@ export function FinanceReportPrint({
 
       {/* Outstanding Invoices Table */}
       <div className="break-inside-avoid">
-        <h2 className="text-lg font-bold border-b border-slate-200 pb-2 mb-4">Outstanding Invoices (Unpaid & Partial Balances)</h2>
-        {unpaidInvoices.length > 0 ? (
+        <h2 className="text-lg font-bold border-b border-slate-200 pb-2 mb-4">Invoices Issued ({formattedPeriodLabel})</h2>
+        {filteredInvoices.length > 0 ? (
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase text-xs">
               <tr>
@@ -257,7 +322,7 @@ export function FinanceReportPrint({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {unpaidInvoices.map(inv => {
+              {filteredInvoices.map((inv: any) => {
                 const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
                 const balance = Math.max(0, Number(inv.total) - paid)
                 return (
@@ -269,7 +334,9 @@ export function FinanceReportPrint({
                       <span className={`uppercase text-[11px] font-bold px-2 py-0.5 rounded border ${
                         inv.status === 'partial'
                           ? 'text-indigo-700 bg-indigo-50 border-indigo-200'
-                          : 'text-amber-700 bg-amber-50 border-amber-200'
+                          : inv.status === 'unpaid'
+                          ? 'text-amber-700 bg-amber-50 border-amber-200'
+                          : 'text-emerald-700 bg-emerald-50 border-emerald-200'
                       }`}>
                         {inv.status}
                       </span>
@@ -283,7 +350,7 @@ export function FinanceReportPrint({
             </tbody>
           </table>
         ) : (
-          <p className="text-sm text-slate-500 italic">No outstanding invoices at this time.</p>
+          <p className="text-sm text-slate-500 italic">No invoices issued in this period.</p>
         )}
       </div>
 
