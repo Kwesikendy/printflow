@@ -1,8 +1,38 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDate } from '@/lib/utils'
 import QRCode from 'react-qr-code'
+
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const params = await props.params
+  const supabase = await createClient()
+
+  const { data: invoiceRaw } = await supabase
+    .from('invoices')
+    .select(`
+      invoice_number,
+      job_groups(customer_name),
+      jobs(customer_name)
+    `)
+    .eq('id', params.id)
+    .single()
+
+  const invoice = invoiceRaw as any
+  if (!invoice) return { title: 'Invoice' }
+
+  const customerName =
+    invoice.job_groups?.customer_name ||
+    invoice.jobs?.customer_name ||
+    'Customer'
+
+  return {
+    title: `INVOICE NO. ${invoice.invoice_number} - ${customerName.toUpperCase()}`,
+  }
+}
 
 export default async function InvoicePrintPage(props: {
   params: Promise<{ id: string }>
@@ -60,11 +90,12 @@ export default async function InvoicePrintPage(props: {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
   const qrData = `${siteUrl}/track/invoice/${invoice.id}`
 
-  const docTitle = `${invoice.invoice_number.replace('-', '')}[${customerName}]`.toLowerCase()
+  // PDF filename format matches printed header: "INVOICE NO. INV-261007-001 - CUSTOMER NAME"
+  const docTitle = `INVOICE NO. ${invoice.invoice_number} - ${customerName.toUpperCase()}`
 
   return (
     <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">
-      <AutoPrint />
+      <AutoPrint title={docTitle} />
 
       {/* Set the page title for PDF filename & suppress browser header/footer */}
       <title>{docTitle}</title>

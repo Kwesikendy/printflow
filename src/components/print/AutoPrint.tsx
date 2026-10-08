@@ -2,15 +2,21 @@
 
 import { useEffect } from 'react'
 
-export function AutoPrint() {
+export function AutoPrint({ title }: { title?: string }) {
   useEffect(() => {
+    if (title) {
+      document.title = title
+    }
     // Wait a brief moment for styles/fonts to load before opening print dialog
     const timer = setTimeout(() => {
+      if (title) {
+        document.title = title
+      }
       window.print()
     }, 500)
     
     return () => clearTimeout(timer)
-  }, [])
+  }, [title])
   
   return null
 }

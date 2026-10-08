@@ -1,8 +1,29 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import QRCode from 'react-qr-code'
+
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const params = await props.params
+  const supabase = await createClient()
+
+  const { data: jobRaw } = await supabase
+    .from('jobs')
+    .select('job_number, customer_name')
+    .eq('id', params.id)
+    .single()
+
+  const job = jobRaw as any
+  if (!job) return { title: 'Job Card' }
+
+  return {
+    title: `JOB CARD — ${job.job_number} — ${job.customer_name}`,
+  }
+}
 
 export default async function JobCardPrintPage(props: {
   params: Promise<{ id: string }>
@@ -52,9 +73,12 @@ export default async function JobCardPrintPage(props: {
     other: 'Other',
   }
 
+  const pageTitle = `JOB CARD — ${job.job_number} — ${job.customer_name}`
+
   return (
     <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
-      <AutoPrint />
+      <AutoPrint title={pageTitle} />
+      <title>{pageTitle}</title>
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {

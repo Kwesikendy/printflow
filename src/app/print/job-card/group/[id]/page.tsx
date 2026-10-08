@@ -1,8 +1,29 @@
+import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
 import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
 import QRCode from 'react-qr-code'
+
+export async function generateMetadata(props: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const params = await props.params
+  const supabase = await createClient()
+
+  const { data: groupRaw } = await supabase
+    .from('job_groups')
+    .select('customer_name')
+    .eq('id', params.id)
+    .single()
+
+  const group = groupRaw as any
+  if (!group) return { title: 'Job Card' }
+
+  return {
+    title: `JOB CARD — ${group.customer_name}`,
+  }
+}
 
 export default async function GroupJobCardPrintPage(props: {
   params: Promise<{ id: string }>
@@ -72,10 +93,12 @@ export default async function GroupJobCardPrintPage(props: {
   // Use first job number for reference; show all job numbers in card
   const firstJob = jobs[0]
 
+  const pageTitle = `JOB CARD — ${group.customer_name}`
+
   return (
     <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
-      <AutoPrint />
-      <title>{`JOB CARD — ${group.customer_name}`}</title>
+      <AutoPrint title={pageTitle} />
+      <title>{pageTitle}</title>
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
