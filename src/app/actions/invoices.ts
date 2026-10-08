@@ -135,8 +135,7 @@ export async function editInvoiceItemsAction(invoiceId: string, items: any[], re
   // Update jobs
   let calculatedTotal = 0
   for (const item of items) {
-    const { error: jobError } = await supabase
-      .from('jobs')
+    const { error: jobError } = await (supabase.from('jobs') as any)
       .update({
         quantity: item.quantity,
         unit_cost: item.unit_cost,
