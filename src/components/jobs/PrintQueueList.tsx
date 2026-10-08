@@ -136,6 +136,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     const toComplete = group.jobs.filter(j => j.status === 'in_production')
     if (toComplete.length === 0) return
 
+    const originalJobs = [...jobs]
     setLoadingGroupKey(group.key)
     setJobs(prev => prev.filter(j => !toComplete.some(tc => tc.id === j.id)))
 
@@ -146,6 +147,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
 
     const failed = results.filter(r => r.error)
     if (failed.length > 0) {
+      setJobs(originalJobs) // Revert optimistic UI update
       toast.error(`Failed to complete some jobs: ${failed[0].error}`)
     } else {
       toast.success(`Completed all ${toComplete.length} jobs for ${group.customerName}`)
