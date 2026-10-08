@@ -16,7 +16,8 @@ This document details common issues encountered during local development and Win
 9. [Database Issue: Duplicate Key Violation on Job Number (`jobs_tenant_id_job_number_key`)](#9-database-issue-duplicate-key-violation-on-job-number-jobs_tenant_id_job_number_key)
 10. [Frontend Issue: Customer Autocomplete & Autofill Not Triggering](#10-frontend-issue-customer-autocomplete--autofill-not-triggering)
 11. [Windows VPS: Safe PM2 Restart Procedure (`listen EACCES: permission denied`)](#11-windows-vps-safe-pm2-restart-procedure-listen-eacces-permission-denied)
-12. [Standard Operations Quick-Reference Runbook](#12-standard-operations-quick-reference-runbook)
+12. [Print & PDF Issue: Saved Invoice / Job Card Filename Differing From Printed Number](#12-print--pdf-issue-saved-invoice--job-card-filename-differing-from-printed-number)
+13. [Standard Operations Quick-Reference Runbook](#13-standard-operations-quick-reference-runbook)
 
 ---
 
@@ -303,7 +304,27 @@ pm2 status
 
 ---
 
-## 12. Standard Operations Quick-Reference Runbook
+## 12. Print & PDF Issue: Saved Invoice / Job Card Filename Differing From Printed Number
+
+### Symptom
+When printing an invoice (e.g. `INVOICE NO. INV-261007-001`), the browser's "Save as PDF" dialog or the saved file displayed an older or divergent name (such as `INVOICE NO.000012 McYELLOW` or `inv261007-001[mcyellow]`).
+
+### Root Causes
+1. **Multi-Item Order Sequence Drift**: A bulk job order contains multiple jobs (e.g. 11 jobs from `PF-261007-001` to `PF-261007-011`), but only **one invoice** (`INV-261007-001`). The subsequent job in the shop is Job #12 (`PF-261007-012`). If staff or legacy logic expected job counts to match invoice numbers, they quickly diverged.
+2. **Missing `generateMetadata` in Next.js Server Components**: Next.js App Router sets `<title>` in `<head>` through `generateMetadata()`. An inline `<title>` tag inside a Server Component is not consistently prioritized by browser print engines (`window.print()`), leading Chrome/Edge to keep a previously opened tab's title or default filename.
+3. **Inconsistent String Formatting**: Older title generators used `.replace('-', '')` which only stripped the first hyphen and lowercased the client name, differing from the uppercase printed heading `INVOICE NO. {invoice.invoice_number}`.
+
+### Resolution
+1. **Server Metadata Export**: Added `export async function generateMetadata(...)` on `/print/invoice/[id]`, `/print/job-card/[id]`, and `/print/job-card/group/[id]`.
+2. **Harmonized PDF Filenames**: Formatted the title consistently:
+   * **Invoices**: `INVOICE NO. ${invoice.invoice_number} - ${customerName.toUpperCase()}` (e.g. `INVOICE NO. INV-261007-001 - MCYELLOW`)
+   * **Group Job Cards**: `JOB CARD — ${group.customer_name}`
+   * **Single Job Cards**: `JOB CARD — ${job.job_number} — ${job.customer_name}`
+3. **Client-Side Sync via `AutoPrint`**: Enhanced `<AutoPrint title={...} />` to explicitly set `document.title` immediately before calling `window.print()`, guaranteeing that Chrome/Edge's "Save as PDF" default filename matches the printed header 100% of the time.
+
+---
+
+## 13. Standard Operations Quick-Reference Runbook
 
 ### Deploy New Code Changes to VPS (Day-to-Day)
 *Always use this sequence to prevent phantom daemons, port locks, and cache corruption:*
