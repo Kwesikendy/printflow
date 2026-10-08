@@ -98,7 +98,6 @@ function EditPaymentModal({ payment }: { payment: Payment }) {
 
 export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps) {
   const [isPending, startTransition] = useTransition()
-  const [isRounding, startRounding] = useTransition()
   const [method, setMethod] = useState<string>('cash')
   const [reference, setReference] = useState('')
   const [otherDetails, setOtherDetails] = useState('')
@@ -340,24 +339,6 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
                   <CheckCircle2 className="w-4 h-4 mr-2" />
                   Confirm Full Payment ({formatCurrency(remaining)})
                 </Button>
-                {remaining % 1 !== 0 && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 px-4 border-slate-300 hover:bg-slate-50 font-bold whitespace-nowrap"
-                    loading={isRounding}
-                    onClick={() => {
-                      startRounding(async () => {
-                        const res = await roundInvoiceTotalAction(invoice.id)
-                        if (res.error) toast.error(res.error)
-                        else toast.success('Total rounded to ' + formatCurrency(Math.round(invoice.total)))
-                      })
-                    }}
-                    title="Round total to whole number"
-                  >
-                    Round ({formatCurrency(Math.round(remaining))})
-                  </Button>
-                )}
               </div>
             ) : (
               <>

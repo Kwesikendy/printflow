@@ -582,7 +582,7 @@ export function NewJobForm({
   }
 
   const grandTotal = useMemo(() => {
-    return items.reduce((sum, item) => {
+    const rawTotal = items.reduce((sum, item) => {
       const finalWidth = item.useStandardSize && item.standardSizeId
         ? (standardSizes.find(s => s.id === item.standardSizeId)?.width || 0)
         : (parseFloat(item.width) || 0)
@@ -593,6 +593,7 @@ export function NewJobForm({
       const lineTotal = calculateLineTotal(area, parseFloat(item.manualUnitCost) || 0, parseInt(item.quantity) || 1)
       return sum + lineTotal
     }, 0)
+    return Math.round(rawTotal)
   }, [items, standardSizes])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

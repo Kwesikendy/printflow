@@ -331,7 +331,7 @@ export async function createJobGroupAction(
           tenant_id: profile.tenant_id,
           job_id: null,
           invoice_number: invoiceNumber,
-          total: grandTotal,
+          total: Math.round(grandTotal),
           status: 'unpaid',
           group_id: groupId,
         })
@@ -596,7 +596,7 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
           tenant_id: job.tenant_id,
           job_id: jobId,
           invoice_number: invNumber,
-          total: job.line_total,
+          total: Math.round(job.line_total),
           status: 'unpaid',
         })
         .select('id, invoice_number')
