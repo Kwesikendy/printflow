@@ -872,7 +872,8 @@ export async function editPaymentMethodAction(paymentId: string, method: string,
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const { data: profData } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const profile = profData as any
   if (!profile || !['admin', 'accountant', 'front_desk'].includes(profile.role)) {
     return { error: 'Insufficient permissions' }
   }

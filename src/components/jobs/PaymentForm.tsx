@@ -27,7 +27,7 @@ function EditPaymentModal({ payment }: { payment: Payment }) {
   const [mounted, setMounted] = useState(false)
   const [isPending, startTransition] = useTransition()
   
-  const [method, setMethod] = useState(payment.method || 'cash')
+  const [method, setMethod] = useState<string>(payment.method || 'cash')
   const [reference, setReference] = useState(payment.reference || payment.notes || '')
 
   useEffect(() => {

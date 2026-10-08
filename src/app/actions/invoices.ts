@@ -9,22 +9,26 @@ export async function editInvoiceTotalAction(invoiceId: string, newTotal: number
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profile } = await supabase
+  const { data } = await supabase
     .from('profiles')
     .select('role, tenant_id')
     .eq('id', user.id)
     .single()
+
+  const profile = data as any
 
   if (!profile || !['admin', 'accountant'].includes(profile.role)) {
     return { error: 'Insufficient permissions' }
   }
 
   // Get current invoice
-  const { data: invoice, error: invoiceError } = await supabase
+  const { data: invData, error: invoiceError } = await supabase
     .from('invoices')
     .select('*')
     .eq('id', invoiceId)
     .single()
+
+  const invoice = invData as any
 
   if (invoiceError || !invoice) {
     return { error: 'Invoice not found' }
