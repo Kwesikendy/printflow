@@ -626,7 +626,7 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
   }
 }
 
-export async function updateJobAction(jobId: string, updates: { width: number, height: number, quantity: number, unitCost: number, notes: string }): Promise<ActionResponse> {
+export async function updateJobAction(jobId: string, updates: { width: number, height: number, quantity: number, unitCost: number, notes: string, customerName?: string, customerPhone?: string, printRoom?: string }): Promise<ActionResponse> {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -646,7 +646,7 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
   const area = updates.width * updates.height
   const lineTotal = Math.round(area * finalUnitCost * updates.quantity * 100) / 100
 
-  const { error } = await (supabase.from('jobs') as any).update({
+  const updatePayload: any = {
     width: updates.width,
     height: updates.height,
     area: area,
@@ -654,16 +654,30 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
     unit_cost_applied: finalUnitCost,
     line_total: lineTotal,
     notes: updates.notes || null
-  }).eq('id', jobId)
+  }
+  
+  if (updates.customerName !== undefined) updatePayload.customer_name = updates.customerName
+  if (updates.customerPhone !== undefined) updatePayload.customer_phone = updates.customerPhone
+  if (updates.printRoom !== undefined) updatePayload.print_room = updates.printRoom || null
+
+  const { error } = await (supabase.from('jobs') as any).update(updatePayload).eq('id', jobId)
 
   if (error) return { error: error.message }
 
-  // Update invoice total
+  // Update invoice total and group if necessary
   if (job.group_id) {
     const { data: allJobsData } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
     const allJobs = allJobsData as any[] | null
     const newTotal = allJobs?.reduce((sum: number, j: any) => sum + Number(j.line_total), 0) || 0
     await (supabase.from('invoices') as any).update({ total: newTotal }).eq('group_id', job.group_id)
+
+    // Update group customer details if changed
+    if (updates.customerName !== undefined || updates.customerPhone !== undefined) {
+      const groupUpdate: any = {}
+      if (updates.customerName !== undefined) groupUpdate.customer_name = updates.customerName
+      if (updates.customerPhone !== undefined) groupUpdate.customer_phone = updates.customerPhone
+      await (supabase.from('job_groups') as any).update(groupUpdate).eq('id', job.group_id)
+    }
   } else {
     await (supabase.from('invoices') as any).update({ total: lineTotal }).eq('job_id', jobId)
   }
@@ -824,4 +838,30 @@ export async function startNewDayAction(): Promise<ActionResponse> {
   } catch (err: any) {
     return { error: err.message }
   }
+}
+
+export async function roundInvoiceTotalAction(invoiceId: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const role = (profile as any)?.role
+  if (!['front_desk', 'admin'].includes(role)) return { error: 'Insufficient permissions' }
+
+  const { data: invoice } = await (supabase.from('invoices') as any).select('total, job_id, group_id').eq('id', invoiceId).single()
+  if (!invoice) return { error: 'Invoice not found' }
+
+  const rounded = Math.round(invoice.total)
+  if (rounded === invoice.total) return { success: true }
+
+  const { error } = await (supabase.from('invoices') as any).update({ total: rounded }).eq('id', invoiceId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/queue')
+  revalidatePath('/dashboard/finance')
+  if (invoice.job_id) revalidatePath(`/dashboard/jobs/${invoice.job_id}`)
+  if (invoice.group_id) revalidatePath(`/dashboard/jobs/group/${invoice.group_id}`)
+  
+  return { success: true }
 }

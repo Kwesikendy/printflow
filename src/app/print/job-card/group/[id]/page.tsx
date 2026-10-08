@@ -111,15 +111,15 @@ export default async function GroupJobCardPrintPage(props: {
             width: 80mm !important;
             max-width: 80mm !important;
             min-height: 0 !important;
-            height: auto !important;
+            height: fit-content !important;
             background: #ffffff !important;
-            overflow: visible !important;
+            overflow: hidden !important;
           }
           .ticket-container {
             width: 80mm !important;
             max-width: 80mm !important;
             margin: 0 !important;
-            padding: 2mm 3mm 1mm 3mm !important;
+            padding: 2mm 3mm 0mm 3mm !important;
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
@@ -127,7 +127,7 @@ export default async function GroupJobCardPrintPage(props: {
       `}} />
 
       {/* Receipt card — compact 80mm thermal width */}
-      <div className="ticket-container w-[340px] font-bold text-black text-[12px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0">
+      <div className="ticket-container w-[340px] font-extrabold text-black text-[15px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0">
 
         {/* Logo + Shop Header */}
         <div className="text-center mb-2">
@@ -136,18 +136,18 @@ export default async function GroupJobCardPrintPage(props: {
             alt="Print DPI"
             className="h-12 mx-auto mb-1.5 object-contain"
           />
-          <p className="font-extrabold text-[15px] tracking-wide text-black">{group.tenants?.name || 'Print DPI'}</p>
-          <p className="font-bold text-[11px] text-black">Accra, Ghana</p>
-          <p className="font-bold text-[11px] text-black">0598608209</p>
+          <p className="font-black text-[18px] tracking-wide text-black">{group.tenants?.name || 'Print DPI'}</p>
+          <p className="font-extrabold text-[14px] text-black">Accra, Ghana</p>
+          <p className="font-extrabold text-[14px] text-black">0598608209</p>
         </div>
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
         {/* Print Room Badge */}
         <div className="text-center mb-2">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-black">Print Room</p>
+          <p className="text-[14px] font-extrabold uppercase tracking-widest text-black">Print Room</p>
           <div className="border-2 border-black rounded-md inline-block px-5 py-0.5 mt-0.5">
-            <p className="text-[18px] font-extrabold tracking-tight text-black">
+            <p className="text-[21px] font-black tracking-tight text-black">
               {roomLabel}
             </p>
           </div>
@@ -157,11 +157,11 @@ export default async function GroupJobCardPrintPage(props: {
 
         {/* Customer Info */}
         <div className="mb-2">
-          <p className="font-bold text-[14px] text-black">{group.customer_name}</p>
+          <p className="font-extrabold text-[17px] text-black">{group.customer_name}</p>
           {group.customer_phone && (
-            <p className="font-bold text-black text-[12px]">Phone: {group.customer_phone}</p>
+            <p className="font-extrabold text-black text-[15px]">Phone: {group.customer_phone}</p>
           )}
-          <p className="font-bold text-black text-[11px] mt-0.5">
+          <p className="font-extrabold text-black text-[14px] mt-0.5">
             Source: {firstJob.source === 'walk_in' ? 'Walk-In' : 'Marketing'}
           </p>
         </div>
@@ -170,14 +170,14 @@ export default async function GroupJobCardPrintPage(props: {
 
         {/* Date & Label */}
         <div className="text-center mb-2">
-          <p className="font-extrabold uppercase tracking-widest text-[12px] text-black">JOB CARD</p>
-          <p className="font-bold text-[11px] text-black">Date: {formatDateTime(group.created_at)}</p>
+          <p className="font-black uppercase tracking-widest text-[15px] text-black">JOB CARD</p>
+          <p className="font-extrabold text-[14px] text-black">Date: {formatDateTime(group.created_at)}</p>
         </div>
 
         {/* Tracking QR Code */}
         {invoice && (
           <div className="flex flex-col items-center justify-center my-1.5">
-            <p className="text-[10px] font-bold text-black mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
+            <p className="text-[13px] font-extrabold text-black mb-1 tracking-wider uppercase">Scan to Confirm Receipt</p>
             <QRCode value={`${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/track/invoice/${invoice.id}`} size={72} level="M" />
           </div>
         )}
@@ -185,36 +185,36 @@ export default async function GroupJobCardPrintPage(props: {
         <div className="border-t border-dashed border-gray-400 my-2" />
 
         {/* Jobs Table — all jobs in this card */}
-        <table className="w-full text-[12px] mb-1 text-black font-bold">
+        <table className="w-full text-[15px] mb-1 text-black font-extrabold">
           <thead>
             <tr className="border-b-2 border-black">
-              <th className="text-left pb-1 font-extrabold text-[11px]">#</th>
-              <th className="text-left pb-1 font-extrabold text-[11px]">Item</th>
-              <th className="text-center pb-1 font-extrabold text-[11px]">Qty</th>
+              <th className="text-left pb-1 font-black text-[14px]">#</th>
+              <th className="text-left pb-1 font-black text-[14px]">Item</th>
+              <th className="text-center pb-1 font-black text-[14px]">Qty</th>
             </tr>
           </thead>
           <tbody>
             {jobs.map((job: any, idx: number) => (
               <tr key={job.id} className="border-b border-gray-300">
-                <td className="py-1.5 pr-1 text-[11px] text-gray-600 align-top">{idx + 1}</td>
+                <td className="py-1.5 pr-1 text-[14px] text-gray-800 align-top">{idx + 1}</td>
                 <td className="py-1.5 pr-2 align-top">
-                  <p className="font-extrabold text-[13px] text-black">{job.product_types?.name}</p>
-                  <p className="font-bold text-black text-[11px]">
+                  <p className="font-black text-[16px] text-black">{job.product_types?.name}</p>
+                  <p className="font-extrabold text-black text-[14px]">
                     {job.width} × {job.height} {job.dimension_unit || 'cm'}
                   </p>
-                  <p className="text-[10px] text-gray-500 font-medium">{job.job_number}</p>
+                  <p className="text-[13px] text-gray-700 font-bold">{job.job_number}</p>
                   {job.notes && (
-                    <p className="font-bold text-black text-[10px] mt-0.5 italic">{job.notes}</p>
+                    <p className="font-extrabold text-black text-[13px] mt-0.5 italic">{job.notes}</p>
                   )}
                 </td>
-                <td className="py-1.5 text-center font-extrabold text-[16px] text-black align-top">{job.quantity}</td>
+                <td className="py-1.5 text-center font-black text-[19px] text-black align-top">{job.quantity}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
         <div className="border-t border-dashed border-gray-400 my-2" />
-        <div className="text-center font-bold text-[10px] text-black tracking-wider">
+        <div className="text-center font-extrabold text-[13px] text-black tracking-wider">
           *** END OF JOB TICKET ***
         </div>
       </div>

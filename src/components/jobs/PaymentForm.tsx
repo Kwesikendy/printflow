@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/Button'
-import { recordPaymentAction } from '@/app/actions/jobs'
+import { recordPaymentAction, roundInvoiceTotalAction } from '@/app/actions/jobs'
 import { toast } from 'sonner'
 import type { Invoice, Payment } from '@/types/database'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -22,6 +22,7 @@ interface PaymentFormProps {
 
 export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps) {
   const [isPending, startTransition] = useTransition()
+  const [isRounding, startRounding] = useTransition()
   const [method, setMethod] = useState<string>('cash')
   const [reference, setReference] = useState('')
   const [otherDetails, setOtherDetails] = useState('')
@@ -255,10 +256,30 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
           {/* Full vs Partial buttons */}
           <div className="flex gap-2">
             {amountStr === '' || displayAmount >= remaining ? (
-              <Button type="submit" variant="success" className="w-full h-12 text-base font-bold" loading={isPending}>
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Confirm Full Payment ({formatCurrency(remaining)})
-              </Button>
+              <div className="flex gap-2 w-full">
+                <Button type="submit" variant="success" className="flex-1 h-12 text-base font-bold" loading={isPending}>
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  Confirm Full Payment ({formatCurrency(remaining)})
+                </Button>
+                {remaining % 1 !== 0 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 px-4 border-slate-300 hover:bg-slate-50 font-bold whitespace-nowrap"
+                    loading={isRounding}
+                    onClick={() => {
+                      startRounding(async () => {
+                        const res = await roundInvoiceTotalAction(invoice.id)
+                        if (res.error) toast.error(res.error)
+                        else toast.success('Total rounded to ' + formatCurrency(Math.round(invoice.total)))
+                      })
+                    }}
+                    title="Round total to whole number"
+                  >
+                    Round ({formatCurrency(Math.round(remaining))})
+                  </Button>
+                )}
+              </div>
             ) : (
               <>
                 <Button type="submit" variant="outline" className="flex-1 h-12 font-bold border-amber-400 text-amber-700 hover:bg-amber-50" loading={isPending}>
