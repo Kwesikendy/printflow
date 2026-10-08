@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency, formatDateTime, formatDate, PAYMENT_METHOD_LABELS, SOURCE_LABELS } from '@/lib/utils'
 import { getCustomerFinancialStatement, type CustomerStatementData } from '@/app/actions/finance'
+import { EditInvoiceModal } from './EditInvoiceModal'
 import Link from 'next/link'
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from 'date-fns'
 
@@ -398,6 +399,7 @@ export function CustomerStatementModal({
                               <th className="text-right">Total Amount</th>
                               <th className="text-right">Amount Paid</th>
                               <th className="text-right pr-6">Balance Due</th>
+                              <th className="text-right pr-4"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -426,11 +428,14 @@ export function CustomerStatementModal({
                                 <td className="text-right pr-6 font-black text-amber-600">
                                   {formatCurrency(inv.balance_due)}
                                 </td>
+                                <td className="text-right pr-4">
+                                  <EditInvoiceModal invoice={inv} />
+                                </td>
                               </tr>
                             ))}
                             {statement.invoices.length === 0 && (
                               <tr>
-                                <td colSpan={6} className="text-center py-12 text-slate-400 font-medium">
+                                <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
                                   No invoices found.
                                 </td>
                               </tr>
