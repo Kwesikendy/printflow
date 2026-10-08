@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { markInvoiceJobsCompleted } from '@/app/actions/track'
-import { CheckCircle, Package } from 'lucide-react'
+import { CheckCircle, Package, User, Phone } from 'lucide-react'
 import { revalidatePath } from 'next/cache'
 
 export default async function TrackInvoicePage(props: {
@@ -50,9 +50,11 @@ export default async function TrackInvoicePage(props: {
   const allPickedUp = jobsList.length > 0 && jobsList.every((j: any) => j.status === 'picked_up')
 
   // We use a server action bound to the form to handle the completion
-  const handleComplete = async () => {
+  const handleComplete = async (formData: FormData) => {
     'use server'
-    await markInvoiceJobsCompleted(params.id)
+    const pickupName = formData.get('pickupName') as string
+    const pickupPhone = formData.get('pickupPhone') as string
+    await markInvoiceJobsCompleted(params.id, pickupName, pickupPhone)
   }
 
   return (
@@ -98,17 +100,46 @@ export default async function TrackInvoicePage(props: {
                 <p className="text-sm opacity-90">This order has been picked up and confirmed by the customer.</p>
               </div>
             ) : (
-              <form action={handleComplete}>
-                <p className="text-center text-xs text-gray-500 mb-4 px-2">
-                  By clicking below, you confirm that you have received your order and everything is exactly as requested.
-                </p>
-                <button
-                  type="submit"
-                  className="w-full bg-[#ec008c] hover:bg-[#c20073] text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle className="w-5 h-5" />
-                  Confirm Receipt
-                </button>
+              <form action={handleComplete} className="space-y-4">
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl text-sm text-blue-800 mb-2">
+                  Please provide your details below to digitally sign off on the quality of your order and confirm receipt.
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-gray-400" /> Full Name
+                  </label>
+                  <input 
+                    type="text" 
+                    name="pickupName" 
+                    required 
+                    placeholder="E.g. John Doe"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ec008c] focus:border-[#ec008c] outline-none transition-shadow"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                    <Phone className="w-4 h-4 text-gray-400" /> Phone Number
+                  </label>
+                  <input 
+                    type="tel" 
+                    name="pickupPhone" 
+                    required 
+                    placeholder="E.g. 024XXXXXXX"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#ec008c] focus:border-[#ec008c] outline-none transition-shadow"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="w-full bg-[#ec008c] hover:bg-[#c20073] text-white font-bold py-4 px-6 rounded-xl shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle className="w-5 h-5" />
+                    Confirm Receipt
+                  </button>
+                </div>
               </form>
             )}
           </div>

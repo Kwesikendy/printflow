@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-export async function markInvoiceJobsCompleted(invoiceId: string) {
+export async function markInvoiceJobsCompleted(invoiceId: string, pickupName?: string, pickupPhone?: string) {
   const supabase = await createClient()
 
   // Find all jobs for this invoice
@@ -17,14 +17,18 @@ export async function markInvoiceJobsCompleted(invoiceId: string) {
 
   if (!invoice) throw new Error('Invoice not found')
 
+  const updatePayload: any = { status: 'picked_up' }
+  if (pickupName) updatePayload.pickup_name = pickupName
+  if (pickupPhone) updatePayload.pickup_phone = pickupPhone
+
   if (invoice.group_id) {
     // Update all jobs in the group to picked_up
     // @ts-ignore
-    await supabase.from('jobs').update({ status: 'picked_up' }).eq('group_id', invoice.group_id)
+    await supabase.from('jobs').update(updatePayload).eq('group_id', invoice.group_id)
   } else if (invoice.jobs) {
     // Update single job
     // @ts-ignore
-    await supabase.from('jobs').update({ status: 'picked_up' }).eq('id', invoice.jobs.id)
+    await supabase.from('jobs').update(updatePayload).eq('id', invoice.jobs.id)
   }
 
   // Also update invoice status
