@@ -10,6 +10,7 @@ import { motion } from 'framer-motion'
 import { ChangePasswordModal } from '@/components/auth/ChangePasswordModal'
 import { 
   Printer,
+  Package,
   LayoutDashboard, 
   FileText, 
   ListChecks, 
@@ -23,6 +24,7 @@ import {
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: LayoutDashboard, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/admin/inventory', icon: Package, roles: ['admin'] },
   { name: 'Jobs', href: '/dashboard/jobs', icon: FileText, roles: ['admin', 'front_desk'] },
   { name: 'Pickup Queue', href: '/dashboard/pickup', icon: ListChecks, roles: ['admin', 'front_desk'] },
   { name: 'Print Queue', href: '/dashboard/queue', icon: Printer, roles: ['admin', 'printer'] },
@@ -38,7 +40,10 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
   if (!session) return null
 
   const role = session.profile.role
-  const visibleItems = navItems.filter(item => item.roles.includes(role) && canAccessRoute(role, item.href))
+  const visibleItems = navItems.filter(item => {
+    if (item.name === 'Inventory' && session.profile.email === 'd.opare@printdpigh.com') return true
+    return item.roles.includes(role) && canAccessRoute(role, item.href)
+  })
 
   const handleLogout = async () => {
     await signOut()

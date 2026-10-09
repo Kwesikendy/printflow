@@ -550,6 +550,57 @@ export async function transitionJobStatusAction(
     return { error: error.message }
   }
 
+  // If status is completed, automatically deduct material from inventory
+  if (toStatus === 'completed') {
+    try {
+      const { data: jobData } = await supabase
+        .from('jobs')
+        .select('id, tenant_id, width, height, quantity, dimension_unit, product_types(material_id)')
+        .eq('id', jobId)
+        .single()
+  
+      const job = jobData as any
+      const materialId = job?.product_types?.material_id
+  
+      if (materialId && job) {
+        const { data: materialData } = await (supabase as any)
+          .from('materials')
+          .select('id, roll_width, roll_length, qty_rolls')
+          .eq('id', materialId)
+          .single()
+  
+        const material = materialData as any
+        if (material) {
+          const w_cm = toCm(job.width, job.dimension_unit)
+          const h_cm = toCm(job.height, job.dimension_unit)
+          const area_m2 = (w_cm / 100) * (h_cm / 100) * job.quantity
+          
+          const roll_area = material.roll_width * material.roll_length
+          const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
+  
+          if (rolls_deducted > 0) {
+            await (supabase as any).from('inventory_logs').insert({
+              tenant_id: job.tenant_id,
+              material_id: materialId,
+              action: 'job_deduction',
+              job_id: jobId,
+              qty_change_rolls: -rolls_deducted,
+              qty_change_area: -area_m2,
+              notes: `Auto-deducted for completed job`
+            })
+    
+            await (supabase as any).from('materials').update({
+              qty_rolls: material.qty_rolls - rolls_deducted,
+              updated_at: new Date().toISOString()
+            }).eq('id', materialId)
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to deduct inventory:', err)
+    }
+  }
+
   // If status is picked_up and we have pickup details, update the job record
   if (toStatus === 'picked_up' && (pickupName || pickupPhone)) {
     const { error: updateError } = await (supabase.from('jobs') as any)

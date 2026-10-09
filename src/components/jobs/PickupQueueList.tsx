@@ -20,6 +20,7 @@ import { Switch } from '@/components/ui/Switch'
 
 export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
+  const [searchQuery, setSearchQuery] = useState('')
   const { subscribeToJobs } = useRealtime()
   const { session } = useSession()
 
@@ -87,6 +88,16 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
     }
   }
 
+  const filteredJobs = jobs.filter(job => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase().trim()
+    return (
+      job.job_number.toLowerCase().includes(query) ||
+      job.customer_name.toLowerCase().includes(query) ||
+      (job.product_types?.name || '').toLowerCase().includes(query)
+    )
+  })
+
   if (jobs.length === 0) {
     return (
       <Card>
@@ -100,10 +111,34 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
   }
 
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <AnimatePresence mode="popLayout">
-          {jobs.map(job => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search by Job No, Customer, or Product..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-shadow shadow-sm"
+          />
+        </div>
+      </div>
+
+      {filteredJobs.length === 0 && searchQuery.trim() !== '' ? (
+        <Card>
+          <EmptyState
+            icon={<PackageCheck />}
+            title="No jobs found"
+            description="No jobs match your current search query."
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filteredJobs.map(job => (
             <motion.div
               key={job.id}
               layout
@@ -152,6 +187,7 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
           ))}
         </AnimatePresence>
       </div>
+      )}
 
       <Dialog open={!!pickupJob} onOpenChange={(open) => !open && setPickupJob(null)}>
         <DialogContent>
@@ -214,6 +250,6 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
