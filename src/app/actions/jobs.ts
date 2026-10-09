@@ -165,14 +165,20 @@ export async function createJobGroupAction(
     // If user is not an admin, strictly enforce configured catalog pricing
     let pricingRules: any[] = []
     let unitPricingConfig: any = null
+    
+    // Fetch product types to check for fixed pricing
+    const productIds = Array.from(new Set(items.map(it => it.productTypeId || (it as any).product_type_id)))
+    const [{ data: rulesData }, configData, { data: productsData }] = await Promise.all([
+      profile.role !== 'admin' ? supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id) : Promise.resolve({ data: null }),
+      profile.role !== 'admin' ? getTenantUnitPricing(profile.tenant_id) : Promise.resolve(null),
+      supabase.from('product_types').select('id, is_fixed_price').in('id', productIds).eq('tenant_id', profile.tenant_id)
+    ])
+    
     if (profile.role !== 'admin') {
-      const [{ data: rulesData }, configData] = await Promise.all([
-        supabase.from('pricing_rules').select('*').eq('tenant_id', profile.tenant_id),
-        getTenantUnitPricing(profile.tenant_id)
-      ])
       pricingRules = (rulesData as any[]) || []
       unitPricingConfig = configData
     }
+    const fixedPriceMap = new Map(productsData?.map((p: any) => [p.id, p.is_fixed_price]) || [])
 
     // Build items payload with converted cm dimensions and normalized unit cost
     let itemsPayload: any[] = []
@@ -182,13 +188,20 @@ export async function createJobGroupAction(
 
         if (profile.role !== 'admin') {
           const activeRule = pricingRules.find(r => r.product_type_id === item.productTypeId && r.source === source)
-          const resolvedRate = resolveUnitRate(
-            unitPricingConfig,
-            item.productTypeId,
-            source,
-            item.dimensionUnit,
-            activeRule?.unit_cost
-          )
+          const isFixed = fixedPriceMap.get(item.productTypeId)
+          let resolvedRate = 0
+          
+          if (isFixed) {
+            resolvedRate = activeRule?.unit_cost || 0
+          } else {
+            resolvedRate = resolveUnitRate(
+              unitPricingConfig,
+              item.productTypeId,
+              source,
+              item.dimensionUnit,
+              activeRule?.unit_cost
+            )
+          }
           if (!resolvedRate || resolvedRate <= 0) {
             throw new Error('One or more products have no configured price. Only administrators can specify custom prices.')
           }
@@ -240,7 +253,8 @@ export async function createJobGroupAction(
     // 2. Precalculate items & totals
     let grandTotal = 0
     const processedItems = itemsPayload.map(item => {
-      const area = item.width * item.height
+      const isFixed = fixedPriceMap.get(item.product_type_id)
+      const area = isFixed ? 1 : (item.width * item.height)
       const lineTotal = Math.round(area * item.unit_cost * item.quantity * 100) / 100
       grandTotal = Math.round((grandTotal + lineTotal) * 100) / 100
       return {

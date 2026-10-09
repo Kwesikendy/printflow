@@ -279,21 +279,30 @@ function LineItemCard({
     [pricingRules, item.productTypeId, source]
   )
 
+  const product = useMemo(() => productTypes.find(p => p.id === item.productTypeId), [productTypes, item.productTypeId])
+  const isFixedPrice = product?.is_fixed_price || false
+
   useEffect(() => {
-    const rate = resolveUnitRate(
-      unitPricingConfig,
-      item.productTypeId,
-      source,
-      effectiveUnit,
-      activePricingRule?.unit_cost
-    )
+    let rate = 0
+    if (isFixedPrice) {
+      rate = activePricingRule?.unit_cost || 0
+    } else {
+      rate = resolveUnitRate(
+        unitPricingConfig,
+        item.productTypeId,
+        source,
+        effectiveUnit,
+        activePricingRule?.unit_cost
+      )
+    }
+    
     if (rate > 0) {
       const formatted = rate >= 1 ? rate.toFixed(2) : rate >= 0.01 ? rate.toFixed(4) : rate.toFixed(6)
       u({ manualUnitCost: formatted })
     } else {
       u({ manualUnitCost: '' })
     }
-  }, [item.productTypeId, source, effectiveUnit, activePricingRule?.id, unitPricingConfig])
+  }, [item.productTypeId, source, effectiveUnit, activePricingRule?.id, unitPricingConfig, isFixedPrice])
 
   const finalWidth = item.useStandardSize && item.standardSizeId
     ? (standardSizes.find(s => s.id === item.standardSizeId)?.width || 0)
@@ -305,7 +314,7 @@ function LineItemCard({
 
   const unitCost = parseFloat(item.manualUnitCost) || 0
   const parsedQty = parseInt(item.quantity, 10) || 1
-  const area = calculateArea(finalWidth, finalHeight)
+  const area = isFixedPrice ? 1 : calculateArea(finalWidth, finalHeight)
   const lineTotal = calculateLineTotal(area, unitCost, parsedQty)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -363,7 +372,6 @@ function LineItemCard({
           </div>
 
           {/* Size */}
-          {!productTypes.find(p => p.id === item.productTypeId)?.is_fixed_price && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -441,7 +449,6 @@ function LineItemCard({
               )}
             </AnimatePresence>
           </div>
-          )}
 
           {/* Qty + Unit Cost */}
           <div className="grid grid-cols-2 gap-4">
@@ -456,18 +463,22 @@ function LineItemCard({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2 flex justify-between items-center">
-                <span>Unit Cost (₵ per {UNIT_SHORT_LABELS[effectiveUnit]})</span>
+                <span>{isFixedPrice ? 'Price (₵ per item)' : `Unit Cost (₵ per ${UNIT_SHORT_LABELS[effectiveUnit]})`}</span>
                 {isAdmin ? (
                   <span className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-0.5 rounded-md border border-indigo-100 flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Admin Override
+                     Admin
+                  </span>
+                ) : isFixedPrice ? (
+                  <span className="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-md border border-emerald-100 flex items-center gap-1">
+                     Enter Price
                   </span>
                 ) : (
                   <span className="text-xs bg-slate-100 text-slate-500 font-medium px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-slate-400" /> Fixed Price
+                    <Lock className="w-3 h-3 text-slate-400" /> Auto
                   </span>
                 )}
               </label>
-              {isAdmin ? (
+              {isAdmin || isFixedPrice ? (
                 <input
                   type="number" step="0.0001" min="0.0001"
                   className="input-standard bg-white border-indigo-200 focus:ring-indigo-500 h-12 shadow-sm font-medium text-indigo-900"
@@ -485,7 +496,7 @@ function LineItemCard({
                     aria-readonly="true"
                     className="input-standard bg-slate-100 border-slate-200 text-slate-700 cursor-not-allowed select-none font-semibold h-12 pl-3 pr-9 shadow-none"
                     value={item.manualUnitCost ? `${item.manualUnitCost}` : 'No price set'}
-                    title="Product unit price is fixed and can only be modified by an administrator."
+                    title="Product unit price is automatically calculated and can only be modified by an administrator."
                   />
                   <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
@@ -608,6 +619,9 @@ export function NewJobForm({
 
     for (let i = 0; i < items.length; i++) {
       const it = items[i]
+      const product = productTypes.find(p => p.id === it.productTypeId)
+      const isFixedPrice = product?.is_fixed_price || false
+      
       const w = it.useStandardSize && it.standardSizeId
         ? (standardSizes.find(s => s.id === it.standardSizeId)?.width || 0)
         : parseFloat(it.width) || 0
@@ -663,8 +677,8 @@ export function NewJobForm({
 
           return {
             productTypeId: it.productTypeId,
-            width: isFixedPrice ? 1 : rawW,
-            height: isFixedPrice ? 1 : rawH,
+            width: rawW,
+            height: rawH,
             dimensionUnit: isFixedPrice ? 'cm' : (it.useStandardSize ? 'cm' : it.dimensionUnit),
             quantity: parseInt(it.quantity) || 1,
             unitCost: parseFloat(it.manualUnitCost) || 0,
