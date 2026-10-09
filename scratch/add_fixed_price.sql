@@ -1,0 +1,1 @@
+ALTER TABLE public.product_types ADD COLUMN IF NOT EXISTS is_fixed_price BOOLEAN DEFAULT FALSE;

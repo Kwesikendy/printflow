@@ -38,7 +38,7 @@ const DIMENSION_UNITS: DimensionUnit[] = ['ft', 'in', 'cm', 'm']
 // ============================================================
 // EDIT PRODUCT MODAL (Full Product & Multi-Unit Pricing Control)
 // ============================================================
-export function EditProductModal({
+function EditProductModal({
   product,
   initialScheme,
   isOpen,
@@ -52,6 +52,7 @@ export function EditProductModal({
   const [isPending, startTransition] = useTransition()
   const [name, setName] = useState(product.name)
   const [isActive, setIsActive] = useState(product.is_active)
+  const [isFixedPrice, setIsFixedPrice] = useState(product.is_fixed_price || false)
 
   // Walk-in unit rates
   const [walkInRates, setWalkInRates] = useState<Record<DimensionUnit, string>>({
@@ -117,8 +118,8 @@ export function EditProductModal({
 
     startTransition(async () => {
       // 1. Update product name and active status
-      if (name.trim() !== product.name || isActive !== product.is_active) {
-        const renameRes = await updateProductType(product.id, name.trim(), isActive)
+      if (name.trim() !== product.name || isActive !== product.is_active || isFixedPrice !== product.is_fixed_price) {
+        const renameRes = await updateProductType(product.id, name.trim(), isActive, isFixedPrice)
         if (renameRes.error) {
           toast.error(renameRes.error)
           return
@@ -163,8 +164,8 @@ export function EditProductModal({
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1">
           {/* Product Name & Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+            <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name</label>
               <input
                 type="text"
@@ -175,21 +176,38 @@ export function EditProductModal({
                 placeholder="e.g. Rollup Banner, SAV Vinyl"
               />
             </div>
+            
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
+                <button
+                  type="button"
+                  onClick={() => setIsActive(!isActive)}
+                  className={`w-full h-11 px-4 rounded-xl font-bold text-[11px] border flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                      : 'bg-slate-50 border-slate-300 text-slate-600'
+                  }`}
+                >
+                  <span className={`w-2 h-2 flex-shrink-0 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                  {isActive ? 'Active' : 'Inactive'}
+                </button>
+              </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
-              <button
-                type="button"
-                onClick={() => setIsActive(!isActive)}
-                className={`w-full h-11 px-4 rounded-xl font-bold text-sm border flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                    : 'bg-slate-50 border-slate-300 text-slate-600'
-                }`}
-              >
-                <span className={`w-2.5 h-2.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                {isActive ? 'Active (Ready)' : 'Inactive (Hidden)'}
-              </button>
+              <div className="flex-[2]">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Pricing Mode</label>
+                <button
+                  type="button"
+                  onClick={() => setIsFixedPrice(!isFixedPrice)}
+                  className={`w-full h-11 px-4 rounded-xl font-bold text-[11px] border flex items-center justify-center transition-all cursor-pointer ${
+                    isFixedPrice
+                      ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                      : 'bg-slate-50 border-slate-300 text-slate-600'
+                  }`}
+                >
+                  {isFixedPrice ? 'Fixed Price (Per Item)' : 'Dimension-based (Per Area)'}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -386,7 +404,7 @@ export function EditProductTypeButton({
 // ============================================================
 // EDIT PRICING RULE MODAL (Full Rule Editing)
 // ============================================================
-export function EditPricingRuleModal({
+function EditPricingRuleModal({
   rule,
   productTypes,
   unitScheme,
@@ -582,7 +600,7 @@ export function EditPricingRuleModal({
 // ============================================================
 // ADD PRODUCT MODAL (Unified Product + Pricing Creator)
 // ============================================================
-export function AddProductTypeModal({
+function AddProductTypeModal({
   isOpen,
   onClose
 }: {
@@ -591,6 +609,7 @@ export function AddProductTypeModal({
 }) {
   const [isPending, startTransition] = useTransition()
   const [name, setName] = useState('')
+  const [isFixedPrice, setIsFixedPrice] = useState(false)
   const [customizeUnits, setCustomizeUnits] = useState(false)
 
   const [baseUnit, setBaseUnit] = useState<DimensionUnit>('ft')
@@ -661,7 +680,7 @@ export function AddProductTypeModal({
     }
 
     startTransition(async () => {
-      const res = await createProductWithPricing(name.trim(), scheme)
+      const res = await createProductWithPricing(name.trim(), scheme, isFixedPrice)
       if (res.error) {
         toast.error(res.error)
       } else {
@@ -699,18 +718,35 @@ export function AddProductTypeModal({
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Product Name */}
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-              className="input-standard h-11 text-base font-medium"
-              placeholder="e.g. Rollup Banner, SAV Vinyl, PVC Card"
-              autoFocus
-            />
+          {/* Product Name & Pricing Type */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                required
+                className="input-standard h-11 text-base font-medium"
+                placeholder="e.g. Rollup Banner, SAV Vinyl, PVC Card"
+                autoFocus
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Pricing Mode</label>
+              <button
+                type="button"
+                onClick={() => setIsFixedPrice(!isFixedPrice)}
+                className={`w-full h-11 px-4 rounded-xl font-bold text-sm border flex items-center justify-center transition-all cursor-pointer ${
+                  isFixedPrice
+                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+                    : 'bg-slate-50 border-slate-300 text-slate-600'
+                }`}
+              >
+                {isFixedPrice ? 'Fixed Price (Per Item)' : 'Dimension-based (Per Area)'}
+              </button>
+            </div>
           </div>
 
           {/* Pricing Scheme Box */}

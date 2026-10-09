@@ -42,6 +42,7 @@ export interface ProductType {
   tenant_id: string
   name: string
   is_active: boolean
+  is_fixed_price: boolean
   created_at: string
 }
 

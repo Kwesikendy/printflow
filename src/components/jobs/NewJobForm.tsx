@@ -363,6 +363,7 @@ function LineItemCard({
           </div>
 
           {/* Size */}
+          {!productTypes.find(p => p.id === item.productTypeId)?.is_fixed_price && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-medium text-slate-700 flex items-center gap-2">
@@ -440,6 +441,7 @@ function LineItemCard({
               )}
             </AnimatePresence>
           </div>
+          )}
 
           {/* Qty + Unit Cost */}
           <div className="grid grid-cols-2 gap-4">
@@ -589,7 +591,11 @@ export function NewJobForm({
       const finalHeight = item.useStandardSize && item.standardSizeId
         ? (standardSizes.find(s => s.id === item.standardSizeId)?.height || 0)
         : (parseFloat(item.height) || 0)
-      const area = calculateArea(finalWidth, finalHeight)
+      
+      const product = productTypes.find(p => p.id === item.productTypeId)
+      const isFixedPrice = product?.is_fixed_price || false
+      const area = isFixedPrice ? 1 : calculateArea(finalWidth, finalHeight)
+      
       const lineTotal = calculateLineTotal(area, parseFloat(item.manualUnitCost) || 0, parseInt(item.quantity) || 1)
       return sum + lineTotal
     }, 0)
@@ -643,21 +649,30 @@ export function NewJobForm({
         )
 
         // 2. Build the job payload with only the URLs (tiny payload for Server Action)
-        const jobItems: JobItem[] = items.map((it, i) => ({
-          productTypeId: it.productTypeId,
-          width: it.useStandardSize && it.standardSizeId
+        const jobItems: JobItem[] = items.map((it, i) => {
+          const product = productTypes.find(p => p.id === it.productTypeId)
+          const isFixedPrice = product?.is_fixed_price || false
+          
+          const rawW = it.useStandardSize && it.standardSizeId
             ? (standardSizes.find(s => s.id === it.standardSizeId)?.width || 0)
-            : parseFloat(it.width) || 0,
-          height: it.useStandardSize && it.standardSizeId
+            : parseFloat(it.width) || 0
+            
+          const rawH = it.useStandardSize && it.standardSizeId
             ? (standardSizes.find(s => s.id === it.standardSizeId)?.height || 0)
-            : parseFloat(it.height) || 0,
-          dimensionUnit: it.useStandardSize ? 'cm' : it.dimensionUnit,
-          quantity: parseInt(it.quantity) || 1,
-          unitCost: parseFloat(it.manualUnitCost) || 0,
-          notes: it.notes || undefined,
-          artworkUrl: artworkUrls[i],
-          printRoom: it.printRoom || null,
-        }))
+            : parseFloat(it.height) || 0
+
+          return {
+            productTypeId: it.productTypeId,
+            width: isFixedPrice ? 1 : rawW,
+            height: isFixedPrice ? 1 : rawH,
+            dimensionUnit: isFixedPrice ? 'cm' : (it.useStandardSize ? 'cm' : it.dimensionUnit),
+            quantity: parseInt(it.quantity) || 1,
+            unitCost: parseFloat(it.manualUnitCost) || 0,
+            notes: it.notes || undefined,
+            artworkUrl: artworkUrls[i],
+            printRoom: it.printRoom || null,
+          }
+        })
 
         // 3. Submit the tiny payload to the server
         const res = await createJobGroupAction(customerName, customerPhone || null, source, jobItems)

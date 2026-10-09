@@ -65,7 +65,8 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
 export async function updateProductType(
   id: string,
   name: string,
-  isActive?: boolean
+  isActive?: boolean,
+  isFixedPrice?: boolean
 ): Promise<ActionResponse> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -81,6 +82,7 @@ export async function updateProductType(
   const serviceSupabase = createServiceClient()
   const updatePayload: any = { name: trimmed }
   if (typeof isActive === 'boolean') updatePayload.is_active = isActive
+  if (typeof isFixedPrice === 'boolean') updatePayload.is_fixed_price = isFixedPrice
 
   const { error } = await (serviceSupabase as any)
     .from('product_types')
@@ -175,7 +177,8 @@ export async function saveProductUnitPricing(
 
 export async function createProductWithPricing(
   name: string,
-  scheme?: ProductPricingScheme
+  scheme?: ProductPricingScheme,
+  isFixedPrice?: boolean
 ): Promise<ActionResponse & { product?: any }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -196,7 +199,8 @@ export async function createProductWithPricing(
     .insert({
       tenant_id: profile.tenant_id,
       name: trimmed,
-      is_active: true
+      is_active: true,
+      is_fixed_price: isFixedPrice || false
     })
     .select('id, name')
     .single()
