@@ -13,7 +13,19 @@ import { searchCustomers } from '@/app/actions/customers'
 import { startNewDayAction, deleteJobAction } from '@/app/actions/jobs'
 import { toast } from 'sonner'
 
-export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { initialJobs: any[], initialQuery: string, lastResetTime?: string }) {
+export function JobsListClient({ 
+  initialJobs, 
+  initialQuery, 
+  lastResetTime,
+  currentPage = 1,
+  totalPages = 1
+}: { 
+  initialJobs: any[], 
+  initialQuery: string, 
+  lastResetTime?: string,
+  currentPage?: number,
+  totalPages?: number
+}) {
   const router = useRouter()
   const [jobsList, setJobsList] = useState(initialJobs)
   const [isFocused, setIsFocused] = useState(false)
@@ -39,7 +51,7 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
 
     if (!matchesSearch) return false;
 
-    if (showTodayOnly && lastResetTime) {
+    if (showTodayOnly && lastResetTime && !query) {
       const jobDate = new Date(job.created_at).getTime();
       const resetTime = new Date(lastResetTime).getTime();
       return jobDate >= resetTime;
@@ -77,13 +89,21 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
     setSuggestions([])
     setIsFocused(false)
     
-    // Soft navigation to fetch from server without triggering the loading skeleton
     startTransition(() => {
       if (searchQuery) {
         router.push(`/dashboard/jobs?q=${encodeURIComponent(searchQuery)}`)
       } else {
         router.push('/dashboard/jobs')
       }
+    })
+  }
+
+  const handlePageChange = (newPage: number) => {
+    startTransition(() => {
+      const params = new URLSearchParams()
+      if (query) params.set('q', query)
+      if (newPage > 1) params.set('page', newPage.toString())
+      router.push(`/dashboard/jobs?${params.toString()}`)
     })
   }
 
@@ -323,6 +343,31 @@ export function JobsListClient({ initialJobs, initialQuery, lastResetTime }: { i
               )}
             </AnimatePresence>
           </table>
+        </div>
+      </div>
+      
+      {/* Pagination Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
+        <div className="text-sm font-medium text-slate-500">
+          Showing Page {currentPage} of {Math.max(1, totalPages)}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            disabled={currentPage <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            className="bg-white shadow-sm"
+          >
+            Previous
+          </Button>
+          <Button
+            variant="outline"
+            disabled={currentPage >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            className="bg-white shadow-sm"
+          >
+            Next
+          </Button>
         </div>
       </div>
     </div>

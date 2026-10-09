@@ -7,27 +7,27 @@ import { JobsListClient } from '@/components/jobs/JobsListClient'
 import { getWorkdayBounds } from '@/lib/workday'
 
 export default async function JobsPage(props: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; page?: string }>
 }) {
   const searchParams = await props.searchParams
   const query = searchParams.q || ''
+  const page = parseInt(searchParams.page || '1', 10)
+  const pageSize = 50
   
   const supabase = await createClient()
 
   let supaQuery = supabase
     .from('jobs')
-    .select(`
-      *,
-      product_types(name)
-    `)
+    .select(`*, product_types(name)`, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .limit(50)
+    .range((page - 1) * pageSize, page * pageSize - 1)
 
   if (query) {
     supaQuery = supaQuery.or(`job_number.ilike.%${query}%,customer_name.ilike.%${query}%`)
   }
 
-  const { data: jobs, error } = await supaQuery
+  const { data: jobs, count, error } = await supaQuery
+  const totalPages = Math.ceil((count || 0) / pageSize)
 
   const { start: workdayStart } = getWorkdayBounds()
   const { data: seqData } = await supabase.from('job_sequences').select('last_reset_time').single()
@@ -55,7 +55,13 @@ export default async function JobsPage(props: {
         </Link>
       </div>
 
-      <JobsListClient initialJobs={jobs || []} initialQuery={query} lastResetTime={lastResetTime} />
+      <JobsListClient 
+        initialJobs={jobs || []} 
+        initialQuery={query} 
+        lastResetTime={lastResetTime} 
+        currentPage={page}
+        totalPages={totalPages}
+      />
     </div>
   )
 }
