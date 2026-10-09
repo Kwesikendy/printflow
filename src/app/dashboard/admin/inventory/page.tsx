@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { InventoryManager } from '@/components/admin/InventoryManager'
 import { getMaterialsAction } from '@/app/actions/inventory'
+import { Metadata } from 'next'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Material Inventory | PrintFlow',
 }
 
