@@ -15,7 +15,10 @@ export async function getMaterialsAction(tenantId: string) {
 
 export async function createMaterialAction(payload: any) {
   const supabase = await createClient()
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id').single()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
   const profile = profileData as any
   if (!profile) return { error: 'Unauthorized' }
 
@@ -36,7 +39,10 @@ export async function createMaterialAction(payload: any) {
 
 export async function addStockAction(materialId: string, qtyToAdd: number, costPerRoll: number) {
   const supabase = await createClient()
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id').single()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
   const profile = profileData as any
   if (!profile) return { error: 'Unauthorized' }
 
