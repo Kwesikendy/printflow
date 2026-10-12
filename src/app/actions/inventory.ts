@@ -1,11 +1,11 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 export async function getMaterialsAction(tenantId: string) {
-  const supabase = await createClient()
-  const { data, error } = await (supabase as any)
+  const serviceSupabase = createServiceClient()
+  const { data, error } = await (serviceSupabase as any)
     .from('materials')
     .select('*')
     .eq('tenant_id', tenantId)
@@ -18,11 +18,14 @@ export async function createMaterialAction(payload: any) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('role, email, tenant_id').eq('id', user.id).single()
   const profile = profileData as any
-  if (!profile) return { error: 'Unauthorized' }
+  if (!profile || (!['admin', 'accountant'].includes(profile.role) && profile.email !== 'd.opare@printdpigh.com')) {
+    return { error: 'Insufficient permissions' }
+  }
 
-  const { error } = await (supabase as any).from('materials').insert({
+  const serviceSupabase = createServiceClient()
+  const { error } = await (serviceSupabase as any).from('materials').insert({
     tenant_id: profile.tenant_id,
     name: payload.name,
     unit: payload.unit || 'roll',
@@ -42,12 +45,16 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Unauthorized' }
 
-  const { data: profileData } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single()
+  const { data: profileData } = await supabase.from('profiles').select('role, email, tenant_id').eq('id', user.id).single()
   const profile = profileData as any
-  if (!profile) return { error: 'Unauthorized' }
+  if (!profile || (!['admin', 'accountant'].includes(profile.role) && profile.email !== 'd.opare@printdpigh.com')) {
+    return { error: 'Insufficient permissions' }
+  }
+
+  const serviceSupabase = createServiceClient()
 
   // Get current material
-  const { data: materialData, error: fetchErr } = await (supabase as any)
+  const { data: materialData, error: fetchErr } = await (serviceSupabase as any)
     .from('materials')
     .select('qty_rolls, unit_cost')
     .eq('id', materialId)
@@ -68,7 +75,7 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
     newUnitCost = (totalCurrentValue + addedValue) / newQty
   }
 
-  const { error: updateErr } = await (supabase as any).from('materials').update({
+  const { error: updateErr } = await (serviceSupabase as any).from('materials').update({
     qty_rolls: newQty,
     unit_cost: newUnitCost,
     updated_at: new Date().toISOString()
@@ -77,7 +84,7 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
   if (updateErr) return { error: updateErr.message }
 
   // Log transaction
-  await (supabase as any).from('inventory_logs').insert({
+  await (serviceSupabase as any).from('inventory_logs').insert({
     tenant_id: profile.tenant_id,
     material_id: materialId,
     action: 'add_stock',

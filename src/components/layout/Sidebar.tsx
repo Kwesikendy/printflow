@@ -24,7 +24,7 @@ import {
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: LayoutDashboard, roles: ['admin'] },
-  { name: 'Inventory', href: '/dashboard/admin/inventory', icon: Package, roles: ['admin'] },
+  { name: 'Inventory', href: '/dashboard/admin/inventory', icon: Package, roles: ['admin', 'accountant'] },
   { name: 'Jobs', href: '/dashboard/jobs', icon: FileText, roles: ['admin', 'front_desk'] },
   { name: 'Pickup Queue', href: '/dashboard/pickup', icon: ListChecks, roles: ['admin', 'front_desk'] },
   { name: 'Print Queue', href: '/dashboard/queue', icon: Printer, roles: ['admin', 'printer'] },

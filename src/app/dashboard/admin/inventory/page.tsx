@@ -25,7 +25,7 @@ export default async function InventoryPage() {
 
   if (!profile) redirect('/login')
 
-  const isAuthorized = profile.role === 'admin' || profile.email === 'd.opare@printdpigh.com'
+  const isAuthorized = profile.role === 'admin' || profile.role === 'accountant' || profile.email === 'd.opare@printdpigh.com'
   if (!isAuthorized) {
     redirect('/dashboard') // unauthorized users get booted to main dashboard
   }

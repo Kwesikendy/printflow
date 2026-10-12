@@ -12,7 +12,7 @@ import { cn, formatCurrency, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
-  ChevronDown, User, Search, Lock, ShieldCheck
+  ChevronDown, User, Search, Lock, ShieldCheck, Link2, X, ExternalLink
 } from 'lucide-react'
 import { useSession } from '@/contexts/SessionContext'
 import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role, PrintRoom } from '@/types/database'
@@ -78,6 +78,8 @@ interface LineItemState {
   notes: string
   artworkFile: File | null
   artworkName: string
+  artworkUrl?: string
+  artworkSourceType?: 'file' | 'link'
   printRoom: PrintRoom | null
 }
 
@@ -95,6 +97,8 @@ function createLineItem(productTypes: ProductType[]): LineItemState {
     notes: '',
     artworkFile: null,
     artworkName: '',
+    artworkUrl: '',
+    artworkSourceType: 'file',
     printRoom: null,
   }
 }
@@ -319,12 +323,9 @@ function LineItemCard({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
-    if (file && file.size > 400 * 1024 * 1024) {
-      toast.error('File too large. Max 400MB allowed.')
-      e.target.value = ''
-      return
+    if (file) {
+      u({ artworkFile: file, artworkName: file.name, artworkSourceType: 'file' })
     }
-    u({ artworkFile: file, artworkName: file?.name || '' })
   }
 
   return (
@@ -504,26 +505,94 @@ function LineItemCard({
             </div>
           </div>
 
-          {/* Artwork Upload */}
+          {/* Artwork Upload / Cloud Link */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Upload Artwork</label>
-            <label className={cn(
-              'flex items-center gap-3 border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors',
-              item.artworkName ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
-            )}>
-              <Upload className="w-5 h-5 text-slate-400 flex-shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm text-slate-600 truncate">
-                  {item.artworkName || 'Click to upload (images, PDF, ZIP — max 400MB)'}
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-700">Artwork / Design</label>
+              <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-medium">
+                <button
+                  type="button"
+                  onClick={() => u({ artworkSourceType: 'file' })}
+                  className={cn(
+                    'px-2.5 py-1 transition-colors flex items-center gap-1.5',
+                    item.artworkSourceType !== 'link' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  <Upload className="w-3 h-3" /> Upload File
+                </button>
+                <button
+                  type="button"
+                  onClick={() => u({ artworkSourceType: 'link' })}
+                  className={cn(
+                    'px-2.5 py-1 transition-colors flex items-center gap-1.5',
+                    item.artworkSourceType === 'link' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+                  )}
+                >
+                  <Link2 className="w-3 h-3" /> Cloud Link
+                </button>
+              </div>
+            </div>
+
+            {item.artworkSourceType === 'link' ? (
+              <div className="space-y-1.5">
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Link2 className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="url"
+                    className="input-standard bg-slate-50 pl-10 pr-4 h-12 text-sm"
+                    placeholder="Paste Google Drive, WeTransfer, OneDrive, or Dropbox link..."
+                    value={item.artworkUrl || ''}
+                    onChange={e => u({ artworkUrl: e.target.value, artworkSourceType: 'link' })}
+                  />
+                </div>
+                <p className="text-xs text-slate-500">
+                  💡 Best for massive banner &amp; flexi files exceeding 50MB. Machine operators can open this link directly to download the full resolution artwork.
                 </p>
               </div>
-              <input
-                type="file"
-                accept="image/*,.pdf,.ai,.psd,.eps,.zip,.rar"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </label>
+            ) : (
+              <div>
+                {item.artworkFile ? (
+                  <div className="flex items-center justify-between p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">{item.artworkName}</p>
+                        <p className="text-xs text-indigo-600 font-medium">
+                          {(item.artworkFile.size / (1024 * 1024)).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => u({ artworkFile: null, artworkName: '' })}
+                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                      title="Remove file"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-3 border-2 border-dashed rounded-xl p-4 cursor-pointer transition-colors border-slate-200 hover:border-indigo-300 hover:bg-slate-50">
+                    <Upload className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-600 truncate">
+                        Click to upload (images, PDF, ZIP)
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*,.pdf,.ai,.psd,.eps,.zip,.rar"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Notes and Print Room */}
@@ -646,14 +715,26 @@ export function NewJobForm({
         // 1. Upload artworks directly from browser to bypass server size limits
         const artworkUrls = await Promise.all(
           items.map(async (it) => {
-            if (!it.artworkFile || it.artworkFile.size === 0) return null
+            // If using external cloud link (Google Drive, WeTransfer, etc.)
+            if (it.artworkSourceType === 'link' && it.artworkUrl?.trim()) {
+              return it.artworkUrl.trim()
+            }
+
+            if (!it.artworkFile || it.artworkFile.size === 0) {
+              return it.artworkUrl?.trim() || null
+            }
             
             const fileExt = it.artworkFile.name.split('.').pop()
             const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
             const filePath = `${tenantId}/${fileName}`
             
             const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, it.artworkFile)
-            if (uploadError) throw new Error(`Failed to upload ${it.artworkFile.name}: ` + uploadError.message)
+            if (uploadError) {
+              if (uploadError.message.includes('maximum allowed size') || (uploadError as any).statusCode === '413') {
+                throw new Error(`Failed to upload "${it.artworkFile.name}": Supabase rejected this file because it exceeds your project's upload limit. You can increase this limit in your Supabase dashboard or use the Cloud Link option.`)
+              }
+              throw new Error(`Failed to upload ${it.artworkFile.name}: ` + uploadError.message)
+            }
             
             const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath, { 
               download: it.artworkFile.name 
@@ -683,7 +764,7 @@ export function NewJobForm({
             quantity: parseInt(it.quantity) || 1,
             unitCost: parseFloat(it.manualUnitCost) || 0,
             notes: it.notes || undefined,
-            artworkUrl: artworkUrls[i],
+            artworkUrl: it.artworkSourceType === 'link' ? (it.artworkUrl?.trim() || null) : artworkUrls[i],
             printRoom: it.printRoom || null,
           }
         })
