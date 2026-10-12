@@ -94,24 +94,39 @@ export default async function InvoicePrintPage(props: {
   const docTitle = `INVOICE NO. ${invoice.invoice_number} - ${customerName.toUpperCase()}`
 
   return (
-    <div className="max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-[95vh] flex flex-col">
+    <div className="invoice-sheet max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-auto flex flex-col">
       <AutoPrint title={docTitle} />
 
       {/* Set the page title for PDF filename & suppress browser header/footer */}
       <title>{docTitle}</title>
       <style dangerouslySetInnerHTML={{ __html: `
+        @page {
+          margin: 0 !important;
+          size: A4 portrait;
+        }
         @media print {
           @page {
-            margin: 8mm;
-            size: A4;
+            margin: 0 !important;
+            size: A4 portrait;
           }
           html, body {
             margin: 0 !important;
             padding: 0 !important;
+            width: 100% !important;
             color: #000000 !important;
             background: #ffffff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          .invoice-sheet {
+            padding: 10mm 14mm !important;
+            margin: 0 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+          }
+          .no-print {
+            display: none !important;
           }
           * {
             -webkit-print-color-adjust: exact !important;

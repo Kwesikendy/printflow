@@ -12,11 +12,10 @@ import { cn, formatCurrency, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
-  ChevronDown, User, Search, Lock, ShieldCheck, Link2, X, ExternalLink,
-  Truck, Store, MapPin, Phone
+  ChevronDown, User, Search, Lock, ShieldCheck, Link2, X, ExternalLink
 } from 'lucide-react'
 import { useSession } from '@/contexts/SessionContext'
-import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role, PrintRoom, DeliveryMethod } from '@/types/database'
+import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role, PrintRoom } from '@/types/database'
 import { resolveUnitRate, UNIT_SHORT_LABELS } from '@/lib/pricing'
 
 interface NewJobFormProps {
@@ -646,9 +645,6 @@ export function NewJobForm({
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [source, setSource] = useState<JobSource>('walk_in')
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('pickup')
-  const [deliveryAddress, setDeliveryAddress] = useState('')
-  const [deliveryPhone, setDeliveryPhone] = useState('')
   const [items, setItems] = useState<LineItemState[]>([createLineItem(productTypes)])
 
   const updateItem = useCallback((id: string, updates: Partial<LineItemState>) => {
@@ -710,11 +706,6 @@ export function NewJobForm({
         }
         return
       }
-    }
-
-    if (deliveryMethod === 'delivery' && !deliveryAddress.trim()) {
-      toast.error('Delivery address or landmark is required for courier orders')
-      return
     }
 
     startTransition(async () => {
@@ -779,15 +770,11 @@ export function NewJobForm({
         })
 
         // 3. Submit the tiny payload to the server
-        const effectiveDeliveryPhone = deliveryPhone.trim() || customerPhone.trim() || null
         const res = await createJobGroupAction(
           customerName,
           customerPhone || null,
           source,
-          jobItems,
-          deliveryMethod,
-          deliveryAddress.trim() || null,
-          effectiveDeliveryPhone
+          jobItems
         )
         if (res.error) {
           toast.error(res.error)
@@ -856,86 +843,6 @@ export function NewJobForm({
                     ))}
                   </div>
                 </div>
-
-                {/* Fulfillment Method */}
-                <div className="md:col-span-2 pt-2 border-t border-slate-100">
-                  <label className="block text-sm font-medium text-slate-700 mb-2">Fulfillment Method</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryMethod('pickup')}
-                      className={cn(
-                        'relative flex items-center justify-center gap-2 p-3.5 rounded-xl border-2 text-sm font-medium transition-all shadow-sm',
-                        deliveryMethod === 'pickup'
-                          ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 font-semibold'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'
-                      )}
-                    >
-                      <Store className="w-4 h-4" />
-                      Shop Pickup
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeliveryMethod('delivery')}
-                      className={cn(
-                        'relative flex items-center justify-center gap-2 p-3.5 rounded-xl border-2 text-sm font-medium transition-all shadow-sm',
-                        deliveryMethod === 'delivery'
-                          ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 font-semibold'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-300 bg-white'
-                      )}
-                    >
-                      <Truck className="w-4 h-4" />
-                      Courier / Rider Delivery
-                    </button>
-                  </div>
-                </div>
-
-                {deliveryMethod === 'delivery' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="md:col-span-2 space-y-4 p-4 rounded-xl bg-amber-50/70 border border-amber-200/80"
-                  >
-                    <div className="flex items-center gap-2 text-amber-900 font-semibold text-sm">
-                      <Truck className="w-4 h-4 text-amber-600" />
-                      Courier Delivery Details (Dispatched by Mavis)
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Delivery Address / Landmark <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            required={deliveryMethod === 'delivery'}
-                            placeholder="e.g. Osu Oxford Street, near Total Station"
-                            value={deliveryAddress}
-                            onChange={e => setDeliveryAddress(e.target.value)}
-                            className="input-standard pl-9 bg-white text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-700 mb-1">
-                          Recipient Phone Number
-                        </label>
-                        <div className="relative">
-                          <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            placeholder={customerPhone ? `Default: ${customerPhone}` : '024 123 4567'}
-                            value={deliveryPhone}
-                            onChange={e => setDeliveryPhone(e.target.value)}
-                            className="input-standard pl-9 bg-white text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
               </div>
             </CardContent>
           </Card>

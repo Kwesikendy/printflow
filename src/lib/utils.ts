@@ -132,18 +132,13 @@ export const AREA_UNIT_LABELS = {
 export function canAccessRoute(role: Role, pathname: string, email?: string): boolean {
   if (role === 'admin') return true
 
-  if (email === 'm.adoko@printdpigh.com') {
-    const mavisRoutes = ['/dashboard/delivery', '/dashboard/jobs']
-    return mavisRoutes.some(r => pathname.startsWith(r)) || pathname === '/dashboard'
-  }
-
   if (email === 'd.opare@printdpigh.com' && pathname.startsWith('/dashboard/admin/inventory')) {
     return true
   }
 
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
   const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory']
-  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup', '/dashboard/delivery']
+  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
 
   if (role === 'printer') {
     return printerRoutes.some(r => pathname.startsWith(r))
@@ -163,7 +158,6 @@ export function canAccessRoute(role: Role, pathname: string, email?: string): bo
 // Status Transition Helpers
 // ============================================================
 export function getDefaultDashboardPath(role: Role, email?: string): string {
-  if (email === 'm.adoko@printdpigh.com') return '/dashboard/delivery'
   switch (role) {
     case 'printer': return '/dashboard/queue'
     case 'accountant': return '/dashboard/finance'

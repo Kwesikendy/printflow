@@ -19,15 +19,13 @@ import {
   LogOut,
   Key,
   Users,
-  X,
-  Truck
+  X
 } from 'lucide-react'
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: LayoutDashboard, roles: ['admin'] },
   { name: 'Inventory', href: '/dashboard/admin/inventory', icon: Package, roles: ['admin', 'accountant'] },
   { name: 'Jobs', href: '/dashboard/jobs', icon: FileText, roles: ['admin', 'front_desk'] },
-  { name: 'Deliveries', href: '/dashboard/delivery', icon: Truck, roles: ['admin', 'front_desk'] },
   { name: 'Pickup Queue', href: '/dashboard/pickup', icon: ListChecks, roles: ['admin', 'front_desk'] },
   { name: 'Print Queue', href: '/dashboard/queue', icon: Printer, roles: ['admin', 'printer'] },
   { name: 'Finance', href: '/dashboard/finance', icon: PieChart, roles: ['admin', 'accountant'] },
@@ -42,15 +40,8 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
   if (!session) return null
 
   const role = session.profile.role
-  const isMavis = session.profile.email === 'm.adoko@printdpigh.com'
   const visibleItems = navItems.filter(item => {
-    if (isMavis) {
-      return item.name === 'Deliveries'
-    }
     if (item.name === 'Inventory' && session.profile.email === 'd.opare@printdpigh.com') return true
-    if (item.name === 'Deliveries') {
-      return role === 'admin'
-    }
     return item.roles.includes(role) && canAccessRoute(role, item.href, session.profile.email)
   })
 
@@ -110,7 +101,7 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
           </p>
           <p className="text-sm font-bold text-slate-900">{session.profile.full_name.split(' ')[0]}</p>
           <p className="text-xs font-medium text-indigo-600 mt-1">
-            {session.profile.email === 'm.adoko@printdpigh.com' ? 'Delivery Dispatch' : ROLE_LABELS[role]}
+            {ROLE_LABELS[role]}
           </p>
         </div>
         <button
