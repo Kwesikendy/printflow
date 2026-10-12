@@ -65,6 +65,12 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
   // Summary Metrics
   const filteredInvoices = useMemo(() => {
     return unpaidInvoices.filter(inv => {
+      if (inv.jobs?.status === 'cancelled') return false
+      // Hide group invoices where every job in the group is cancelled
+      if (inv.group_id && inv.job_groups?.jobs) {
+        const groupJobs: any[] = inv.job_groups.jobs
+        if (groupJobs.length > 0 && groupJobs.every((j: any) => j.status === 'cancelled')) return false
+      }
       const date = new Date(inv.issued_at)
       if (filterMode === 'day') return date.toISOString().startsWith(selectedDay)
       if (filterMode === 'week') {
@@ -434,7 +440,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/50">
-                    {unpaidInvoices.map((inv) => {
+                    {filteredInvoices.map((inv) => {
                       const customerName = inv.jobs?.customer_name || inv.job_groups?.customer_name || 'Unknown'
                       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
                       const balance = Math.max(0, Number(inv.total) - paid)
@@ -472,7 +478,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                         </tr>
                       )
                     })}
-                    {unpaidInvoices.length === 0 && (
+                    {filteredInvoices.length === 0 && (
                       <tr>
                         <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">No recent invoices found.</td>
                       </tr>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
-import { GroupReleaseButton } from '@/components/jobs/GroupReleaseButton'
+import { GroupOrderActions } from '@/components/jobs/GroupOrderActions'
 import { JobActions } from '@/components/jobs/JobActions'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
@@ -37,6 +37,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
   const totalPaid = payments.reduce((sum: number, p: any) => sum + p.amount, 0)
   const remaining = invoice ? invoice.total - totalPaid : 0
   const awaitingJobsCount = jobs.filter((j: any) => j.status === 'awaiting_payment').length
+  const cancellableJobsCount = jobs.filter((j: any) => ['draft', 'quoted', 'awaiting_payment'].includes(j.status)).length
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -55,7 +56,14 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {['front_desk', 'admin'].includes(role) && (
-            <GroupReleaseButton groupId={id} awaitingCount={awaitingJobsCount} />
+            <GroupOrderActions
+              groupId={id}
+              awaitingCount={awaitingJobsCount}
+              cancellableCount={cancellableJobsCount}
+              hasPayments={hasPayment}
+              allJobsCount={jobs.length}
+              role={role}
+            />
           )}
           <Link href={`/print/job-card/group/${id}`} target="_blank" className="btn btn-outline bg-white hover:bg-slate-50">
             <FileText className="w-4 h-4 mr-2" /> Print Job Card

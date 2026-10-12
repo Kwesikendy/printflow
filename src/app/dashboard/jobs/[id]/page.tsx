@@ -47,7 +47,26 @@ export default async function JobDetailPage(props: {
   const job = jobData as any
   if (!job) notFound()
 
-  const invoice = Array.isArray(job.invoices) ? job.invoices[0] : job.invoices
+  let invoice = Array.isArray(job.invoices) ? job.invoices[0] : job.invoices
+
+  if (!invoice && job.group_id) {
+    const { data: groupInv } = await serviceSupabase
+      .from('invoices')
+      .select(`
+        *,
+        payments(
+          *,
+          profiles(full_name)
+        )
+      `)
+      .eq('group_id', job.group_id)
+      .maybeSingle()
+
+    if (groupInv) {
+      invoice = groupInv
+    }
+  }
+
   const rawPayments = invoice?.payments || []
   const payments = Array.isArray(rawPayments) ? rawPayments : [rawPayments]
   const rawEvents = job.job_status_events || []

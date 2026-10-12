@@ -385,7 +385,7 @@ export async function createJobGroupAction(
         .from('invoices')
         .insert({
           tenant_id: profile.tenant_id,
-          job_id: null,
+          job_id: insertedJobs.length === 1 ? insertedJobs[0].id : null,
           invoice_number: invoiceNumber,
           total: Math.round(grandTotal),
           status: 'unpaid',
@@ -534,6 +534,70 @@ export async function recordPaymentAction(formData: FormData) {
   return { success: true }
 }
 
+export async function cancelJobGroupAction(groupId: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const role = (profile as any)?.role
+  if (!['front_desk', 'admin'].includes(role)) {
+    return { error: 'Insufficient permissions to cancel orders' }
+  }
+
+  // Fetch all cancellable jobs in the group
+  const { data: jobsData, error: jobsError } = await supabase
+    .from('jobs')
+    .select('id, status')
+    .eq('group_id', groupId)
+    .in('status', ['draft', 'quoted', 'awaiting_payment'])
+
+  if (jobsError) return { error: jobsError.message }
+
+  const jobs = (jobsData || []) as { id: string; status: string }[]
+  if (jobs.length === 0) {
+    return { error: 'No jobs in this order can be cancelled (they may already be in production or completed).' }
+  }
+
+  for (const job of jobs) {
+    const { error: transitionError } = await supabase.rpc('transition_job_status', {
+      p_job_id: job.id,
+      p_to_status: 'cancelled',
+      p_notes: 'Order cancelled by staff',
+    } as any)
+    if (transitionError) {
+      console.error(`Error cancelling job ${job.id}:`, transitionError)
+    }
+  }
+
+  // If the invoice for this group has 0 payments, delete the invoice so it doesn't linger as phantom debt
+  try {
+    const serviceSupabase = createServiceClient() as any
+    const { data: inv } = await serviceSupabase
+      .from('invoices')
+      .select('id, payments(id)')
+      .eq('group_id', groupId)
+      .single()
+
+    if (inv && (!inv.payments || inv.payments.length === 0)) {
+      await serviceSupabase.from('invoices').delete().eq('id', inv.id)
+    }
+  } catch (cleanErr) {
+    console.error('Error cleaning up cancelled group invoice:', cleanErr)
+  }
+
+  revalidatePath('/dashboard/jobs')
+  revalidatePath(`/dashboard/jobs/group/${groupId}`)
+  revalidatePath('/dashboard/finance')
+  return { success: true }
+}
+
 export async function releaseJobGroupAction(groupId: string, notes?: string): Promise<ActionResponse> {
   const supabase = await createClient()
 
@@ -671,10 +735,61 @@ export async function transitionJobStatusAction(
     }
   }
 
+  // If status is cancelled, clean up phantom invoices or recalculate group invoice total
+  if (toStatus === 'cancelled') {
+    try {
+      const serviceSupabase = createServiceClient() as any
+      const { data: jobInfo } = await serviceSupabase
+        .from('jobs')
+        .select('id, group_id, tenant_id')
+        .eq('id', jobId)
+        .single()
+
+      if (jobInfo?.group_id) {
+        const { data: grpJobs } = await serviceSupabase
+          .from('jobs')
+          .select('id, line_total, status')
+          .eq('group_id', jobInfo.group_id)
+
+        const activeJobs = (grpJobs || []).filter((j: any) => j.status !== 'cancelled')
+        const newTotal = activeJobs.reduce((sum: number, j: any) => sum + Number(j.line_total), 0)
+
+        const { data: inv } = await serviceSupabase
+          .from('invoices')
+          .select('id, payments(id)')
+          .eq('group_id', jobInfo.group_id)
+          .single()
+
+        const paymentsCount = (inv?.payments || []).length
+        if (activeJobs.length === 0 && paymentsCount === 0 && inv?.id) {
+          // Whole group cancelled with 0 payments: delete phantom invoice
+          await serviceSupabase.from('invoices').delete().eq('id', inv.id)
+        } else if (inv?.id) {
+          await serviceSupabase.from('invoices').update({ total: Math.round(newTotal * 100) / 100 }).eq('id', inv.id)
+        }
+        revalidatePath(`/dashboard/jobs/group/${jobInfo.group_id}`)
+      } else if (jobInfo?.id) {
+        const { data: inv } = await serviceSupabase
+          .from('invoices')
+          .select('id, payments(id)')
+          .eq('job_id', jobId)
+          .single()
+
+        const paymentsCount = (inv?.payments || []).length
+        if (paymentsCount === 0 && inv?.id) {
+          await serviceSupabase.from('invoices').delete().eq('id', inv.id)
+        }
+      }
+    } catch (cancelErr) {
+      console.error('Failed to handle invoice cancellation sync:', cancelErr)
+    }
+  }
+
   revalidatePath('/dashboard/jobs')
   revalidatePath(`/dashboard/jobs/${jobId}`)
   revalidatePath('/dashboard/queue')
   revalidatePath('/dashboard/pickup')
+  revalidatePath('/dashboard/finance')
   return { success: true }
 }
 
@@ -685,12 +800,41 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
 
     const { data: jobData, error: jobError } = await supabase
       .from('jobs')
-      .select('id, tenant_id, line_total, status')
+      .select('id, tenant_id, line_total, status, group_id')
       .eq('id', jobId)
       .single()
 
-    const job = jobData as { id: string; tenant_id: string; line_total: number; status: string } | null
+    const job = jobData as { id: string; tenant_id: string; line_total: number; status: string; group_id: string | null } | null
     if (jobError || !job) return { error: 'Job not found' }
+
+    // Check if an invoice already exists for this job directly
+    const { data: existingJobInv } = await serviceSupabase
+      .from('invoices')
+      .select('id, invoice_number')
+      .eq('job_id', jobId)
+      .maybeSingle()
+
+    if (existingJobInv) {
+      revalidatePath(`/dashboard/jobs/${jobId}`)
+      return { success: true, data: existingJobInv }
+    }
+
+    // Check if job belongs to a group that already has an invoice
+    if (job.group_id) {
+      const { data: existingGroupInv } = await serviceSupabase
+        .from('invoices')
+        .select('id, invoice_number, job_id')
+        .eq('group_id', job.group_id)
+        .maybeSingle()
+
+      if (existingGroupInv) {
+        if (!existingGroupInv.job_id) {
+          await serviceSupabase.from('invoices').update({ job_id: jobId }).eq('id', existingGroupInv.id)
+        }
+        revalidatePath(`/dashboard/jobs/${jobId}`)
+        return { success: true, data: existingGroupInv }
+      }
+    }
 
     let invoiceRecord: any = null
     let attempts = 0
@@ -705,6 +849,7 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
           invoice_number: invNumber,
           total: Math.round(job.line_total),
           status: 'unpaid',
+          group_id: job.group_id || null,
         })
         .select('id, invoice_number')
         .single()
@@ -814,7 +959,7 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   // 1. Fetch the job details
   const { data: jobData, error: jobFetchError } = await serviceSupabase
     .from('jobs')
-    .select('id, group_id, tenant_id, line_total')
+    .select('id, group_id, tenant_id, line_total, status')
     .eq('id', jobId)
     .eq('tenant_id', profile.tenant_id)
     .single()
@@ -823,7 +968,7 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
     return { error: 'Job not found or already deleted' }
   }
 
-  const job = jobData as { id: string; group_id: string | null; tenant_id: string; line_total: number }
+  const job = jobData as { id: string; group_id: string | null; tenant_id: string; line_total: number; status: string }
 
   if (job.group_id) {
     // Multi-job group
@@ -911,6 +1056,60 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   if (job.group_id) {
     revalidatePath(`/dashboard/jobs/group/${job.group_id}`)
   }
+  return { success: true }
+}
+
+export async function deleteJobGroupAction(groupId: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+  const { data: profileData } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
+  const profile = profileData as { role: string, tenant_id: string } | null
+
+  if (profile?.role !== 'admin') {
+    return { error: 'Insufficient permissions. Only administrators can delete orders.' }
+  }
+
+  const serviceSupabase = createServiceClient()
+
+  // 1. Fetch group jobs
+  const { data: groupJobs, error: jobsErr } = await serviceSupabase
+    .from('jobs')
+    .select('id, status')
+    .eq('group_id', groupId)
+    .eq('tenant_id', profile.tenant_id)
+
+  if (jobsErr) return { error: jobsErr.message }
+  const jobs = (groupJobs || []) as { id: string; status: string }[]
+
+  // 2. Delete payments and invoices
+  const { data: invData } = await serviceSupabase
+    .from('invoices')
+    .select('id')
+    .eq('group_id', groupId)
+    .eq('tenant_id', profile.tenant_id)
+
+  const invoiceIds = (invData || []).map((inv: any) => inv.id)
+  if (invoiceIds.length > 0) {
+    await serviceSupabase.from('payments').delete().in('invoice_id', invoiceIds)
+    await serviceSupabase.from('invoices').delete().in('id', invoiceIds)
+  }
+
+  // 3. Delete job status events and jobs
+  const jobIds = jobs.map(j => j.id)
+  if (jobIds.length > 0) {
+    await serviceSupabase.from('job_status_events').delete().in('job_id', jobIds)
+    await serviceSupabase.from('jobs').delete().in('id', jobIds).eq('tenant_id', profile.tenant_id)
+  }
+
+  // 4. Delete job group
+  await serviceSupabase.from('job_groups').delete().eq('id', groupId).eq('tenant_id', profile.tenant_id)
+
+  revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/queue')
+  revalidatePath('/dashboard/pickup')
+  revalidatePath('/dashboard/finance')
   return { success: true }
 }
 

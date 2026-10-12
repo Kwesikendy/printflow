@@ -28,8 +28,8 @@ export default async function FinancePage() {
       .from('invoices')
       .select(`
         *,
-        jobs ( job_number, customer_name ),
-        job_groups ( customer_name ),
+        jobs ( job_number, customer_name, status ),
+        job_groups ( customer_name, jobs ( id, status ) ),
         payments ( amount )
       `)
       .order('issued_at', { ascending: false })
