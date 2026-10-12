@@ -18,13 +18,15 @@ export function JobsListClient({
   initialQuery, 
   lastResetTime,
   currentPage = 1,
-  totalPages = 1
+  totalPages = 1,
+  role = 'front_desk'
 }: { 
   initialJobs: any[], 
   initialQuery: string, 
   lastResetTime?: string,
   currentPage?: number,
-  totalPages?: number
+  totalPages?: number,
+  role?: string
 }) {
   const router = useRouter()
   const [jobsList, setJobsList] = useState(initialJobs)
@@ -236,7 +238,7 @@ export function JobsListClient({
                 <th>Status</th>
                 <th>Created</th>
                 <th>Completed</th>
-                <th className="pr-6 text-right">Actions</th>
+                {role === 'admin' && <th className="pr-6 text-right">Actions</th>}
               </tr>
             </thead>
             
@@ -248,7 +250,7 @@ export function JobsListClient({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                   >
-                    <td colSpan={8} className="p-0 border-none">
+                    <td colSpan={role === 'admin' ? 8 : 7} className="p-0 border-none">
                       <EmptyState 
                         icon={<FileText />}
                         title="No jobs found"
@@ -308,35 +310,37 @@ export function JobsListClient({
                       <td className="text-slate-500 text-sm">
                         {job.status === 'completed' || job.status === 'picked_up' ? formatDateTime(job.updated_at) : '-'}
                       </td>
-                      <td className="pr-6 text-right">
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            if (window.confirm('Are you sure you want to permanently delete this job? This will delete all payments and invoices associated with it.')) {
-                              toast.loading('Deleting job...', { id: 'delete-job' })
-                              const previousJobs = [...jobsList]
-                              setJobsList(prev => prev.filter(j => j.id !== job.id))
-                              try {
-                                const res = await deleteJobAction(job.id)
-                                if (res.error) {
+                      {role === 'admin' && (
+                        <td className="pr-6 text-right">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              if (window.confirm('Are you sure you want to permanently delete this job? This will delete all payments and invoices associated with it.')) {
+                                toast.loading('Deleting job...', { id: 'delete-job' })
+                                const previousJobs = [...jobsList]
+                                setJobsList(prev => prev.filter(j => j.id !== job.id))
+                                try {
+                                  const res = await deleteJobAction(job.id)
+                                  if (res.error) {
+                                    setJobsList(previousJobs)
+                                    toast.error('Failed to delete job: ' + res.error, { id: 'delete-job' })
+                                  } else {
+                                    toast.success('Job deleted successfully!', { id: 'delete-job' })
+                                    router.refresh()
+                                  }
+                                } catch (err: any) {
                                   setJobsList(previousJobs)
-                                  toast.error('Failed to delete job: ' + res.error, { id: 'delete-job' })
-                                } else {
-                                  toast.success('Job deleted successfully!', { id: 'delete-job' })
-                                  router.refresh()
+                                  toast.error('Failed to delete job: ' + (err?.message || 'Unexpected error'), { id: 'delete-job' })
                                 }
-                              } catch (err: any) {
-                                setJobsList(previousJobs)
-                                toast.error('Failed to delete job: ' + (err?.message || 'Unexpected error'), { id: 'delete-job' })
                               }
-                            }
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete Job"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Job"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      )}
                     </motion.tr>
                   ))}
                 </tbody>

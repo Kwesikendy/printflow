@@ -15,6 +15,8 @@ interface EditJobModalProps {
 }
 
 export function EditJobModal({ job, role }: EditJobModalProps) {
+  if (role !== 'admin') return null
+
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [mounted, setMounted] = useState(false)

@@ -699,8 +699,8 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
   const { data } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
   const profile = data as { role: string, tenant_id: string } | null
   
-  if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
-    return { error: 'Insufficient permissions' }
+  if (profile?.role !== 'admin') {
+    return { error: 'Insufficient permissions. Only administrators can edit jobs.' }
   }
 
   const { data: jobData } = await supabase.from('jobs').select('*').eq('id', jobId).single()
@@ -763,8 +763,8 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
   const { data: profileData } = await supabase.from('profiles').select('role, tenant_id').eq('id', user.id).single()
   const profile = profileData as { role: string, tenant_id: string } | null
   
-  if (profile?.role !== 'admin' && profile?.role !== 'front_desk') {
-    return { error: 'Insufficient permissions to delete jobs' }
+  if (profile?.role !== 'admin') {
+    return { error: 'Insufficient permissions. Only administrators can delete jobs.' }
   }
 
   const serviceSupabase = createServiceClient()

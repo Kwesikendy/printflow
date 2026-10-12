@@ -40,6 +40,12 @@ export default async function JobsPage(props: {
 
   const lastResetTime = effectiveReset.toISOString()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = user 
+    ? await supabase.from('profiles').select('role').eq('id', user.id).single()
+    : { data: null }
+  const role = (profile as any)?.role || 'front_desk'
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -61,6 +67,7 @@ export default async function JobsPage(props: {
         lastResetTime={lastResetTime} 
         currentPage={page}
         totalPages={totalPages}
+        role={role}
       />
     </div>
   )

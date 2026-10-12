@@ -80,7 +80,7 @@ export default async function JobDetailPage(props: {
               <FileText className="w-4 h-4 mr-1.5" /> Print Invoice
             </Link>
           )}
-          {['admin', 'front_desk'].includes(role) && (
+          {role === 'admin' && (
             <EditJobModal job={job} role={role} />
           )}
           <JobActions job={job} role={role} />

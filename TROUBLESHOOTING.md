@@ -387,3 +387,9 @@ Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -in (Get-NetTCPConne
 # View PM2 error logs without live streaming
 pm2 logs printflow --lines 30 --nostream
 ```
+
+### The Ultimate Kill Switch
+If the server is completely unresponsive, throwing Cloudflare 522 errors, or PM2 gets confused and spawns empty daemons, run this exact sequence to wipe out all phantom processes and hard-reset the server:
+```powershell
+pm2 delete all; taskkill /F /IM node.exe /T; pm2 start ecosystem.config.cjs; pm2 save; pm2 status
+```
