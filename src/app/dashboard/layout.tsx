@@ -18,13 +18,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!loading && !session) {
       router.replace('/login')
     } else if (!loading && session) {
-      if (!canAccessRoute(session.profile.role, pathname)) {
-        router.replace(getDefaultDashboardPath(session.profile.role))
+      if (!canAccessRoute(session.profile.role, pathname, session.profile.email)) {
+        router.replace(getDefaultDashboardPath(session.profile.role, session.profile.email))
       }
     }
   }, [loading, session, router, pathname])
 
-  if (loading || !session || !canAccessRoute(session.profile.role, pathname)) {
+  if (loading || !session || !canAccessRoute(session.profile.role, pathname, session.profile.email)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>

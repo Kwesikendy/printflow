@@ -2,7 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom } from '@/types/database'
+import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom, type DeliveryMethod } from '@/types/database'
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 import { getWorkdayBounds } from '@/lib/workday'
@@ -139,7 +139,10 @@ export async function createJobGroupAction(
   customerName: string,
   customerPhone: string | null,
   source: JobSource,
-  items: JobItem[]
+  items: JobItem[],
+  deliveryMethod: DeliveryMethod = 'pickup',
+  deliveryAddress?: string | null,
+  deliveryPhone?: string | null
 ): Promise<ActionResponse> {
   try {
     const supabase = await createClient()
@@ -231,17 +234,40 @@ export async function createJobGroupAction(
     const serviceSupabase = createServiceClient() as any
 
     // 1. Insert Job Group
-    const { data: groupData, error: groupError } = await serviceSupabase
+    const groupInsertPayload: any = {
+      tenant_id: profile.tenant_id,
+      customer_name: customerName,
+      customer_phone: customerPhone || null,
+      source: source,
+      created_by: user.id,
+      delivery_method: deliveryMethod,
+      delivery_address: deliveryMethod === 'delivery' ? (deliveryAddress || null) : null,
+      delivery_phone: deliveryMethod === 'delivery' ? (deliveryPhone || null) : null,
+    }
+
+    let { data: groupData, error: groupError } = await serviceSupabase
       .from('job_groups')
-      .insert({
-        tenant_id: profile.tenant_id,
-        customer_name: customerName,
-        customer_phone: customerPhone || null,
-        source: source,
-        created_by: user.id
-      })
+      .insert(groupInsertPayload)
       .select('id')
       .single()
+
+    // Graceful fallback if delivery columns do not exist yet on job_groups
+    if (groupError && (groupError.message?.includes('delivery_') || groupError.code === '42703')) {
+      console.warn('Fallback: delivery columns not yet present on job_groups, retrying without delivery fields')
+      const fallbackGroup = await serviceSupabase
+        .from('job_groups')
+        .insert({
+          tenant_id: profile.tenant_id,
+          customer_name: customerName,
+          customer_phone: customerPhone || null,
+          source: source,
+          created_by: user.id,
+        })
+        .select('id')
+        .single()
+      groupData = fallbackGroup.data
+      groupError = fallbackGroup.error
+    }
 
     if (groupError || !groupData) {
       console.error('Create job group error:', groupError)
@@ -292,13 +318,29 @@ export async function createJobGroupAction(
         dimension_unit: item.dimension_unit,
         print_room: item.print_room,
         status: 'awaiting_payment',
+        delivery_method: deliveryMethod,
+        delivery_address: deliveryMethod === 'delivery' ? (deliveryAddress || null) : null,
+        delivery_phone: deliveryMethod === 'delivery' ? (deliveryPhone || null) : null,
+        delivery_status: deliveryMethod === 'delivery' ? 'pending' : null,
         created_by: user.id,
       }))
 
-      const { data: inserted, error: insertError } = await serviceSupabase
+      let { data: inserted, error: insertError } = await serviceSupabase
         .from('jobs')
         .insert(jobsToInsert)
         .select('id, job_number, line_total')
+
+      // Fallback if jobs table doesn't have delivery columns yet
+      if (insertError && (insertError.message?.includes('delivery_') || insertError.code === '42703')) {
+        console.warn('Fallback: delivery columns not yet present on jobs table, retrying without delivery fields')
+        const fallbackJobsToInsert = jobsToInsert.map(({ delivery_method, delivery_address, delivery_phone, delivery_status, ...rest }: any) => rest)
+        const fallbackRes = await serviceSupabase
+          .from('jobs')
+          .insert(fallbackJobsToInsert)
+          .select('id, job_number, line_total')
+        inserted = fallbackRes.data
+        insertError = fallbackRes.error
+      }
 
       if (!insertError && inserted && inserted.length > 0) {
         insertedJobs = inserted

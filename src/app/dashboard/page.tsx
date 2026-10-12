@@ -12,7 +12,7 @@ export default function DashboardIndex() {
 
   useEffect(() => {
     if (session) {
-      const defaultPath = getDefaultDashboardPath(session.profile.role)
+      const defaultPath = getDefaultDashboardPath(session.profile.role, session.profile.email)
       // Only redirect if default path is different from current to prevent loops
       if (defaultPath !== '/dashboard') {
          router.replace(defaultPath)

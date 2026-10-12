@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { InventoryManager } from '@/components/admin/InventoryManager'
 import { getMaterialsAction } from '@/app/actions/inventory'
@@ -15,7 +15,8 @@ export default async function InventoryPage() {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) redirect('/login')
 
-  const { data: profileData } = await supabase
+  const serviceSupabase = createServiceClient()
+  const { data: profileData } = await (serviceSupabase as any)
     .from('profiles')
     .select('role, email, tenant_id')
     .eq('id', user.id)
@@ -27,14 +28,14 @@ export default async function InventoryPage() {
 
   const isAuthorized = profile.role === 'admin' || profile.role === 'accountant' || profile.email === 'd.opare@printdpigh.com'
   if (!isAuthorized) {
-    redirect('/dashboard') // unauthorized users get booted to main dashboard
+    redirect('/dashboard')
   }
 
   // 2. Fetch Materials
   const { data: materials } = await getMaterialsAction(profile.tenant_id)
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-6xl mx-auto space-y-8">
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Material Inventory</h1>

@@ -33,14 +33,15 @@ export async function login(formData: FormData) {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, email')
     .eq('id', user.id)
     .single()
 
   const role = (profile as any)?.role || 'front_desk'
+  const userEmail = (profile as any)?.email || user.email || ''
   
   revalidatePath('/', 'layout')
-  return { success: true, url: getDefaultDashboardPath(role) }
+  return { success: true, url: getDefaultDashboardPath(role, userEmail) }
 }
 
 export async function signInWithGoogle() {

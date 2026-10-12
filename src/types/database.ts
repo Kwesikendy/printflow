@@ -16,6 +16,8 @@ export type PrintRoom = 'room_1' | 'room_2'
 export type InvoiceStatus = 'unpaid' | 'partial' | 'paid'
 export type AreaUnit = 'cm2' | 'm2' | 'in2'
 export type DimensionUnit = 'cm' | 'm' | 'ft' | 'in'
+export type DeliveryMethod = 'pickup' | 'delivery'
+export type DeliveryStatus = 'pending' | 'dispatched' | 'delivered'
 
 export interface Tenant {
   id: string
@@ -83,6 +85,9 @@ export interface JobGroup {
   source: JobSource
   created_by: string
   created_at: string
+  delivery_method?: DeliveryMethod
+  delivery_address?: string | null
+  delivery_phone?: string | null
   jobs?: Job[]
   invoices?: Invoice[]
 }
@@ -109,6 +114,14 @@ export interface Job {
   status: JobStatus
   pickup_name: string | null
   pickup_phone: string | null
+  delivery_method?: DeliveryMethod
+  delivery_address?: string | null
+  delivery_phone?: string | null
+  delivery_rider_name?: string | null
+  delivery_rider_phone?: string | null
+  delivery_status?: DeliveryStatus
+  delivery_dispatched_at?: string | null
+  delivery_delivered_at?: string | null
   created_by: string
   created_at: string
   updated_at: string

@@ -67,57 +67,76 @@ export function InventoryManager({ initialMaterials }: { initialMaterials: any[]
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map(m => {
-          const totalArea = m.roll_width * m.roll_length * m.qty_rolls
-          const stockValue = m.qty_rolls * m.unit_cost
-          const isLow = m.qty_rolls <= 1
-          
-          return (
-            <Card key={m.id} className={`border-t-4 ${isLow ? 'border-t-red-500' : 'border-t-indigo-500'} relative overflow-hidden group`}>
-              <CardContent className="p-6">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">{m.name}</h3>
-                    <p className="text-xs text-slate-500">{m.roll_width}m × {m.roll_length}m Roll</p>
-                  </div>
-                  <div className={`p-2 rounded-lg ${isLow ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                    {isLow ? <AlertCircle className="w-5 h-5" /> : <Package className="w-5 h-5" />}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-slate-50 rounded-xl p-3">
-                      <div className="text-xs text-slate-500 mb-1">Available Area</div>
-                      <div className="text-xl font-bold text-slate-800">{totalArea.toFixed(2)} m²</div>
+      {filtered.length === 0 ? (
+        <div className="bg-white/80 rounded-2xl border border-slate-200/80 p-12 text-center">
+          <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+            <Package className="w-6 h-6" />
+          </div>
+          <h3 className="text-base font-bold text-slate-800">
+            {search ? 'No matching materials found' : 'No materials in stock yet'}
+          </h3>
+          <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            {search ? 'Try adjusting your search keywords.' : 'Add your first print material roll (Flexi, Vinyl, Banner) to track inventory.'}
+          </p>
+          {!search && (
+            <Button onClick={() => setIsAddOpen(true)} className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-xs">
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> Add First Material
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map(m => {
+            const totalArea = (parseFloat(m.roll_width) || 0) * (parseFloat(m.roll_length) || 0) * (parseFloat(m.qty_rolls) || 0)
+            const stockValue = (parseFloat(m.qty_rolls) || 0) * (parseFloat(m.unit_cost) || 0)
+            const isLow = (parseFloat(m.qty_rolls) || 0) <= 1
+            
+            return (
+              <Card key={m.id} className={`border-t-4 ${isLow ? 'border-t-red-500' : 'border-t-indigo-500'} relative overflow-hidden group`}>
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900">{m.name}</h3>
+                      <p className="text-xs text-slate-500">{m.roll_width}m × {m.roll_length}m Roll</p>
                     </div>
-                    <div className="bg-slate-50 rounded-xl p-3">
-                      <div className="text-xs text-slate-500 mb-1">Rolls Left</div>
-                      <div className={`text-xl font-bold ${isLow ? 'text-red-600' : 'text-slate-800'}`}>
-                        {parseFloat(m.qty_rolls).toFixed(2)}
+                    <div className={`p-2 rounded-lg ${isLow ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                      {isLow ? <AlertCircle className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-slate-50 rounded-xl p-3">
+                        <div className="text-xs text-slate-500 mb-1">Available Area</div>
+                        <div className="text-xl font-bold text-slate-800">{totalArea.toFixed(2)} m²</div>
+                      </div>
+                      <div className="bg-slate-50 rounded-xl p-3">
+                        <div className="text-xs text-slate-500 mb-1">Rolls Left</div>
+                        <div className={`text-xl font-bold ${isLow ? 'text-red-600' : 'text-slate-800'}`}>
+                          {(parseFloat(m.qty_rolls) || 0).toFixed(2)}
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100">
-                    <span className="text-slate-500">Stock Value</span>
-                    <span className="font-bold text-slate-900">{formatCurrency(stockValue)}</span>
-                  </div>
+                    <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-100">
+                      <span className="text-slate-500">Stock Value</span>
+                      <span className="font-bold text-slate-900">{formatCurrency(stockValue)}</span>
+                    </div>
 
-                  <Button 
-                    variant="outline" 
-                    className="w-full mt-2 group-hover:bg-indigo-50 group-hover:text-indigo-700 transition-colors"
-                    onClick={() => { setSelectedMaterial(m); setIsStockOpen(true) }}
-                  >
-                    <TrendingUp className="w-4 h-4 mr-2" /> Add Stock
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+                    <Button 
+                      variant="outline" 
+                      className="w-full mt-2 group-hover:bg-indigo-50 group-hover:text-indigo-700 transition-colors"
+                      onClick={() => { setSelectedMaterial(m); setIsStockOpen(true) }}
+                    >
+                      <TrendingUp className="w-4 h-4 mr-2" /> Add Stock
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent>

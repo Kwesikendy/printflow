@@ -129,12 +129,21 @@ export const AREA_UNIT_LABELS = {
 // ============================================================
 // Role Navigation Guards
 // ============================================================
-export function canAccessRoute(role: Role, pathname: string): boolean {
+export function canAccessRoute(role: Role, pathname: string, email?: string): boolean {
   if (role === 'admin') return true
+
+  if (email === 'm.adoko@printdpigh.com') {
+    const mavisRoutes = ['/dashboard/delivery', '/dashboard/jobs']
+    return mavisRoutes.some(r => pathname.startsWith(r)) || pathname === '/dashboard'
+  }
+
+  if (email === 'd.opare@printdpigh.com' && pathname.startsWith('/dashboard/admin/inventory')) {
+    return true
+  }
 
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
   const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory']
-  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
+  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup', '/dashboard/delivery']
 
   if (role === 'printer') {
     return printerRoutes.some(r => pathname.startsWith(r))
@@ -153,7 +162,8 @@ export function canAccessRoute(role: Role, pathname: string): boolean {
 // ============================================================
 // Status Transition Helpers
 // ============================================================
-export function getDefaultDashboardPath(role: Role): string {
+export function getDefaultDashboardPath(role: Role, email?: string): string {
+  if (email === 'm.adoko@printdpigh.com') return '/dashboard/delivery'
   switch (role) {
     case 'printer': return '/dashboard/queue'
     case 'accountant': return '/dashboard/finance'

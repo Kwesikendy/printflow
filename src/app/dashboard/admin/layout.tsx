@@ -17,6 +17,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const { session } = useSession()
 
+  if (pathname.startsWith('/dashboard/admin/inventory')) {
+    const isInventoryAllowed = session && (
+      session.profile.role === 'admin' ||
+      session.profile.role === 'accountant' ||
+      session.profile.email === 'd.opare@printdpigh.com'
+    )
+    if (!isInventoryAllowed) return null
+    return <>{children}</>
+  }
+
   if (session && session.profile.role !== 'admin') {
     return null
   }

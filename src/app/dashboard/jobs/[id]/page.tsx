@@ -7,7 +7,7 @@ import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
-import { Printer, FileText, CheckCircle2 } from 'lucide-react'
+import { Printer, FileText, CheckCircle2, Truck, MapPin, Phone } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function JobDetailPage(props: {
@@ -107,6 +107,47 @@ export default async function JobDetailPage(props: {
             className="btn btn-outline bg-white hover:bg-slate-50 text-indigo-700 border-indigo-200 text-xs px-3 py-1.5 self-start sm:self-auto font-semibold"
           >
             View Complete Order
+          </Link>
+        </div>
+      )}
+
+      {job.delivery_method === 'delivery' && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50/80 border border-amber-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 bg-amber-100 text-amber-800 rounded-lg shrink-0 mt-0.5">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-amber-950">
+                  Courier / Rider Delivery Order
+                </p>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full capitalize bg-amber-200/80 text-amber-900">
+                  {job.delivery_status || 'Pending Dispatch'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-800 mt-1 flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Destination: <strong>{job.delivery_address || 'No landmark specified'}</strong></span>
+              </p>
+              {(job.delivery_phone || job.customer_phone) && (
+                <p className="text-xs text-amber-800 mt-0.5 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Recipient Phone: <strong>{job.delivery_phone || job.customer_phone}</strong></span>
+                </p>
+              )}
+              {job.delivery_rider_name && (
+                <p className="text-xs text-indigo-900 mt-1 font-semibold">
+                  Assigned Rider: {job.delivery_rider_name} {job.delivery_rider_phone ? `(${job.delivery_rider_phone})` : ''}
+                </p>
+              )}
+            </div>
+          </div>
+          <Link 
+            href="/dashboard/delivery" 
+            className="btn btn-outline bg-white hover:bg-amber-100 text-amber-900 border-amber-300 text-xs px-3 py-1.5 self-start sm:self-auto font-semibold shrink-0"
+          >
+            Open Dispatch Board
           </Link>
         </div>
       )}
