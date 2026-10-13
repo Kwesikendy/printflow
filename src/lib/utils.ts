@@ -132,10 +132,6 @@ export const AREA_UNIT_LABELS = {
 export function canAccessRoute(role: Role, pathname: string, email?: string): boolean {
   if (role === 'admin') return true
 
-  if (email === 'd.opare@printdpigh.com' && pathname.startsWith('/dashboard/admin/inventory')) {
-    return true
-  }
-
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
   const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory']
   const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']

@@ -41,7 +41,6 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
 
   const role = session.profile.role
   const visibleItems = navItems.filter(item => {
-    if (item.name === 'Inventory' && session.profile.email === 'd.opare@printdpigh.com') return true
     return item.roles.includes(role) && canAccessRoute(role, item.href, session.profile.email)
   })
 
