@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { AREA_UNIT_LABELS } from '@/lib/utils'
 import { Settings2 } from 'lucide-react'
 import { TenantSettingsForm } from '@/components/admin/TenantSettingsForm'
+import { StorageMaintenanceCard } from '@/components/admin/StorageMaintenanceCard'
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
@@ -15,7 +16,7 @@ export default async function AdminSettingsPage() {
   const tenant = tenantData as any
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-3xl">
       <Card>
         <CardHeader 
           title="Tenant Configuration" 
@@ -25,6 +26,8 @@ export default async function AdminSettingsPage() {
           <TenantSettingsForm tenant={tenant} />
         </CardContent>
       </Card>
+
+      <StorageMaintenanceCard />
     </div>
   )
 }

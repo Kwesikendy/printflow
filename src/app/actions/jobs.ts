@@ -789,13 +789,36 @@ export async function transitionJobStatusAction(
       })
       .eq('id', jobId)
       
-    if (updateError) {
-      console.error('Update pickup details error:', updateError)
+      if (updateError) {
+        console.error('Update pickup details error:', updateError)
+      }
     }
-  }
 
-  // If status is cancelled, clean up phantom invoices or recalculate group invoice total
-  if (toStatus === 'cancelled') {
+    // Auto-clean artwork storage when job is picked up or cancelled to keep Supabase storage lean
+    if (toStatus === 'picked_up' || toStatus === 'cancelled') {
+      try {
+        const serviceSupabase = createServiceClient() as any
+        const { data: jobArtwork } = await serviceSupabase
+          .from('jobs')
+          .select('artwork_url, tenant_id')
+          .eq('id', jobId)
+          .single()
+
+        if (jobArtwork?.artwork_url && jobArtwork?.tenant_id) {
+          const match = jobArtwork.artwork_url.match(new RegExp(`${jobArtwork.tenant_id}/([^?]+)`))
+          if (match) {
+            const filePath = `${jobArtwork.tenant_id}/${match[1]}`
+            await serviceSupabase.storage.from('artworks').remove([filePath])
+          }
+          await serviceSupabase.from('jobs').update({ artwork_url: null }).eq('id', jobId)
+        }
+      } catch (cleanErr) {
+        console.warn('Non-fatal: could not auto-clean artwork file:', cleanErr)
+      }
+    }
+
+    // If status is cancelled, clean up phantom invoices or recalculate group invoice total
+    if (toStatus === 'cancelled') {
     try {
       const serviceSupabase = createServiceClient() as any
       const { data: jobInfo } = await serviceSupabase
