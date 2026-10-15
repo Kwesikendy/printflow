@@ -46,6 +46,26 @@ export default async function JobsPage(props: {
   const { data: jobs, count, error } = await supaQuery
   const totalPages = Math.ceil((count || 0) / pageSize)
 
+  // Always fetch ALL unpaid/awaiting_payment jobs from any shift so they remain
+  // visible to any front-desk worker regardless of shift boundaries.
+  let allAwaitingPayment: any[] = []
+  if (!query && status === 'all') {
+    const { data: unpaidJobs } = await supabase
+      .from('jobs')
+      .select(`*, product_types(name)`)
+      .in('status', ['awaiting_payment', 'pending_review'])
+      .order('created_at', { ascending: false })
+
+    if (unpaidJobs && unpaidJobs.length > 0) {
+      // Merge: add any awaiting_payment jobs not already in the main result
+      const mainIds = new Set((jobs || []).map((j: any) => j.id))
+      allAwaitingPayment = unpaidJobs.filter((j: any) => !mainIds.has(j.id))
+    }
+  }
+
+  const mergedJobs = [...(jobs || []), ...allAwaitingPayment]
+
+
   const { start: workdayStart } = getWorkdayBounds()
   const { data: seqData } = await supabase.from('job_sequences').select('last_reset_time').single()
   const dbResetTime = (seqData as any)?.last_reset_time ? new Date((seqData as any).last_reset_time) : null
@@ -79,7 +99,7 @@ export default async function JobsPage(props: {
       </div>
 
       <JobsListClient 
-        initialJobs={jobs || []} 
+        initialJobs={mergedJobs} 
         initialQuery={query} 
         initialStatus={status}
         lastResetTime={lastResetTime} 

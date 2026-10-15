@@ -83,15 +83,19 @@ function applyInvoiceDiscount(subtotal: number, invoice: any) {
 
 
 
-function getDatePrefix(prefix: 'PF' | 'INV', date = new Date()): string {
-  // Use UTC since Ghana is UTC+0 (Africa/Accra)
-  const yy = String(date.getUTCFullYear()).slice(-2)
-  const mm = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const dd = String(date.getUTCDate()).padStart(2, '0')
+function getDatePrefix(prefix: 'PF' | 'INV', now = new Date()): string {
+  // Use the SHIFT start date (5PM boundary) not the calendar midnight date.
+  // e.g. 3:00 AM Oct 16 → shift started Oct 15 at 17:00 → prefix uses Oct 15.
+  const workday = getWorkdayBounds(now)
+  const shiftStart = workday.start
+  const yy = String(shiftStart.getUTCFullYear()).slice(-2)
+  const mm = String(shiftStart.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(shiftStart.getUTCDate()).padStart(2, '0')
   return `${prefix}-${yy}${mm}${dd}-`
 }
 
 async function generateDateJobNumbers(
+
   serviceSupabase: any,
   tenantId: string,
   count: number

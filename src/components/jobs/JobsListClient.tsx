@@ -65,6 +65,9 @@ export function JobsListClient({
   const dropdownRef = useRef<HTMLDivElement>(null)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
 
+  // AWAITING_PAYMENT statuses that must always be visible even in prior shifts
+  const UNPAID_STATUSES = ['awaiting_payment', 'pending_review']
+
   // Base filtered jobs based on search & shift
   const baseJobs = jobsList.filter(job => {
     const matchesSearch = !query || 
@@ -76,7 +79,8 @@ export function JobsListClient({
     if (showTodayOnly && lastResetTime && !query) {
       const jobDate = new Date(job.created_at).getTime();
       const resetTime = new Date(lastResetTime).getTime();
-      if (jobDate < resetTime) return false;
+      // Always show unpaid jobs from ANY shift so payment never gets missed
+      if (jobDate < resetTime && !UNPAID_STATUSES.includes(job.status)) return false;
     }
 
     return true;
@@ -426,7 +430,13 @@ export function JobsListClient({
                         transition: { duration: 0.15 }
                       }}
                       onClick={() => router.push(`/dashboard/jobs/${job.id}`)}
-                      className="group cursor-pointer"
+                      className={cn(
+                        "group cursor-pointer",
+                        // Highlight cross-shift unpaid jobs with amber left border
+                        UNPAID_STATUSES.includes(job.status) && lastResetTime && new Date(job.created_at).getTime() < new Date(lastResetTime).getTime()
+                          ? 'border-l-4 border-l-amber-400 bg-amber-50/30'
+                          : ''
+                      )}
                     >
                       <td className="pl-6 font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
                         <div className="flex items-center gap-2">
@@ -434,6 +444,12 @@ export function JobsListClient({
                           {job.group_id && (
                             <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200/60" title="Part of multi-job order">
                               Multi
+                            </span>
+                          )}
+                          {/* Show 'Prior Shift' tag for cross-shift awaiting_payment jobs */}
+                          {UNPAID_STATUSES.includes(job.status) && lastResetTime && new Date(job.created_at).getTime() < new Date(lastResetTime).getTime() && (
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300" title="Payment pending from a prior shift">
+                              Prior Shift
                             </span>
                           )}
                         </div>
