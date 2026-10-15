@@ -4,8 +4,8 @@ import { useState, useTransition, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { Search, FileText, User, Calendar, Trash2 } from 'lucide-react'
+import { formatCurrency, formatDateTime, cn } from '@/lib/utils'
+import { Search, FileText, User, Calendar, Trash2, Filter, Check } from 'lucide-react'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import Link from 'next/link'
@@ -13,9 +13,19 @@ import { searchCustomers } from '@/app/actions/customers'
 import { startNewDayAction, deleteJobAction } from '@/app/actions/jobs'
 import { toast } from 'sonner'
 
+export const STATUS_FILTERS = [
+  { id: 'all', label: 'All Jobs' },
+  { id: 'in_production', label: 'In Production', statuses: ['in_production', 'ready_to_print', 'printing', 'preflight'] },
+  { id: 'completed', label: 'Completed', statuses: ['completed'] },
+  { id: 'picked_up', label: 'Picked Up', statuses: ['picked_up', 'ready_for_pickup'] },
+  { id: 'awaiting_payment', label: 'Awaiting Payment', statuses: ['awaiting_payment', 'pending_review'] },
+  { id: 'cancelled', label: 'Cancelled', statuses: ['cancelled'] },
+]
+
 export function JobsListClient({ 
   initialJobs, 
   initialQuery, 
+  initialStatus = 'all',
   lastResetTime,
   currentPage = 1,
   totalPages = 1,
@@ -23,6 +33,7 @@ export function JobsListClient({
 }: { 
   initialJobs: any[], 
   initialQuery: string, 
+  initialStatus?: string,
   lastResetTime?: string,
   currentPage?: number,
   totalPages?: number,
@@ -32,21 +43,30 @@ export function JobsListClient({
   const [jobsList, setJobsList] = useState(initialJobs)
   const [isFocused, setIsFocused] = useState(false)
   const [query, setQuery] = useState(initialQuery)
+  const [statusFilter, setStatusFilter] = useState(initialStatus || 'all')
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [showTodayOnly, setShowTodayOnly] = useState(true) // Default to true!
   const [isResetting, setIsResetting] = useState(false)
   
-  // Sync state if initialJobs prop changes from server
+  // Sync state if initialJobs or initialStatus prop changes from server
   useEffect(() => {
     setJobsList(initialJobs)
   }, [initialJobs])
 
+  useEffect(() => {
+    if (initialStatus) {
+      setStatusFilter(initialStatus)
+    }
+  }, [initialStatus])
+
   // Autocomplete state
   const [suggestions, setSuggestions] = useState<{customer_name: string}[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Local instant filtering for jobs already on screen
-  const visibleJobs = jobsList.filter(job => {
+  // Base filtered jobs based on search & shift
+  const baseJobs = jobsList.filter(job => {
     const matchesSearch = !query || 
       job.job_number.toLowerCase().includes(query.toLowerCase()) || 
       job.customer_name.toLowerCase().includes(query.toLowerCase())
@@ -56,7 +76,31 @@ export function JobsListClient({
     if (showTodayOnly && lastResetTime && !query) {
       const jobDate = new Date(job.created_at).getTime();
       const resetTime = new Date(lastResetTime).getTime();
-      return jobDate >= resetTime;
+      if (jobDate < resetTime) return false;
+    }
+
+    return true;
+  })
+
+  const getFilterCount = (filterId: string) => {
+    if (filterId === 'all') return baseJobs.length;
+    const f = STATUS_FILTERS.find(x => x.id === filterId);
+    if (!f) return 0;
+    if (f.statuses) {
+      return baseJobs.filter(j => f.statuses.includes(j.status)).length;
+    }
+    return baseJobs.filter(j => j.status === filterId).length;
+  }
+
+  // Local instant filtering for active status filter
+  const visibleJobs = baseJobs.filter(job => {
+    if (statusFilter !== 'all') {
+      const activeFilter = STATUS_FILTERS.find(f => f.id === statusFilter);
+      if (activeFilter?.statuses) {
+        if (!activeFilter.statuses.includes(job.status)) return false;
+      } else if (job.status !== statusFilter) {
+        return false;
+      }
     }
 
     return true;
@@ -81,10 +125,24 @@ export function JobsListClient({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setSuggestions([])
       }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setShowStatusDropdown(false)
+      }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  const handleSelectStatus = (newStatus: string) => {
+    setStatusFilter(newStatus)
+    setShowStatusDropdown(false)
+    startTransition(() => {
+      const params = new URLSearchParams()
+      if (query) params.set('q', query)
+      if (newStatus !== 'all') params.set('status', newStatus)
+      router.push(params.toString() ? `/dashboard/jobs?${params.toString()}` : '/dashboard/jobs')
+    })
+  }
 
   const handleSearch = (searchQuery: string) => {
     setQuery(searchQuery)
@@ -92,11 +150,10 @@ export function JobsListClient({
     setIsFocused(false)
     
     startTransition(() => {
-      if (searchQuery) {
-        router.push(`/dashboard/jobs?q=${encodeURIComponent(searchQuery)}`)
-      } else {
-        router.push('/dashboard/jobs')
-      }
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('q', searchQuery)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      router.push(params.toString() ? `/dashboard/jobs?${params.toString()}` : '/dashboard/jobs')
     })
   }
 
@@ -104,6 +161,7 @@ export function JobsListClient({
     startTransition(() => {
       const params = new URLSearchParams()
       if (query) params.set('q', query)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
       if (newPage > 1) params.set('page', newPage.toString())
       router.push(`/dashboard/jobs?${params.toString()}`)
     })
@@ -225,6 +283,37 @@ export function JobsListClient({
       </div>
       </div>
 
+      {/* Status Filter Pills Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {STATUS_FILTERS.map((f) => {
+          const isActive = statusFilter === f.id;
+          const count = getFilterCount(f.id);
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => handleSelectStatus(f.id)}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shadow-xs border",
+                isActive
+                  ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 shadow-md"
+                  : "bg-white/80 hover:bg-white text-slate-600 hover:text-slate-900 border-slate-200/80"
+              )}
+            >
+              <span>{f.label}</span>
+              <span
+                className={cn(
+                  "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
+                  isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Jobs List Container */}
       <div className="bg-white/60 backdrop-blur-2xl rounded-2xl shadow-premium-card border border-white/80 overflow-hidden relative z-10">
         <div className="table-container" style={{ opacity: isPending ? 0.7 : 1, transition: 'opacity 0.2s' }}>
@@ -235,7 +324,60 @@ export function JobsListClient({
                 <th>Customer</th>
                 <th>Product</th>
                 <th className="text-right">Total</th>
-                <th>Status</th>
+                <th className="relative">
+                  <div 
+                    ref={statusDropdownRef}
+                    className="inline-flex items-center gap-1.5 cursor-pointer select-none hover:text-indigo-600 group py-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowStatusDropdown(!showStatusDropdown);
+                    }}
+                    title="Filter jobs by status"
+                  >
+                    <span>Status</span>
+                    <Filter className={cn("w-3.5 h-3.5 transition-colors", statusFilter !== 'all' ? "text-indigo-600 fill-indigo-100" : "text-slate-400 group-hover:text-indigo-600")} />
+                    {statusFilter !== 'all' && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                    )}
+                  </div>
+
+                  {/* Dropdown Menu */}
+                  {showStatusDropdown && (
+                    <div 
+                      className="absolute top-full left-0 mt-1 w-52 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 z-30 font-normal text-left"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                        Filter by Status
+                      </div>
+                      {STATUS_FILTERS.map((f) => {
+                        const count = getFilterCount(f.id);
+                        const isActive = statusFilter === f.id;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => handleSelectStatus(f.id)}
+                            className={cn(
+                              "w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-indigo-50 transition-colors",
+                              isActive ? "bg-indigo-50 text-indigo-700 font-semibold" : "text-slate-700"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={cn("w-4 h-4 rounded-full flex items-center justify-center", isActive ? "text-indigo-600" : "opacity-0")}>
+                                <Check className="w-3.5 h-3.5" />
+                              </div>
+                              <span>{f.label}</span>
+                            </div>
+                            <span className={cn("text-[11px] px-1.5 py-0.5 rounded-full font-medium", isActive ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-500")}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </th>
                 <th>Created</th>
                 <th>Completed</th>
                 {role === 'admin' && <th className="pr-6 text-right">Actions</th>}
@@ -254,13 +396,17 @@ export function JobsListClient({
                       <EmptyState 
                         icon={<FileText />}
                         title="No jobs found"
-                        description={query ? "No jobs matched your search criteria." : "Get started by creating your first print job."}
+                        description={query || statusFilter !== 'all' ? "No jobs matched your filter criteria." : "Get started by creating your first print job."}
                         action={
-                          !query && (
+                          statusFilter !== 'all' ? (
+                            <Button variant="outline" onClick={() => handleSelectStatus('all')}>
+                              Clear Status Filter
+                            </Button>
+                          ) : !query ? (
                             <Link href="/dashboard/jobs/new">
                               <Button variant="outline">Create Job</Button>
                             </Link>
-                          )
+                          ) : undefined
                         }
                       />
                     </td>
@@ -302,7 +448,16 @@ export function JobsListClient({
                         {formatCurrency(job.line_total)}
                       </td>
                       <td>
-                        <StatusBadge status={job.status} />
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectStatus(job.status);
+                          }}
+                          title="Click to filter by this status"
+                          className="inline-block hover:scale-105 active:scale-95 transition-transform"
+                        >
+                          <StatusBadge status={job.status} />
+                        </div>
                       </td>
                       <td className="text-slate-500 text-sm">
                         {formatDateTime(job.created_at)}

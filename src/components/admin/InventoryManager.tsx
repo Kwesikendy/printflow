@@ -85,6 +85,59 @@ interface ProductType {
   material_id: string | null
 }
 
+export function getUnitLabels(unit?: string) {
+  const u = (unit || 'roll').toLowerCase()
+  if (u === 'sheet') {
+    return {
+      type: 'sheet',
+      singular: 'sheet',
+      plural: 'sheets',
+      dimWidth: 'Sheet Width',
+      dimHeight: 'Sheet Height',
+      cardSubtext: 'Sheet',
+      warehouseLabel: 'Sheets in Warehouse',
+      perUnit: '/ sheet',
+      restockBtn: 'Restock Sheets',
+      wasteLabel: 'Deduct Damaged / Wasted Sheet (-)',
+      target: 'Target: 10+ sheets',
+      addStockLabel: 'Sheets to Add',
+      adjustStockLabel: 'Sheets to Deduct'
+    }
+  }
+  if (u === 'piece') {
+    return {
+      type: 'piece',
+      singular: 'piece',
+      plural: 'pieces',
+      dimWidth: 'Item Width',
+      dimHeight: 'Item Height',
+      cardSubtext: 'Piece',
+      warehouseLabel: 'Pieces in Warehouse',
+      perUnit: '/ piece',
+      restockBtn: 'Restock Pieces',
+      wasteLabel: 'Deduct Damaged / Wasted Item (-)',
+      target: 'Target: 10+ pcs',
+      addStockLabel: 'Pieces to Add',
+      adjustStockLabel: 'Pieces to Deduct'
+    }
+  }
+  return {
+    type: 'roll',
+    singular: 'roll',
+    plural: 'rolls',
+    dimWidth: 'Roll Width',
+    dimHeight: 'Roll Height',
+    cardSubtext: 'Roll',
+    warehouseLabel: 'Rolls in Warehouse',
+    perUnit: '/ roll',
+    restockBtn: 'Restock Roll',
+    wasteLabel: 'Deduct Damaged / Wasted Roll (-)',
+    target: 'Target: 5+ rolls',
+    addStockLabel: 'Rolls to Add',
+    adjustStockLabel: 'Rolls to Deduct'
+  }
+}
+
 export function InventoryManager({ 
   initialMaterials, 
   initialLogs, 
@@ -127,6 +180,7 @@ export function InventoryManager({
   // Form states
   const [addForm, setAddForm] = useState({ 
     name: '', 
+    unit: 'roll',
     roll_width: '3.2', 
     roll_height: '50', 
     unit_cost: '1200', 
@@ -134,18 +188,26 @@ export function InventoryManager({
   })
   const [editForm, setEditForm] = useState({ 
     name: '', 
+    unit: 'roll',
     roll_width: '', 
     roll_height: '', 
-    unit_cost: '' 
+    unit_cost: '',
+    qty_rolls: ''
   })
   const [stockForm, setStockForm] = useState({ qty: '5', cost: '', notes: '' })
   const [adjustForm, setAdjustForm] = useState<{
     type: 'deduct_waste' | 'recount' | 'correction'
+    mode: 'qty' | 'dimensions'
     qty: string
+    w_m: string
+    h_m: string
     notes: string
   }>({
     type: 'deduct_waste',
+    mode: 'qty',
     qty: '0.5',
+    w_m: '',
+    h_m: '',
     notes: ''
   })
 
@@ -242,7 +304,7 @@ export function InventoryManager({
       } else {
         toast.success(`Material "${addForm.name}" created successfully`)
         setIsAddOpen(false)
-        setAddForm({ name: '', roll_width: '3.2', roll_height: '50', unit_cost: '1200', qty_rolls: '1' })
+        setAddForm({ name: '', unit: 'roll', roll_width: '3.2', roll_height: '50', unit_cost: '1200', qty_rolls: '1' })
         // Append newly created material optimistically
         if (res.data) {
           setMaterials(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)))
@@ -259,9 +321,11 @@ export function InventoryManager({
     setSelectedMaterial(m)
     setEditForm({
       name: m.name,
+      unit: m.unit || 'roll',
       roll_width: String(m.roll_width),
       roll_height: String(m.roll_height ?? m.roll_length ?? ''),
-      unit_cost: String(m.unit_cost)
+      unit_cost: String(m.unit_cost),
+      qty_rolls: String(m.qty_rolls || 0)
     })
     setIsEditOpen(true)
   }
@@ -275,13 +339,16 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('Material details updated')
+        toast.success('Material details updated successfully')
         setMaterials(prev => prev.map(m => m.id === selectedMaterial.id ? {
           ...m,
           name: editForm.name.trim(),
+          unit: editForm.unit,
           roll_width: parseFloat(editForm.roll_width),
           roll_height: parseFloat(editForm.roll_height),
+          roll_length: parseFloat(editForm.roll_height),
           unit_cost: parseFloat(editForm.unit_cost),
+          qty_rolls: editForm.qty_rolls ? parseFloat(editForm.qty_rolls) : m.qty_rolls,
           updated_at: new Date().toISOString()
         } : m))
         setIsEditOpen(false)
@@ -295,7 +362,7 @@ export function InventoryManager({
 
   const handleOpenStock = (m: Material) => {
     setSelectedMaterial(m)
-    setStockForm({ qty: '5', cost: String(m.unit_cost || ''), notes: '' })
+    setStockForm({ qty: m.unit === 'sheet' ? '10' : '5', cost: String(m.unit_cost || ''), notes: '' })
     setIsStockOpen(true)
   }
 
@@ -310,7 +377,8 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success(`Successfully added ${qty} rolls to ${selectedMaterial.name}`)
+        const u = getUnitLabels(selectedMaterial.unit)
+        toast.success(`Successfully added ${qty} ${u.plural} to ${selectedMaterial.name}`)
         // Update local material state
         setMaterials(prev => prev.map(m => {
           if (m.id !== selectedMaterial.id) return m
@@ -333,7 +401,10 @@ export function InventoryManager({
     setSelectedMaterial(m)
     setAdjustForm({
       type: 'deduct_waste',
-      qty: '0.5',
+      mode: 'qty',
+      qty: m.unit === 'sheet' ? '1' : '0.5',
+      w_m: String(m.roll_width || ''),
+      h_m: '1',
       notes: ''
     })
     setIsAdjustOpen(true)
@@ -344,8 +415,29 @@ export function InventoryManager({
     if (!selectedMaterial) return
     setIsSubmitting(true)
     try {
-      const qty = parseFloat(adjustForm.qty)
-      const res = await adjustStockAction(selectedMaterial.id, adjustForm.type, qty, adjustForm.notes)
+      let dimensions: { width: number; height: number } | undefined
+      let qty = parseFloat(adjustForm.qty)
+
+      if (adjustForm.mode === 'dimensions' && adjustForm.type === 'deduct_waste') {
+        const w = parseFloat(adjustForm.w_m)
+        const h = parseFloat(adjustForm.h_m)
+        if (isNaN(w) || w <= 0 || isNaN(h) || h <= 0) {
+          toast.error('Please enter valid width and height in meters')
+          setIsSubmitting(false)
+          return
+        }
+        dimensions = { width: w, height: h }
+        const unitArea = (selectedMaterial.roll_width || 1) * ((selectedMaterial.roll_height ?? selectedMaterial.roll_length) || 1)
+        qty = (w * h) / (unitArea > 0 ? unitArea : 1)
+      }
+
+      const res = await adjustStockAction(
+        selectedMaterial.id, 
+        adjustForm.type, 
+        qty, 
+        adjustForm.notes,
+        dimensions
+      )
       if (res.error) {
         toast.error(res.error)
       } else {
@@ -816,6 +908,7 @@ export function InventoryManager({
 
                 const isDepleted = rolls <= 0
                 const isLow = rolls > 0 && rolls <= 1.0
+                const uLabels = getUnitLabels(m.unit)
 
                 return (
                   <div 
@@ -846,32 +939,55 @@ export function InventoryManager({
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 font-medium">
                             <Ruler className="w-3.5 h-3.5 text-slate-400" />
-                            {m.roll_width}m × {m.roll_height ?? m.roll_length}m Roll ({rollArea.toFixed(1)} m²/roll)
+                            {m.roll_width}m × {m.roll_height ?? m.roll_length}m {uLabels.cardSubtext} ({rollArea.toFixed(1)} m²/{uLabels.singular})
                           </p>
                         </div>
 
-                        {/* Status badge */}
-                        <div className={cn(
-                          "px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0 flex items-center gap-1",
-                          isDepleted 
-                            ? "bg-rose-50 text-rose-700 border border-rose-200" 
-                            : isLow 
-                              ? "bg-amber-50 text-amber-700 border border-amber-200" 
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        )}>
-                          {isDepleted ? (
-                            <>
-                              <AlertCircle className="w-3 h-3 text-rose-600" /> Out of Stock
-                            </>
-                          ) : isLow ? (
-                            <>
-                              <AlertTriangle className="w-3 h-3 text-amber-600" /> Low Stock
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> In Stock
-                            </>
-                          )}
+                        {/* Top-Right Actions & Status */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Quick Edit/Delete Header Buttons */}
+                          <div className="flex items-center bg-slate-100/90 rounded-lg p-0.5 border border-slate-200/70">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenEdit(m); }}
+                              className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition-colors"
+                              title="Edit Material"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); handleOpenDelete(m); }}
+                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-white rounded transition-colors"
+                              title="Delete Material"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* Status badge */}
+                          <div className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1",
+                            isDepleted 
+                              ? "bg-rose-50 text-rose-700 border border-rose-200" 
+                              : isLow 
+                                ? "bg-amber-50 text-amber-700 border border-amber-200" 
+                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          )}>
+                            {isDepleted ? (
+                              <>
+                                <AlertCircle className="w-3 h-3 text-rose-600" /> Out
+                              </>
+                            ) : isLow ? (
+                              <>
+                                <AlertTriangle className="w-3 h-3 text-amber-600" /> Low
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> In Stock
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -880,7 +996,7 @@ export function InventoryManager({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                              Rolls in Warehouse
+                              {uLabels.warehouseLabel}
                             </span>
                             <div className="flex items-baseline gap-1.5">
                               <span className={cn(
@@ -889,7 +1005,7 @@ export function InventoryManager({
                               )}>
                                 {rolls.toFixed(2)}
                               </span>
-                              <span className="text-xs font-semibold text-slate-500">rolls</span>
+                              <span className="text-xs font-semibold text-slate-500">{uLabels.plural}</span>
                             </div>
                           </div>
 
@@ -918,8 +1034,8 @@ export function InventoryManager({
                             />
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-400 font-medium">
-                            <span>0 rolls</span>
-                            <span>Target: 5+ rolls</span>
+                            <span>0 {uLabels.plural}</span>
+                            <span>{uLabels.target}</span>
                           </div>
                         </div>
                       </div>
@@ -928,7 +1044,7 @@ export function InventoryManager({
                       <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
                         <div>
                           <span className="text-slate-400 block text-[10px] uppercase font-semibold">Unit Cost</span>
-                          <span className="font-semibold text-slate-700">{formatCurrency(cost)} / roll</span>
+                          <span className="font-semibold text-slate-700">{formatCurrency(cost)} {uLabels.perUnit}</span>
                         </div>
                         <div className="text-right">
                           <span className="text-slate-400 block text-[10px] uppercase font-semibold">Total Value</span>
@@ -938,7 +1054,7 @@ export function InventoryManager({
                     </div>
 
                     {/* Card Actions Bottom Bar */}
-                    <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
                       <Button
                         size="sm"
                         onClick={() => handleOpenStock(m)}
@@ -951,7 +1067,7 @@ export function InventoryManager({
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenAdjust(m)}
-                        className="border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs h-8 font-medium"
+                        className="border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs h-8 font-medium px-2.5"
                         title="Adjust, Record Waste or Recount"
                       >
                         <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-slate-500" /> Adjust
@@ -961,20 +1077,20 @@ export function InventoryManager({
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenEdit(m)}
-                        className="border-slate-200 bg-white hover:bg-slate-100 text-slate-600 text-xs h-8 w-8 p-0"
-                        title="Edit Material Details"
+                        className="border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 text-xs h-8 font-medium px-2"
+                        title="Edit Material Specifications"
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
                       </Button>
 
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenDelete(m)}
-                        className="border-rose-100 bg-white hover:bg-rose-50 text-rose-600 text-xs h-8 w-8 p-0"
+                        className="border-rose-100 bg-white hover:bg-rose-50 text-rose-600 text-xs h-8 font-medium px-2"
                         title="Delete Material"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
                       </Button>
                     </div>
                   </div>
@@ -1350,44 +1466,61 @@ export function InventoryManager({
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Boxes className="w-5 h-5 text-indigo-600" /> Add New Print Material Roll
+              <Boxes className="w-5 h-5 text-indigo-600" /> Add New Inventory Material
             </DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleCreate} className="space-y-4 mt-2">
+            <div>
+              <Label className="text-xs font-bold text-slate-700">Substrate Form / Unit</Label>
+              <select
+                value={addForm.unit}
+                onChange={e => setAddForm({ ...addForm, unit: e.target.value })}
+                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20"
+              >
+                <option value="roll">Roll Media (Flexi, SAV/Vinyl, Banner, Mesh, Canvas)</option>
+                <option value="sheet">Rigid Sheet / Board (Foam Board, Acrylic, PVC, Coroplast)</option>
+                <option value="piece">Item / Piece (Stands, Frames, Pre-cut units)</option>
+              </select>
+            </div>
+
             <div>
               <Label className="text-xs font-bold text-slate-700">Material Name & Grade</Label>
               <input 
                 required 
                 value={addForm.name} 
                 onChange={e => setAddForm({ ...addForm, name: e.target.value })} 
-                placeholder="e.g. Flexi - Matte 3.2m, SAV - Glossy 1.5m" 
+                placeholder={addForm.unit === 'sheet' ? "e.g. Foam Board 5mm, Acrylic 3mm" : "e.g. Flexi - Matte 3.2m, SAV - Glossy 1.5m"} 
                 className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Roll Width (meters)</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  {addForm.unit === 'sheet' ? 'Sheet Width (m)' : addForm.unit === 'piece' ? 'Item Width (m)' : 'Roll Width (m)'}
+                </Label>
                 <input 
                   required 
                   type="number" 
                   step="0.01" 
                   value={addForm.roll_width} 
                   onChange={e => setAddForm({ ...addForm, roll_width: e.target.value })} 
-                  placeholder="3.2" 
+                  placeholder={addForm.unit === 'sheet' ? "1.22" : "3.2"} 
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
                 />
               </div>
               <div>
-                  <Label className="text-xs font-bold text-slate-700">Roll Height (meters)</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  {addForm.unit === 'sheet' ? 'Sheet Height (m)' : addForm.unit === 'piece' ? 'Item Height (m)' : 'Roll Height / Length (m)'}
+                </Label>
                 <input 
                   required 
                   type="number" 
                   step="0.01" 
                   value={addForm.roll_height} 
                   onChange={e => setAddForm({ ...addForm, roll_height: e.target.value })} 
-                  placeholder="50" 
+                  placeholder={addForm.unit === 'sheet' ? "2.44" : "50"} 
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
                 />
               </div>
@@ -1395,7 +1528,9 @@ export function InventoryManager({
 
             {/* Calculated Area Preview */}
             <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-medium">Single Roll Media Area:</span>
+              <span className="text-slate-500 font-medium">
+                Single {addForm.unit === 'sheet' ? 'Sheet' : addForm.unit === 'piece' ? 'Item' : 'Roll'} Media Area:
+              </span>
               <strong className="text-indigo-700 font-bold">
                 {((parseFloat(addForm.roll_width) || 0) * (parseFloat(addForm.roll_height) || 0)).toFixed(2)} m²
               </strong>
@@ -1403,7 +1538,9 @@ export function InventoryManager({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs font-bold text-slate-700">Opening Stock (Rolls)</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Opening Stock ({getUnitLabels(addForm.unit).plural})
+                </Label>
                 <input 
                   type="number" 
                   step="0.01" 
@@ -1414,7 +1551,9 @@ export function InventoryManager({
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Cost per Roll (GHS)</Label>
+                <Label className="text-xs font-bold text-slate-700">
+                  Cost per {getUnitLabels(addForm.unit).singular} (GHS)
+                </Label>
                 <input 
                   type="number" 
                   step="0.01" 
@@ -1443,82 +1582,89 @@ export function InventoryManager({
       {/* ============================================================ */}
       <Dialog open={isStockOpen} onOpenChange={setIsStockOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-emerald-600" /> Restock: {selectedMaterial?.name}
-            </DialogTitle>
-          </DialogHeader>
+          {(() => {
+            const u = getUnitLabels(selectedMaterial?.unit)
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-600" /> Restock: {selectedMaterial?.name}
+                  </DialogTitle>
+                </DialogHeader>
 
-          <form onSubmit={handleAddStock} className="space-y-4 mt-2">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Current Stock</span>
-                <span className="font-extrabold text-slate-900 text-sm">
-                  {Number(selectedMaterial?.qty_rolls || 0).toFixed(2)} rolls
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Current Average Cost</span>
-                <span className="font-bold text-slate-700 text-sm">
-                  {formatCurrency(Number(selectedMaterial?.unit_cost || 0))}
-                </span>
-              </div>
-            </div>
+                <form onSubmit={handleAddStock} className="space-y-4 mt-2">
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Current Stock</span>
+                      <span className="font-extrabold text-slate-900 text-sm">
+                        {Number(selectedMaterial?.qty_rolls || 0).toFixed(2)} {u.plural}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Current Average Cost</span>
+                      <span className="font-bold text-slate-700 text-sm">
+                        {formatCurrency(Number(selectedMaterial?.unit_cost || 0))} {u.perUnit}
+                      </span>
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">Rolls Received</Label>
-                <input 
-                  required 
-                  type="number" 
-                  step="0.01" 
-                  value={stockForm.qty} 
-                  onChange={e => setStockForm({ ...stockForm, qty: e.target.value })} 
-                  placeholder="5" 
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-slate-700">Cost per Roll (GHS)</Label>
-                <input 
-                  required 
-                  type="number" 
-                  step="0.01" 
-                  value={stockForm.cost} 
-                  onChange={e => setStockForm({ ...stockForm, cost: e.target.value })} 
-                  placeholder="1350.00" 
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-                />
-              </div>
-            </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">{u.addStockLabel}</Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={stockForm.qty} 
+                        onChange={e => setStockForm({ ...stockForm, qty: e.target.value })} 
+                        placeholder={u.type === 'sheet' ? "10" : "5"} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">Cost per {u.singular} (GHS)</Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={stockForm.cost} 
+                        onChange={e => setStockForm({ ...stockForm, cost: e.target.value })} 
+                        placeholder="1350.00" 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                  </div>
 
-            {/* Total invoice purchase value */}
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center justify-between text-xs">
-              <span className="text-emerald-800 font-medium">Batch Purchase Value:</span>
-              <strong className="text-emerald-900 font-bold">
-                {formatCurrency((parseFloat(stockForm.qty) || 0) * (parseFloat(stockForm.cost) || 0))}
-              </strong>
-            </div>
+                  {/* Total invoice purchase value */}
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-emerald-800 font-medium">Batch Purchase Value:</span>
+                    <strong className="text-emerald-900 font-bold">
+                      {formatCurrency((parseFloat(stockForm.qty) || 0) * (parseFloat(stockForm.cost) || 0))}
+                    </strong>
+                  </div>
 
-            <div>
-              <Label className="text-xs font-bold text-slate-700">Vendor / Invoice Reference (Optional)</Label>
-              <input 
-                value={stockForm.notes} 
-                onChange={e => setStockForm({ ...stockForm, notes: e.target.value })} 
-                placeholder="e.g. Supplier: Graphic Supplies Ltd, Invoice #4829" 
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-              />
-            </div>
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700">Vendor / Invoice Reference (Optional)</Label>
+                    <input 
+                      value={stockForm.notes} 
+                      onChange={e => setStockForm({ ...stockForm, notes: e.target.value })} 
+                      placeholder="e.g. Supplier: Graphic Supplies Ltd, Invoice #4829" 
+                      className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                    />
+                  </div>
 
-            <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setIsStockOpen(false)} disabled={isSubmitting} className="text-xs">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs">
-                {isSubmitting ? 'Recording...' : 'Confirm Restock'}
-              </Button>
-            </DialogFooter>
-          </form>
+                  <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
+                    <Button type="button" variant="outline" onClick={() => setIsStockOpen(false)} disabled={isSubmitting} className="text-xs">
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs">
+                      {isSubmitting ? 'Recording...' : 'Confirm Restock'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -1527,65 +1673,151 @@ export function InventoryManager({
       {/* ============================================================ */}
       <Dialog open={isAdjustOpen} onOpenChange={setIsAdjustOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <SlidersHorizontal className="w-5 h-5 text-amber-600" /> Stock Adjustment: {selectedMaterial?.name}
-            </DialogTitle>
-          </DialogHeader>
+          {(() => {
+            const u = getUnitLabels(selectedMaterial?.unit)
+            const unitArea = (selectedMaterial?.roll_width || 1) * ((selectedMaterial?.roll_height ?? selectedMaterial?.roll_length) || 1)
+            const wVal = parseFloat(adjustForm.w_m) || 0
+            const hVal = parseFloat(adjustForm.h_m) || 0
+            const wastedAreaPreview = wVal * hVal
+            const equivalentDeduction = unitArea > 0 ? (wastedAreaPreview / unitArea) : 0
 
-          <form onSubmit={handleAdjustStock} className="space-y-4 mt-2">
-            <div>
-              <Label className="text-xs font-bold text-slate-700">Adjustment Type</Label>
-              <select
-                value={adjustForm.type}
-                onChange={e => setAdjustForm({ ...adjustForm, type: e.target.value as any })}
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20"
-              >
-                <option value="deduct_waste">Deduct Damaged / Wasted Roll (-)</option>
-                <option value="recount">Physical Audit Recount (Set exact remaining)</option>
-                <option value="correction">Manual Count Correction (-)</option>
-              </select>
-            </div>
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <SlidersHorizontal className="w-5 h-5 text-amber-600" /> Stock Adjustment: {selectedMaterial?.name}
+                  </DialogTitle>
+                </DialogHeader>
 
-            <div>
-              <Label className="text-xs font-bold text-slate-700">
-                {adjustForm.type === 'recount' ? 'Actual Count of Rolls' : 'Rolls to Deduct'}
-              </Label>
-              <input 
-                required 
-                type="number" 
-                step="0.01" 
-                value={adjustForm.qty} 
-                onChange={e => setAdjustForm({ ...adjustForm, qty: e.target.value })} 
-                placeholder="0.5" 
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-              />
-              <span className="text-[11px] text-slate-400 mt-1 block">
-                Current record: {Number(selectedMaterial?.qty_rolls || 0).toFixed(2)} rolls
-              </span>
-            </div>
+                <form onSubmit={handleAdjustStock} className="space-y-4 mt-2">
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700">Adjustment Type</Label>
+                    <select
+                      value={adjustForm.type}
+                      onChange={e => setAdjustForm({ ...adjustForm, type: e.target.value as any })}
+                      className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="deduct_waste">Deduct Damaged / Wasted {u.cardSubtext} (-)</option>
+                      <option value="recount">Physical Audit Recount (Set exact remaining)</option>
+                      <option value="correction">Manual Count Correction (-)</option>
+                    </select>
+                  </div>
 
-            <div>
-              <Label className="text-xs font-bold text-slate-700">Reason / Accountability Note *</Label>
-              <textarea 
-                required
-                rows={3}
-                value={adjustForm.notes} 
-                onChange={e => setAdjustForm({ ...adjustForm, notes: e.target.value })} 
-                placeholder="e.g. Roll damaged due to paper jam in Print Room 1; physical monthly audit found 4.2 rolls remaining." 
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-              />
-            </div>
+                  {/* Mode Selector for Spoilage / Waste */}
+                  {adjustForm.type === 'deduct_waste' && (
+                    <div className="p-1 bg-slate-100 rounded-xl flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setAdjustForm({ ...adjustForm, mode: 'qty' })}
+                        className={cn(
+                          "flex-1 py-1.5 text-xs font-bold rounded-lg transition-all",
+                          adjustForm.mode === 'qty' ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        By {u.plural} Count
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAdjustForm({ ...adjustForm, mode: 'dimensions' })}
+                        className={cn(
+                          "flex-1 py-1.5 text-xs font-bold rounded-lg transition-all",
+                          adjustForm.mode === 'dimensions' ? "bg-white text-indigo-700 shadow-xs" : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        By Wasted Width & Height
+                      </button>
+                    </div>
+                  )}
 
-            <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setIsAdjustOpen(false)} disabled={isSubmitting} className="text-xs">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs">
-                {isSubmitting ? 'Saving...' : 'Record Adjustment'}
-              </Button>
-            </DialogFooter>
-          </form>
+                  {/* Dimension inputs if Mode is Dimensions */}
+                  {adjustForm.type === 'deduct_waste' && adjustForm.mode === 'dimensions' ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs font-bold text-slate-700">Wasted Width (m)</Label>
+                          <input 
+                            required 
+                            type="number" 
+                            step="0.01" 
+                            value={adjustForm.w_m} 
+                            onChange={e => setAdjustForm({ ...adjustForm, w_m: e.target.value })} 
+                            placeholder={String(selectedMaterial?.roll_width || 3.2)} 
+                            className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs font-bold text-slate-700">Wasted Height (m)</Label>
+                          <input 
+                            required 
+                            type="number" 
+                            step="0.01" 
+                            value={adjustForm.h_m} 
+                            onChange={e => setAdjustForm({ ...adjustForm, h_m: e.target.value })} 
+                            placeholder="1.5" 
+                            className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Live Area calculation box */}
+                      <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs space-y-1">
+                        <div className="flex justify-between items-center text-amber-900 font-semibold">
+                          <span>Wasted Surface Area:</span>
+                          <span className="font-bold">{wastedAreaPreview.toFixed(2)} m²</span>
+                        </div>
+                        <div className="flex justify-between items-center text-amber-700">
+                          <span>Auto-calculated deduction:</span>
+                          <span className="font-bold text-amber-900">{equivalentDeduction.toFixed(3)} {u.plural}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">
+                        {adjustForm.type === 'recount' ? `Actual Count of ${u.plural}` : `${u.plural} to Deduct`}
+                      </Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={adjustForm.qty} 
+                        onChange={e => setAdjustForm({ ...adjustForm, qty: e.target.value })} 
+                        placeholder={u.type === 'sheet' ? "1" : "0.5"} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                      <span className="text-[11px] text-slate-400 mt-1 block">
+                        Current record: {Number(selectedMaterial?.qty_rolls || 0).toFixed(2)} {u.plural}
+                      </span>
+                    </div>
+                  )}
+
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700">Reason / Accountability Note *</Label>
+                    <textarea 
+                      required
+                      rows={3}
+                      value={adjustForm.notes} 
+                      onChange={e => setAdjustForm({ ...adjustForm, notes: e.target.value })} 
+                      placeholder={u.type === 'sheet' 
+                        ? "e.g. Sheet cracked during transport to cutting room; audit recount found 8 sheets remaining."
+                        : "e.g. Roll damaged due to paper jam in Print Room 1; physical monthly audit found 4.2 rolls remaining."
+                      } 
+                      className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                    />
+                  </div>
+
+                  <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
+                    <Button type="button" variant="outline" onClick={() => setIsAdjustOpen(false)} disabled={isSubmitting} className="text-xs">
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting} className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs">
+                      {isSubmitting ? 'Saving...' : 'Record Adjustment'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -1594,69 +1826,101 @@ export function InventoryManager({
       {/* ============================================================ */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <Edit3 className="w-5 h-5 text-indigo-600" /> Edit Material Specifications
-            </DialogTitle>
-          </DialogHeader>
+          {(() => {
+            const u = getUnitLabels(editForm.unit)
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <Edit3 className="w-5 h-5 text-indigo-600" /> Edit Material Specifications
+                  </DialogTitle>
+                </DialogHeader>
 
-          <form onSubmit={handleUpdate} className="space-y-4 mt-2">
-            <div>
-              <Label className="text-xs font-bold text-slate-700">Material Name</Label>
-              <input 
-                required 
-                value={editForm.name} 
-                onChange={e => setEditForm({ ...editForm, name: e.target.value })} 
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-              />
-            </div>
+                <form onSubmit={handleUpdate} className="space-y-4 mt-2">
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700">Substrate Form / Unit</Label>
+                    <select
+                      value={editForm.unit}
+                      onChange={e => setEditForm({ ...editForm, unit: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20"
+                    >
+                      <option value="roll">Roll Media (Flexi, SAV/Vinyl, Banner, Mesh, Canvas)</option>
+                      <option value="sheet">Rigid Sheet / Board (Foam Board, Acrylic, PVC, Coroplast)</option>
+                      <option value="piece">Item / Piece (Stands, Frames, Pre-cut units)</option>
+                    </select>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs font-bold text-slate-700">Roll Width (m)</Label>
-                <input 
-                  required 
-                  type="number" 
-                  step="0.01" 
-                  value={editForm.roll_width} 
-                  onChange={e => setEditForm({ ...editForm, roll_width: e.target.value })} 
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-slate-700">Roll Height (m)</Label>
-                <input 
-                  required 
-                  type="number" 
-                  step="0.01" 
-                  value={editForm.roll_height} 
-                  onChange={e => setEditForm({ ...editForm, roll_height: e.target.value })} 
-                  className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-                />
-              </div>
-            </div>
+                  <div>
+                    <Label className="text-xs font-bold text-slate-700">Material Name</Label>
+                    <input 
+                      required 
+                      value={editForm.name} 
+                      onChange={e => setEditForm({ ...editForm, name: e.target.value })} 
+                      className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                    />
+                  </div>
 
-            <div>
-              <Label className="text-xs font-bold text-slate-700">Standard Cost per Roll (GHS)</Label>
-              <input 
-                required 
-                type="number" 
-                step="0.01" 
-                value={editForm.unit_cost} 
-                onChange={e => setEditForm({ ...editForm, unit_cost: e.target.value })} 
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
-              />
-            </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">{u.dimWidth} (m)</Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={editForm.roll_width} 
+                        onChange={e => setEditForm({ ...editForm, roll_width: e.target.value })} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">{u.dimHeight} (m)</Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={editForm.roll_height} 
+                        onChange={e => setEditForm({ ...editForm, roll_height: e.target.value })} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                  </div>
 
-            <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
-              <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={isSubmitting} className="text-xs">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs">
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </DialogFooter>
-          </form>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">Warehouse Stock ({u.plural})</Label>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        value={editForm.qty_rolls} 
+                        onChange={e => setEditForm({ ...editForm, qty_rolls: e.target.value })} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs font-bold text-slate-700">Cost per {u.singular} (GHS)</Label>
+                      <input 
+                        required 
+                        type="number" 
+                        step="0.01" 
+                        value={editForm.unit_cost} 
+                        onChange={e => setEditForm({ ...editForm, unit_cost: e.target.value })} 
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
+                      />
+                    </div>
+                  </div>
+
+                  <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
+                    <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} disabled={isSubmitting} className="text-xs">
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs">
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -1665,29 +1929,40 @@ export function InventoryManager({
       {/* ============================================================ */}
       <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-rose-600 flex items-center gap-2">
-              <Trash2 className="w-5 h-5" /> Remove Material Roll
-            </DialogTitle>
-          </DialogHeader>
+          {(() => {
+            const u = getUnitLabels(selectedMaterial?.unit)
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold text-rose-600 flex items-center gap-2">
+                    <Trash2 className="w-5 h-5" /> Remove Material from Inventory
+                  </DialogTitle>
+                </DialogHeader>
 
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-slate-700">
-              Are you sure you want to remove <strong>{selectedMaterial?.name}</strong> from the warehouse inventory?
-            </p>
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
-              Warning: This will remove the material and unlink any product catalog items that deduct from this roll.
-            </div>
-          </div>
+                <div className="space-y-3 py-2">
+                  <p className="text-sm text-slate-700">
+                    Are you sure you want to remove <strong>{selectedMaterial?.name}</strong> from warehouse inventory?
+                  </p>
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 space-y-1">
+                    <div><strong>Substrate:</strong> {u.cardSubtext} ({selectedMaterial?.roll_width}m × {(selectedMaterial?.roll_height ?? selectedMaterial?.roll_length)}m)</div>
+                    <div><strong>Current Stock:</strong> {Number(selectedMaterial?.qty_rolls || 0).toFixed(2)} {u.plural}</div>
+                  </div>
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+                    Warning: This will permanently remove the material from inventory and safely unlink any products associated with it.
+                  </div>
+                </div>
 
-          <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
-            <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} disabled={isSubmitting} className="text-xs">
-              Cancel
-            </Button>
-            <Button type="button" onClick={handleDelete} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs">
-              {isSubmitting ? 'Removing...' : 'Delete Material'}
-            </Button>
-          </DialogFooter>
+                <DialogFooter className="mt-4 pt-3 border-t border-slate-100">
+                  <Button type="button" variant="outline" onClick={() => setIsDeleteOpen(false)} disabled={isSubmitting} className="text-xs">
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={handleDelete} disabled={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs">
+                    {isSubmitting ? 'Removing...' : 'Delete Material'}
+                  </Button>
+                </DialogFooter>
+              </>
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>

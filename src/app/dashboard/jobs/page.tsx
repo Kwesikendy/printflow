@@ -7,10 +7,11 @@ import { JobsListClient } from '@/components/jobs/JobsListClient'
 import { getWorkdayBounds } from '@/lib/workday'
 
 export default async function JobsPage(props: {
-  searchParams: Promise<{ q?: string; page?: string }>
+  searchParams: Promise<{ q?: string; page?: string; status?: string }>
 }) {
   const searchParams = await props.searchParams
   const query = searchParams.q || ''
+  const status = searchParams.status || 'all'
   const page = parseInt(searchParams.page || '1', 10)
   const pageSize = 50
   
@@ -24,6 +25,22 @@ export default async function JobsPage(props: {
 
   if (query) {
     supaQuery = supaQuery.or(`job_number.ilike.%${query}%,customer_name.ilike.%${query}%`)
+  }
+
+  if (status && status !== 'all') {
+    if (status === 'in_production') {
+      supaQuery = supaQuery.in('status', ['in_production', 'ready_to_print', 'printing', 'preflight'])
+    } else if (status === 'completed') {
+      supaQuery = supaQuery.eq('status', 'completed')
+    } else if (status === 'picked_up') {
+      supaQuery = supaQuery.in('status', ['picked_up', 'ready_for_pickup'])
+    } else if (status === 'awaiting_payment') {
+      supaQuery = supaQuery.in('status', ['awaiting_payment', 'pending_review'])
+    } else if (status === 'cancelled') {
+      supaQuery = supaQuery.eq('status', 'cancelled')
+    } else {
+      supaQuery = supaQuery.eq('status', status)
+    }
   }
 
   const { data: jobs, count, error } = await supaQuery
@@ -64,6 +81,7 @@ export default async function JobsPage(props: {
       <JobsListClient 
         initialJobs={jobs || []} 
         initialQuery={query} 
+        initialStatus={status}
         lastResetTime={lastResetTime} 
         currentPage={page}
         totalPages={totalPages}

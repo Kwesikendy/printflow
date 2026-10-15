@@ -126,17 +126,23 @@ export async function updateMaterialAction(materialId: string, payload: any) {
   const width = parseFloat(payload.roll_width)
   const height = parseFloat(payload.roll_height ?? payload.roll_length)
   const cost = parseFloat(payload.unit_cost)
+  const qty = payload.qty_rolls !== undefined ? parseFloat(payload.qty_rolls) : undefined
 
-  if (isNaN(width) || width <= 0) return { error: 'Valid roll width is required' }
-  if (isNaN(height) || height <= 0) return { error: 'Valid roll height is required' }
+  if (isNaN(width) || width <= 0) return { error: 'Valid width is required' }
+  if (isNaN(height) || height <= 0) return { error: 'Valid height is required' }
 
   const serviceSupabase = createServiceClient()
   const updateData: any = {
     name: payload.name.trim(),
+    unit: payload.unit || 'roll',
     roll_width: width,
     roll_length: height,
     unit_cost: isNaN(cost) ? 0 : cost,
     updated_at: new Date().toISOString()
+  }
+
+  if (qty !== undefined && !isNaN(qty) && qty >= 0) {
+    updateData.qty_rolls = qty
   }
 
   let { error } = await (serviceSupabase as any).from('materials').update({
@@ -158,20 +164,23 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
   const { error: permError, profile } = await checkInventoryPermission()
   if (permError || !profile) return { error: permError }
 
-  if (isNaN(qtyToAdd) || qtyToAdd <= 0) return { error: 'Quantity of rolls must be greater than 0' }
-  if (isNaN(costPerRoll) || costPerRoll < 0) return { error: 'Cost per roll must be 0 or positive' }
+  if (isNaN(qtyToAdd) || qtyToAdd <= 0) return { error: 'Quantity must be greater than 0' }
+  if (isNaN(costPerRoll) || costPerRoll < 0) return { error: 'Unit cost must be 0 or positive' }
 
   const serviceSupabase = createServiceClient()
 
   // Get current material
   const { data: materialData, error: fetchErr } = await (serviceSupabase as any)
     .from('materials')
-    .select('qty_rolls, unit_cost, roll_width, roll_length, name')
+    .select('qty_rolls, unit_cost, roll_width, roll_length, roll_height, unit, name')
     .eq('id', materialId)
     .single()
   
   const material = materialData as any
   if (fetchErr || !material) return { error: 'Material not found' }
+
+  const unitLabel = material.unit === 'sheet' ? 'sheets' : material.unit === 'piece' ? 'pieces' : 'rolls'
+  const unitSingular = material.unit === 'sheet' ? 'sheet' : material.unit === 'piece' ? 'piece' : 'roll'
 
   const currentQty = parseFloat(material.qty_rolls || 0)
   const currentCost = parseFloat(material.unit_cost || 0)
@@ -203,8 +212,8 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
     qty_change_rolls: qtyToAdd,
     qty_change_area: addedArea,
     notes: notes?.trim() 
-      ? `Added ${qtyToAdd} rolls @ ${costPerRoll.toFixed(2)} GHS/roll - ${notes.trim()}`
-      : `Restocked: +${qtyToAdd} rolls @ ${costPerRoll.toFixed(2)} GHS/roll`
+      ? `Added ${qtyToAdd} ${unitLabel} @ ${costPerRoll.toFixed(2)} GHS/${unitSingular} - ${notes.trim()}`
+      : `Restocked: +${qtyToAdd} ${unitLabel} @ ${costPerRoll.toFixed(2)} GHS/${unitSingular}`
   })
 
   revalidatePath('/dashboard/admin/inventory')
@@ -215,36 +224,48 @@ export async function adjustStockAction(
   materialId: string, 
   adjustmentType: 'deduct_waste' | 'recount' | 'correction', 
   rollsQty: number, 
-  reasonNotes: string
+  reasonNotes: string,
+  dimensions?: { width: number; height: number }
 ) {
   const { error: permError, profile } = await checkInventoryPermission()
   if (permError || !profile) return { error: permError }
-
-  if (isNaN(rollsQty) || rollsQty <= 0) return { error: 'Invalid quantity' }
-  if (!reasonNotes || !reasonNotes.trim()) return { error: 'Please provide a reason or note for this adjustment' }
 
   const serviceSupabase = createServiceClient()
 
   const { data: materialData, error: fetchErr } = await (serviceSupabase as any)
     .from('materials')
-    .select('qty_rolls, roll_width, roll_length, name')
+    .select('qty_rolls, roll_width, roll_length, roll_height, unit, name')
     .eq('id', materialId)
     .single()
 
   const material = materialData as any
   if (fetchErr || !material) return { error: 'Material not found' }
 
+  const unitArea = (parseFloat(material.roll_width) || 1) * (parseFloat(material.roll_height || material.roll_length) || 1)
+
+  // If dimensions provided, calculate quantity based on wasted area
+  let effectiveQty = rollsQty
+  let noteSuffix = ''
+  if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+    const wasteArea = dimensions.width * dimensions.height
+    effectiveQty = wasteArea / (unitArea > 0 ? unitArea : 1)
+    noteSuffix = ` [Waste: ${dimensions.width}m × ${dimensions.height}m = ${wasteArea.toFixed(2)} m²]`
+  }
+
+  if (isNaN(effectiveQty) || effectiveQty <= 0) return { error: 'Invalid quantity or dimensions' }
+  if (!reasonNotes || !reasonNotes.trim()) return { error: 'Please provide a reason or note for this adjustment' }
+
   const currentQty = parseFloat(material.qty_rolls || 0)
   let newQty = currentQty
   let changeRolls = 0
 
   if (adjustmentType === 'deduct_waste' || adjustmentType === 'correction') {
-    newQty = Math.max(0, currentQty - rollsQty)
-    changeRolls = -rollsQty
+    newQty = Math.max(0, currentQty - effectiveQty)
+    changeRolls = -effectiveQty
   } else if (adjustmentType === 'recount') {
-    // Physical inventory audit recount: rollsQty is the new actual count
-    changeRolls = rollsQty - currentQty
-    newQty = rollsQty
+    // Physical inventory audit recount: effectiveQty is the new actual count
+    changeRolls = effectiveQty - currentQty
+    newQty = effectiveQty
   }
 
   const { error: updateErr } = await (serviceSupabase as any).from('materials').update({
@@ -254,8 +275,7 @@ export async function adjustStockAction(
 
   if (updateErr) return { error: updateErr.message }
 
-  const rollArea = (parseFloat(material.roll_width) || 0) * (parseFloat(material.roll_height || material.roll_length) || 0)
-  const changeArea = changeRolls * rollArea
+  const changeArea = changeRolls * unitArea
 
   await (serviceSupabase as any).from('inventory_logs').insert({
     tenant_id: profile.tenant_id,
@@ -263,7 +283,7 @@ export async function adjustStockAction(
     action: adjustmentType,
     qty_change_rolls: changeRolls,
     qty_change_area: changeArea,
-    notes: reasonNotes.trim()
+    notes: `${reasonNotes.trim()}${noteSuffix}`
   })
 
   revalidatePath('/dashboard/admin/inventory')
