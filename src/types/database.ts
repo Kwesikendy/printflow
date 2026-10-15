@@ -14,6 +14,7 @@ export type PaymentMethod = 'momo' | 'cash' | 'other'
 export type JobSource = 'walk_in' | 'marketing'
 export type PrintRoom = 'room_1' | 'room_2'
 export type InvoiceStatus = 'unpaid' | 'partial' | 'paid'
+export type DiscountType = 'none' | 'percentage' | 'fixed'
 export type AreaUnit = 'cm2' | 'm2' | 'in2'
 export type DimensionUnit = 'cm' | 'm' | 'ft' | 'in'
 export type DeliveryMethod = 'pickup' | 'delivery'
@@ -147,12 +148,36 @@ export interface Invoice {
   group_id: string | null
   invoice_number: string
   total: number
+  subtotal?: number
+  discount_type?: DiscountType
+  discount_value?: number
+  discount_amount?: number
+  discount_reason?: string | null
+  is_flagged?: boolean
+  flag_reason?: string | null
+  flagged_at?: string | null
+  flagged_by?: string | null
   status: InvoiceStatus
   issued_at: string
   // Joined
   jobs?: Job
   job_group?: JobGroup
   payments?: Payment[]
+}
+
+export interface Expenditure {
+  id: string
+  tenant_id: string
+  category: string
+  description: string
+  amount: number
+  vendor: string | null
+  reference: string | null
+  notes: string | null
+  spent_at: string
+  recorded_by: string
+  created_at: string
+  profiles?: Pick<Profile, 'full_name'> | null
 }
 
 export interface Payment {
@@ -208,6 +233,7 @@ export type Database = {
       jobs: { Row: Job; Insert: Omit<Job, 'id' | 'created_at' | 'updated_at'>; Update: Partial<Job> }
       customers: { Row: Customer; Insert: Omit<Customer, 'id' | 'created_at'>; Update: Partial<Customer> }
       invoices: { Row: Invoice; Insert: Omit<Invoice, 'id' | 'issued_at'>; Update: Partial<Invoice> }
+      expenditures: { Row: Expenditure; Insert: Omit<Expenditure, 'id' | 'created_at'>; Update: Partial<Expenditure> }
       payments: { Row: Payment; Insert: Omit<Payment, 'id' | 'recorded_at'>; Update: Partial<Payment> }
       job_status_events: { Row: JobStatusEvent; Insert: Omit<JobStatusEvent, 'id' | 'created_at'>; Update: never }
     }

@@ -50,6 +50,12 @@ export interface JobItem {
   printRoom?: PrintRoom | null
 }
 
+export interface JobDiscount {
+  type: 'percentage' | 'fixed'
+  value: number
+  reason?: string | null
+}
+
 // Convert any dimension unit to cm before storing
 function toCm(value: number, unit: DimensionUnit): number {
   switch (unit) {
@@ -57,6 +63,21 @@ function toCm(value: number, unit: DimensionUnit): number {
     case 'm':  return value * 100
     case 'ft': return value * 30.48
     case 'in': return value * 2.54
+  }
+}
+
+function applyInvoiceDiscount(subtotal: number, invoice: any) {
+  const type = invoice?.discount_type
+  const value = Number(invoice?.discount_value || 0)
+  const amount = type === 'percentage'
+    ? Math.min(subtotal, Math.max(0, subtotal * Math.min(100, value) / 100))
+    : type === 'fixed'
+      ? Math.min(subtotal, Math.max(0, value))
+      : 0
+  return {
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount_amount: Math.round(amount * 100) / 100,
+    total: Math.round((subtotal - amount) * 100) / 100,
   }
 }
 
@@ -142,7 +163,8 @@ export async function createJobGroupAction(
   items: JobItem[],
   deliveryMethod: DeliveryMethod = 'pickup',
   deliveryAddress?: string | null,
-  deliveryPhone?: string | null
+  deliveryPhone?: string | null,
+  discount?: JobDiscount
 ): Promise<ActionResponse> {
   try {
     const supabase = await createClient()
@@ -290,6 +312,16 @@ export async function createJobGroupAction(
       }
     })
 
+    const subtotal = Math.round(grandTotal * 100) / 100
+    const discountType = discount?.type === 'percentage' || discount?.type === 'fixed'
+      ? discount.type
+      : 'none'
+    const requestedDiscount = Number(discount?.value || 0)
+    const discountAmount = discountType === 'percentage'
+      ? Math.min(subtotal, Math.max(0, subtotal * Math.min(100, Math.max(0, requestedDiscount)) / 100))
+      : Math.min(subtotal, Math.max(0, requestedDiscount))
+    const finalTotal = Math.round((subtotal - discountAmount) * 100) / 100
+
     // 3. Assign collision-free date-based job numbers with automatic retry
     let insertedJobs: any[] = []
     let jobInsertAttempts = 0
@@ -381,18 +413,41 @@ export async function createJobGroupAction(
       invAttempts++
       const invoiceNumber = await generateDateInvoiceNumber(serviceSupabase, profile.tenant_id)
 
-      const { data: invData, error: invError } = await serviceSupabase
+      let { data: invData, error: invError } = await serviceSupabase
         .from('invoices')
         .insert({
           tenant_id: profile.tenant_id,
           job_id: insertedJobs.length === 1 ? insertedJobs[0].id : null,
           invoice_number: invoiceNumber,
-          total: Math.round(grandTotal),
+          subtotal,
+          total: finalTotal,
+          discount_type: discountType,
+          discount_value: discountType === 'none' ? 0 : requestedDiscount,
+          discount_amount: Math.round(discountAmount * 100) / 100,
+          discount_reason: discount?.reason?.trim() || null,
           status: 'unpaid',
           group_id: groupId,
         })
         .select('id, invoice_number')
         .single()
+
+      // If database has not run migration 017 yet, fallback to base invoice schema with finalTotal
+      if (invError && (invError.message?.includes('subtotal') || invError.message?.includes('discount') || invError.code === 'PGRST204' || invError.message?.includes('schema cache'))) {
+        const fallback = await serviceSupabase
+          .from('invoices')
+          .insert({
+            tenant_id: profile.tenant_id,
+            job_id: insertedJobs.length === 1 ? insertedJobs[0].id : null,
+            invoice_number: invoiceNumber,
+            total: finalTotal,
+            status: 'unpaid',
+            group_id: groupId,
+          })
+          .select('id, invoice_number')
+          .single()
+        invData = fallback.data
+        invError = fallback.error
+      }
 
       if (!invError && invData) {
         invoiceRecord = invData
@@ -437,6 +492,9 @@ export async function createJobGroupAction(
         invoice_id: invoiceRecord.id,
         invoice_number: invoiceRecord.invoice_number,
         grand_total: grandTotal,
+        subtotal,
+        discount_amount: Math.round(discountAmount * 100) / 100,
+        final_total: finalTotal,
         jobs: insertedJobs.map(j => ({
           job_id: j.id,
           job_number: j.job_number,
@@ -695,7 +753,8 @@ export async function transitionJobStatusAction(
           const h_cm = toCm(job.height, job.dimension_unit)
           const area_m2 = (w_cm / 100) * (h_cm / 100) * job.quantity
           
-          const roll_area = material.roll_width * material.roll_length
+          const roll_height = material.roll_height || material.roll_length || 0
+          const roll_area = material.roll_width * roll_height
           const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
   
           if (rolls_deducted > 0) {
@@ -841,18 +900,39 @@ export async function createInvoiceForJobAction(jobId: string): Promise<ActionRe
     while (attempts < 5) {
       attempts++
       const invNumber = await generateDateInvoiceNumber(serviceSupabase, job.tenant_id)
-      const { data: invData, error: insertError } = await serviceSupabase
+      let { data: invData, error: insertError } = await serviceSupabase
         .from('invoices')
         .insert({
           tenant_id: job.tenant_id,
           job_id: jobId,
           invoice_number: invNumber,
-          total: Math.round(job.line_total),
+          subtotal: Math.round(Number(job.line_total) * 100) / 100,
+          total: Math.round(Number(job.line_total) * 100) / 100,
+          discount_type: 'none',
+          discount_value: 0,
+          discount_amount: 0,
           status: 'unpaid',
           group_id: job.group_id || null,
         })
         .select('id, invoice_number')
         .single()
+
+      if (insertError && (insertError.message?.includes('subtotal') || insertError.message?.includes('discount') || insertError.message?.includes('schema cache'))) {
+        const fallback = await serviceSupabase
+          .from('invoices')
+          .insert({
+            tenant_id: job.tenant_id,
+            job_id: jobId,
+            invoice_number: invNumber,
+            total: Math.round(Number(job.line_total)),
+            status: 'unpaid',
+            group_id: job.group_id || null,
+          })
+          .select('id, invoice_number')
+          .single()
+        invData = fallback.data
+        insertError = fallback.error
+      }
 
       if (!insertError && invData) {
         invoiceRecord = invData

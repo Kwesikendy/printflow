@@ -97,6 +97,12 @@ export default async function InvoicePrintPage(props: {
     <div className="invoice-sheet max-w-4xl mx-auto p-8 font-sans text-black bg-white min-h-[900px] print:min-h-0 print:h-auto flex flex-col">
       <AutoPrint title={docTitle} />
 
+      {invoice.is_flagged && (
+        <div className="mb-4 rounded-xl border-2 border-dashed border-rose-500 bg-rose-50 p-3 text-center text-xs font-bold uppercase tracking-wider text-rose-700 print:border-rose-400">
+          ⚠️ Flagged Invoice for Review — Reason: {invoice.flag_reason || 'Incorrect entry'}
+        </div>
+      )}
+
       {/* Set the page title for PDF filename & suppress browser header/footer */}
       <title>{docTitle}</title>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -202,9 +208,15 @@ export default async function InvoicePrintPage(props: {
 
       <div className="flex flex-col items-end mb-6 text-sm">
         <div className="w-72 space-y-1.5 text-right font-bold text-black">
+          {Number(invoice.discount_amount || 0) > 0 && (
+            <div className="flex justify-between">
+              <span className="text-black font-bold">Subtotal</span>
+              <span className="text-black font-bold">GHS {Number(invoice.subtotal ?? (Number(invoice.total) + Number(invoice.discount_amount))).toFixed(2)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-black font-bold">Discount</span>
-            <span className="text-black font-bold">0.00</span>
+            <span className="text-black font-bold">- GHS {Number(invoice.discount_amount || 0).toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-black font-bold">Net Total</span>

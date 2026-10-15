@@ -48,7 +48,8 @@ interface Material {
   name: string
   unit: string
   roll_width: number
-  roll_length: number
+  roll_length?: number
+  roll_height?: number
   qty_rolls: number
   unit_cost: number
   created_at: string
@@ -68,7 +69,8 @@ interface InventoryLog {
   materials?: {
     name: string
     roll_width: number
-    roll_length: number
+    roll_length?: number
+    roll_height?: number
   } | null
   jobs?: {
     job_number: string
@@ -126,14 +128,14 @@ export function InventoryManager({
   const [addForm, setAddForm] = useState({ 
     name: '', 
     roll_width: '3.2', 
-    roll_length: '50', 
+    roll_height: '50', 
     unit_cost: '1200', 
     qty_rolls: '1' 
   })
   const [editForm, setEditForm] = useState({ 
     name: '', 
     roll_width: '', 
-    roll_length: '', 
+    roll_height: '', 
     unit_cost: '' 
   })
   const [stockForm, setStockForm] = useState({ qty: '5', cost: '', notes: '' })
@@ -158,7 +160,7 @@ export function InventoryManager({
     materials.forEach(m => {
       const rolls = Number(m.qty_rolls) || 0
       const width = Number(m.roll_width) || 0
-      const length = Number(m.roll_length) || 0
+      const length = Number(m.roll_height ?? m.roll_length) || 0
       const cost = Number(m.unit_cost) || 0
 
       totalRolls += rolls
@@ -191,7 +193,7 @@ export function InventoryManager({
       const matchesSearch = !q || 
         m.name.toLowerCase().includes(q) ||
         `${m.roll_width}`.includes(q) ||
-        `${m.roll_length}`.includes(q)
+        `${m.roll_height ?? m.roll_length ?? ''}`.includes(q)
 
       if (!matchesSearch) return false
 
@@ -240,7 +242,7 @@ export function InventoryManager({
       } else {
         toast.success(`Material "${addForm.name}" created successfully`)
         setIsAddOpen(false)
-        setAddForm({ name: '', roll_width: '3.2', roll_length: '50', unit_cost: '1200', qty_rolls: '1' })
+        setAddForm({ name: '', roll_width: '3.2', roll_height: '50', unit_cost: '1200', qty_rolls: '1' })
         // Append newly created material optimistically
         if (res.data) {
           setMaterials(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)))
@@ -258,7 +260,7 @@ export function InventoryManager({
     setEditForm({
       name: m.name,
       roll_width: String(m.roll_width),
-      roll_length: String(m.roll_length),
+      roll_height: String(m.roll_height ?? m.roll_length ?? ''),
       unit_cost: String(m.unit_cost)
     })
     setIsEditOpen(true)
@@ -278,7 +280,7 @@ export function InventoryManager({
           ...m,
           name: editForm.name.trim(),
           roll_width: parseFloat(editForm.roll_width),
-          roll_length: parseFloat(editForm.roll_length),
+          roll_height: parseFloat(editForm.roll_height),
           unit_cost: parseFloat(editForm.unit_cost),
           updated_at: new Date().toISOString()
         } : m))
@@ -431,15 +433,15 @@ export function InventoryManager({
 
   // CSV Export for Accountant / Admin reporting
   const handleExportCSV = () => {
-    const headers = ['Material Name', 'Roll Width (m)', 'Roll Length (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)']
+    const headers = ['Material Name', 'Roll Width (m)', 'Roll Height (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)']
     const rows = materials.map(m => {
-      const rollArea = m.roll_width * m.roll_length
+      const rollArea = m.roll_width * (m.roll_height ?? m.roll_length ?? 0)
       const totalArea = rollArea * m.qty_rolls
       const totalVal = m.qty_rolls * m.unit_cost
       return [
         `"${m.name}"`,
         m.roll_width,
-        m.roll_length,
+        m.roll_height ?? m.roll_length,
         rollArea.toFixed(2),
         m.qty_rolls.toFixed(2),
         totalArea.toFixed(2),
@@ -805,7 +807,7 @@ export function InventoryManager({
               {filteredMaterials.map(m => {
                 const rolls = Number(m.qty_rolls) || 0
                 const width = Number(m.roll_width) || 0
-                const length = Number(m.roll_length) || 0
+                const length = Number(m.roll_height ?? m.roll_length) || 0
                 const cost = Number(m.unit_cost) || 0
 
                 const rollArea = width * length
@@ -844,7 +846,7 @@ export function InventoryManager({
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 font-medium">
                             <Ruler className="w-3.5 h-3.5 text-slate-400" />
-                            {m.roll_width}m × {m.roll_length}m Roll ({rollArea.toFixed(1)} m²/roll)
+                            {m.roll_width}m × {m.roll_height ?? m.roll_length}m Roll ({rollArea.toFixed(1)} m²/roll)
                           </p>
                         </div>
 
@@ -1002,7 +1004,7 @@ export function InventoryManager({
                     {filteredMaterials.map(m => {
                       const rolls = Number(m.qty_rolls) || 0
                       const width = Number(m.roll_width) || 0
-                      const length = Number(m.roll_length) || 0
+                      const length = Number(m.roll_height ?? m.roll_length) || 0
                       const cost = Number(m.unit_cost) || 0
 
                       const rollArea = width * length
@@ -1018,7 +1020,7 @@ export function InventoryManager({
                             {m.name}
                           </td>
                           <td className="py-3.5 px-4 text-slate-600">
-                            {m.roll_width}m × {m.roll_length}m <span className="text-slate-400">({rollArea.toFixed(1)} m²)</span>
+                            {m.roll_width}m × {m.roll_height ?? m.roll_length}m <span className="text-slate-400">({rollArea.toFixed(1)} m²)</span>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={cn(
@@ -1315,7 +1317,7 @@ export function InventoryManager({
                             <option value="">— No Material Linked (Manual) —</option>
                             {materials.map(m => (
                               <option key={m.id} value={m.id}>
-                                {m.name} ({m.roll_width}m × {m.roll_length}m • {Number(m.qty_rolls).toFixed(1)} rolls left)
+                                {m.name} ({m.roll_width}m × {m.roll_height ?? m.roll_length}m • {Number(m.qty_rolls).toFixed(1)} rolls left)
                               </option>
                             ))}
                           </select>
@@ -1378,13 +1380,13 @@ export function InventoryManager({
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Roll Length (meters)</Label>
+                  <Label className="text-xs font-bold text-slate-700">Roll Height (meters)</Label>
                 <input 
                   required 
                   type="number" 
                   step="0.01" 
-                  value={addForm.roll_length} 
-                  onChange={e => setAddForm({ ...addForm, roll_length: e.target.value })} 
+                  value={addForm.roll_height} 
+                  onChange={e => setAddForm({ ...addForm, roll_height: e.target.value })} 
                   placeholder="50" 
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
                 />
@@ -1395,7 +1397,7 @@ export function InventoryManager({
             <div className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl flex items-center justify-between text-xs">
               <span className="text-slate-500 font-medium">Single Roll Media Area:</span>
               <strong className="text-indigo-700 font-bold">
-                {((parseFloat(addForm.roll_width) || 0) * (parseFloat(addForm.roll_length) || 0)).toFixed(2)} m²
+                {((parseFloat(addForm.roll_width) || 0) * (parseFloat(addForm.roll_height) || 0)).toFixed(2)} m²
               </strong>
             </div>
 
@@ -1622,13 +1624,13 @@ export function InventoryManager({
                 />
               </div>
               <div>
-                <Label className="text-xs font-bold text-slate-700">Roll Length (m)</Label>
+                <Label className="text-xs font-bold text-slate-700">Roll Height (m)</Label>
                 <input 
                   required 
                   type="number" 
                   step="0.01" 
-                  value={editForm.roll_length} 
-                  onChange={e => setEditForm({ ...editForm, roll_length: e.target.value })} 
+                  value={editForm.roll_height} 
+                  onChange={e => setEditForm({ ...editForm, roll_height: e.target.value })} 
                   className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20" 
                 />
               </div>

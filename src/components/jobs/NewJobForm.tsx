@@ -646,6 +646,9 @@ export function NewJobForm({
   const [customerPhone, setCustomerPhone] = useState('')
   const [source, setSource] = useState<JobSource>('walk_in')
   const [items, setItems] = useState<LineItemState[]>([createLineItem(productTypes)])
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage')
+  const [discountValue, setDiscountValue] = useState('')
+  const [discountReason, setDiscountReason] = useState('')
 
   const updateItem = useCallback((id: string, updates: Partial<LineItemState>) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
@@ -663,7 +666,7 @@ export function NewJobForm({
     setSource(s.source as JobSource)
   }
 
-  const grandTotal = useMemo(() => {
+  const subtotal = useMemo(() => {
     const rawTotal = items.reduce((sum, item) => {
       const finalWidth = item.useStandardSize && item.standardSizeId
         ? (standardSizes.find(s => s.id === item.standardSizeId)?.width || 0)
@@ -679,8 +682,17 @@ export function NewJobForm({
       const lineTotal = calculateLineTotal(area, parseFloat(item.manualUnitCost) || 0, parseInt(item.quantity) || 1)
       return sum + lineTotal
     }, 0)
-    return Math.round(rawTotal)
+    return Math.round(rawTotal * 100) / 100
   }, [items, standardSizes])
+
+  const discountAmount = useMemo(() => {
+    const value = Number(discountValue)
+    if (!Number.isFinite(value) || value <= 0) return 0
+    if (discountType === 'percentage') return Math.min(subtotal, subtotal * Math.min(100, value) / 100)
+    return Math.min(subtotal, value)
+  }, [discountType, discountValue, subtotal])
+
+  const grandTotal = Math.round((subtotal - discountAmount) * 100) / 100
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -774,7 +786,15 @@ export function NewJobForm({
           customerName,
           customerPhone || null,
           source,
-          jobItems
+          jobItems,
+          'pickup',
+          null,
+          null,
+          discountAmount > 0 ? {
+            type: discountType,
+            value: Number(discountValue),
+            reason: discountReason.trim() || null,
+          } : undefined
         )
         if (res.error) {
           toast.error(res.error)
@@ -912,9 +932,55 @@ export function NewJobForm({
                 })}
               </div>
 
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 mb-4 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-amber-800">Apply discount</p>
+                    <p className="text-[11px] text-amber-700/80 mt-0.5">Optional adjustment recorded on the invoice.</p>
+                  </div>
+                  <select
+                    aria-label="Discount type"
+                    value={discountType}
+                    onChange={e => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                    className="rounded-lg border border-amber-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  >
+                    <option value="percentage">Percent</option>
+                    <option value="fixed">Fixed amount</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max={discountType === 'percentage' ? 100 : undefined}
+                    step="0.01"
+                    value={discountValue}
+                    onChange={e => setDiscountValue(e.target.value)}
+                    placeholder="0"
+                    aria-label={discountType === 'percentage' ? 'Discount percentage' : 'Discount amount'}
+                    className="min-w-0 flex-1 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <span className="text-xs font-bold text-amber-800">{discountType === 'percentage' ? '%' : 'GHS'}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <input
+                    type="text"
+                    value={discountReason}
+                    onChange={e => setDiscountReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    aria-label="Discount reason"
+                    className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                )}
+              </div>
+
               <div className="pt-4 bg-slate-50/80 p-5 rounded-2xl border border-slate-200/60 shadow-inner mb-6 relative overflow-hidden">
-                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">
-                  Grand Total ({items.length} item{items.length > 1 ? 's' : ''})
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatCurrency(subtotal)}</span></div>
+                  {discountAmount > 0 && <div className="flex justify-between font-semibold text-amber-700"><span>Discount</span><span>-{formatCurrency(discountAmount)}</span></div>}
+                </div>
+                <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-4">
+                  Total ({items.length} item{items.length > 1 ? 's' : ''})
                 </div>
                 <AnimatedNumber value={grandTotal} />
               </div>

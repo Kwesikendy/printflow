@@ -1,7 +1,59 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+
+export async function setInvoiceFlagAction(invoiceId: string, flagged: boolean, reason?: string) {
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('role, tenant_id')
+    .eq('id', user.id)
+    .single()
+
+  const profile = profileData as any
+  if (!profile || !['admin', 'accountant'].includes(profile.role)) {
+    return { error: 'Insufficient permissions' }
+  }
+
+  if (flagged && !reason?.trim()) {
+    return { error: 'Please provide a reason for flagging this invoice.' }
+  }
+
+  const trimmedReason = reason?.trim() || ''
+
+  const serviceSupabase = createServiceClient()
+  const { error } = await (serviceSupabase.from('invoices') as any)
+    .update(flagged ? {
+      is_flagged: true,
+      flag_reason: trimmedReason,
+      flagged_at: new Date().toISOString(),
+      flagged_by: user.id,
+    } : {
+      is_flagged: false,
+      flag_reason: null,
+      flagged_at: null,
+      flagged_by: null,
+    })
+    .eq('id', invoiceId)
+    .eq('tenant_id', profile.tenant_id)
+
+  if (error) {
+    if (error.message?.includes('is_flagged') || error.message?.includes('schema cache')) {
+      return { error: 'Invoice flagging requires migration 017 to be run in your Supabase SQL editor.' }
+    }
+    return { error: error.message }
+  }
+
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/finance/expenditures')
+  revalidatePath('/print/finance-report')
+  return { success: true }
+}
 
 export async function editInvoiceTotalAction(invoiceId: string, newTotal: number, reason: string) {
   const supabase = await createClient()

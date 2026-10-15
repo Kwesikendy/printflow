@@ -71,29 +71,40 @@ export async function createMaterialAction(payload: any) {
   if (permError || !profile) return { error: permError }
 
   const width = parseFloat(payload.roll_width)
-  const length = parseFloat(payload.roll_length)
+  const height = parseFloat(payload.roll_height ?? payload.roll_length)
   const qty = parseFloat(payload.qty_rolls || 0)
   const cost = parseFloat(payload.unit_cost || 0)
 
   if (isNaN(width) || width <= 0) return { error: 'Valid roll width is required' }
-  if (isNaN(length) || length <= 0) return { error: 'Valid roll length is required' }
+  if (isNaN(height) || height <= 0) return { error: 'Valid roll height is required' }
 
   const serviceSupabase = createServiceClient()
-  const { data: newMat, error } = await (serviceSupabase as any).from('materials').insert({
+  const insertData: any = {
     tenant_id: profile.tenant_id,
     name: payload.name.trim(),
     unit: payload.unit || 'roll',
     roll_width: width,
-    roll_length: length,
+    roll_length: height,
     qty_rolls: isNaN(qty) ? 0 : qty,
     unit_cost: isNaN(cost) ? 0 : cost,
+  }
+
+  let { data: newMat, error } = await (serviceSupabase as any).from('materials').insert({
+    ...insertData,
+    roll_height: height,
   }).select().single()
+
+  if (error && (error.message?.includes('roll_height') || error.message?.includes('schema cache'))) {
+    const fallback = await (serviceSupabase as any).from('materials').insert(insertData).select().single()
+    newMat = fallback.data
+    error = fallback.error
+  }
 
   if (error) return { error: error.message }
 
   // If initial quantity > 0, log opening stock
   if (qty > 0 && newMat) {
-    const area = width * length * qty
+    const area = width * height * qty
     await (serviceSupabase as any).from('inventory_logs').insert({
       tenant_id: profile.tenant_id,
       material_id: newMat.id,
@@ -113,20 +124,30 @@ export async function updateMaterialAction(materialId: string, payload: any) {
   if (permError) return { error: permError }
 
   const width = parseFloat(payload.roll_width)
-  const length = parseFloat(payload.roll_length)
+  const height = parseFloat(payload.roll_height ?? payload.roll_length)
   const cost = parseFloat(payload.unit_cost)
 
   if (isNaN(width) || width <= 0) return { error: 'Valid roll width is required' }
-  if (isNaN(length) || length <= 0) return { error: 'Valid roll length is required' }
+  if (isNaN(height) || height <= 0) return { error: 'Valid roll height is required' }
 
   const serviceSupabase = createServiceClient()
-  const { error } = await (serviceSupabase as any).from('materials').update({
+  const updateData: any = {
     name: payload.name.trim(),
     roll_width: width,
-    roll_length: length,
+    roll_length: height,
     unit_cost: isNaN(cost) ? 0 : cost,
     updated_at: new Date().toISOString()
+  }
+
+  let { error } = await (serviceSupabase as any).from('materials').update({
+    ...updateData,
+    roll_height: height,
   }).eq('id', materialId)
+
+  if (error && (error.message?.includes('roll_height') || error.message?.includes('schema cache'))) {
+    const fallback = await (serviceSupabase as any).from('materials').update(updateData).eq('id', materialId)
+    error = fallback.error
+  }
 
   if (error) return { error: error.message }
   revalidatePath('/dashboard/admin/inventory')
@@ -172,7 +193,7 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
 
   if (updateErr) return { error: updateErr.message }
 
-  const addedArea = (parseFloat(material.roll_width) || 0) * (parseFloat(material.roll_length) || 0) * qtyToAdd
+  const addedArea = (parseFloat(material.roll_width) || 0) * (parseFloat(material.roll_height || material.roll_length) || 0) * qtyToAdd
 
   // Log transaction
   await (serviceSupabase as any).from('inventory_logs').insert({
@@ -233,7 +254,7 @@ export async function adjustStockAction(
 
   if (updateErr) return { error: updateErr.message }
 
-  const rollArea = (parseFloat(material.roll_width) || 0) * (parseFloat(material.roll_length) || 0)
+  const rollArea = (parseFloat(material.roll_width) || 0) * (parseFloat(material.roll_height || material.roll_length) || 0)
   const changeArea = changeRolls * rollArea
 
   await (serviceSupabase as any).from('inventory_logs').insert({

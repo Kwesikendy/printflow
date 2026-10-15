@@ -7,7 +7,7 @@ import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
-import { Printer, FileText, CheckCircle2 } from 'lucide-react'
+import { Printer, FileText, CheckCircle2, Flag } from 'lucide-react'
 import Link from 'next/link'
 
 export default async function JobDetailPage(props: {
@@ -204,12 +204,26 @@ export default async function JobDetailPage(props: {
             <CardContent>
               {invoice ? (
                 <div>
+                  {invoice.is_flagged && (
+                    <div className="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-800">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <Flag className="w-3.5 h-3.5 text-rose-600" /> Invoice Flagged for Review
+                      </p>
+                      <p className="mt-1 text-rose-700">{invoice.flag_reason || 'Marked as incorrect or disputed.'}</p>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-center mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Invoice Number</p>
                       <p className="text-sm font-medium text-slate-900">{invoice.invoice_number}</p>
                     </div>
                     <div className="text-right">
+                      {Number(invoice.discount_amount || 0) > 0 && (
+                        <p className="text-xs text-amber-700 font-semibold mb-0.5">
+                          Subtotal: {formatCurrency(invoice.subtotal ?? (Number(invoice.total) + Number(invoice.discount_amount)))} (-{formatCurrency(invoice.discount_amount)})
+                        </p>
+                      )}
                       <p className="text-xs text-slate-500 mb-1">Total Amount</p>
                       <p className="text-xl font-bold text-slate-900">{formatCurrency(invoice.total)}</p>
                     </div>

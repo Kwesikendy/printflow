@@ -11,24 +11,27 @@ import {
 } from 'recharts'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { TrendingUp, AlertCircle, Calendar, Printer, Filter } from 'lucide-react'
+import { TrendingUp, AlertCircle, Calendar, Printer, Filter, Flag, Receipt, ArrowRight } from 'lucide-react'
 import { CustomerSearchSection } from '@/components/finance/CustomerSearchSection'
 import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
 import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
+import { InvoiceFlagButton } from '@/components/finance/InvoiceFlagButton'
 
 interface FinanceDashboardProps {
   payments: any[]
   unpaidInvoices: any[]
+  expenditures?: any[]
 }
 
 const COLORS = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981']
 
-export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardProps) {
+export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }: FinanceDashboardProps) {
   const todayStr = new Date().toISOString().split('T')[0]
   const [filterMode, setFilterMode] = useState<'day' | 'week' | 'month' | 'all'>('day')
   const [selectedDay, setSelectedDay] = useState<string>(todayStr)
   const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; phone?: string | null } | null>(null)
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
+  const [showFlagged, setShowFlagged] = useState(false)
 
   const handleSelectCustomer = (name: string, phone?: string | null) => {
     setSelectedCustomer({ name, phone })
@@ -63,7 +66,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
   }, [payments, filterMode, selectedDay])
 
   // Summary Metrics
-  const filteredInvoices = useMemo(() => {
+  const invoiceCandidates = useMemo(() => {
     return unpaidInvoices.filter(inv => {
       if (inv.jobs?.status === 'cancelled') return false
       // Hide group invoices where every job in the group is cancelled
@@ -89,6 +92,16 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
     })
   }, [unpaidInvoices, filterMode, selectedDay])
 
+  const flaggedInvoiceCount = useMemo(
+    () => invoiceCandidates.filter(inv => inv.is_flagged).length,
+    [invoiceCandidates]
+  )
+
+  const filteredInvoices = useMemo(
+    () => showFlagged ? invoiceCandidates : invoiceCandidates.filter(inv => !inv.is_flagged),
+    [invoiceCandidates, showFlagged]
+  )
+
   const totalRevenue = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   }, [filteredPayments])
@@ -108,6 +121,29 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
       return sum + balance
     }, 0)
   }, [filteredInvoices])
+
+  // Expenditures calculations
+  const filteredExpenditures = useMemo(() => {
+    if (!expenditures || expenditures.length === 0) return []
+    if (filterMode === 'all') return expenditures
+    
+    return expenditures.filter(e => {
+      if (!e.spent_at) return false
+      if (filterMode === 'day') {
+        return e.spent_at.startsWith(selectedDay)
+      }
+      const date = parseISO(e.spent_at)
+      if (filterMode === 'week') return isThisWeek(date)
+      if (filterMode === 'month') return isThisMonth(date)
+      return true
+    })
+  }, [expenditures, filterMode, selectedDay])
+
+  const totalExpenditure = useMemo(() => {
+    return filteredExpenditures.reduce((sum, e) => sum + Number(e.amount || 0), 0)
+  }, [filteredExpenditures])
+
+  const netCashFlow = totalRevenue - totalExpenditure
 
   // Chart Data: Revenue by Source
   const sourceData = useMemo(() => {
@@ -251,6 +287,17 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
           >
             All Time
           </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFlagged(value => !value)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              showFlagged ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+            }`}
+          >
+            <Flag className="w-3.5 h-3.5" />
+            {showFlagged ? 'Showing flagged' : 'Hide flagged'}{flaggedInvoiceCount > 0 ? ` (${flaggedInvoiceCount})` : ''}
+          </button>
         </div>
 
         {/* Print Filtered Report Button */}
@@ -265,8 +312,15 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
         </Link>
       </motion.div>
 
+      {flaggedInvoiceCount > 0 && !showFlagged && (
+        <motion.div variants={itemVariants} className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <Flag className="w-4 h-4 mt-0.5 shrink-0" />
+          <p><strong>{flaggedInvoiceCount} invoice{flaggedInvoiceCount === 1 ? '' : 's'}</strong> marked for review are excluded from this dashboard and printed reports. Use “Showing flagged” to review or restore them.</p>
+        </motion.div>
+      )}
+
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <motion.div variants={itemVariants}>
           <Card className="relative overflow-hidden group h-full">
             <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
@@ -277,10 +331,33 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm border border-indigo-100/50">
                   <TrendingUp className="w-5 h-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Revenue ({dateLabel})</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue ({dateLabel})</p>
               </div>
-              <p className="mt-4 text-4xl font-black text-slate-900 tracking-tight">{formatCurrency(totalRevenue)}</p>
+              <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(totalRevenue)}</p>
               <p className="text-xs text-slate-400 mt-2">{filteredPayments.length} payments recorded</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="relative overflow-hidden group h-full border-rose-100">
+            <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
+              <Receipt className="w-24 h-24 text-rose-900" />
+            </div>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg shadow-sm border border-rose-100/50">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Spend ({dateLabel})</p>
+                </div>
+                <Link href="/dashboard/finance/expenditures" className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-0.5">
+                  Details <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <p className="mt-3 text-3xl font-black text-rose-700 tracking-tight">{formatCurrency(totalExpenditure)}</p>
+              <p className="text-xs text-slate-400 mt-2">{filteredExpenditures.length} expenses recorded</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -292,13 +369,15 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
             </div>
             <CardContent className="p-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg shadow-sm border border-emerald-100/50">
+                <div className={`p-2 rounded-lg shadow-sm border ${netCashFlow >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-rose-50 text-rose-600 border-rose-100/50'}`}>
                   <Calendar className="w-5 h-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Today&apos;s Revenue</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Position ({dateLabel})</p>
               </div>
-              <p className="mt-4 text-4xl font-black text-emerald-600 tracking-tight">{formatCurrency(todayRevenue)}</p>
-              <p className="text-xs text-slate-400 mt-2">Cash & MoMo received today</p>
+              <p className={`mt-3 text-3xl font-black tracking-tight ${netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {formatCurrency(netCashFlow)}
+              </p>
+              <p className="text-xs text-slate-400 mt-2">Revenue minus expenditure</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -313,10 +392,10 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                 <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shadow-sm border border-amber-100/50">
                   <AlertCircle className="w-5 h-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Outstanding Balance</p>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outstanding Balance</p>
               </div>
-              <p className="mt-4 text-4xl font-black text-amber-500 tracking-tight">{formatCurrency(outstandingTotal)}</p>
-              <p className="text-xs text-slate-400 mt-2">Sum of all unpaid balances in this period</p>
+              <p className="mt-3 text-3xl font-black text-amber-500 tracking-tight">{formatCurrency(outstandingTotal)}</p>
+              <p className="text-xs text-slate-400 mt-2">Unpaid balances in period</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -466,6 +545,7 @@ export function FinanceDashboard({ payments, unpaidInvoices }: FinanceDashboardP
                             {balance > 0 ? formatCurrency(balance) : <span className="text-emerald-600">Paid</span>}
                           </td>
                           <td className="text-right pr-4 flex items-center justify-end gap-1">
+                            <InvoiceFlagButton invoice={inv} />
                             <EditInvoiceModal invoice={inv} />
                             {balance > 0 && (
                               <Link href={payUrl}>

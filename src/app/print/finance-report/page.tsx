@@ -51,12 +51,14 @@ export default async function PrintFinanceReportPage(props: {
       .limit(300)
   ])
 
+  const reportInvoices = (unpaidInvoices || []).filter((invoice: any) => !invoice.is_flagged)
+
   return (
     <FinanceReportPrint
       tenantName={tenant.name}
       logoUrl={tenant.logo_url}
       payments={payments || []}
-      unpaidInvoices={unpaidInvoices || []}
+      unpaidInvoices={reportInvoices}
       initialMode={modeParam}
       initialDay={dayParam}
     />

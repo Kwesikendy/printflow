@@ -8,7 +8,7 @@ import { GroupOrderActions } from '@/components/jobs/GroupOrderActions'
 import { JobActions } from '@/components/jobs/JobActions'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
-import { FileText, CheckCircle2, ArrowLeft } from 'lucide-react'
+import { FileText, CheckCircle2, ArrowLeft, Flag } from 'lucide-react'
 
 export default async function JobGroupPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -150,12 +150,30 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
             <CardContent>
               {invoice ? (
                 <div>
+                  {invoice.is_flagged && (
+                    <div className="mb-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-800">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <Flag className="w-3.5 h-3.5 text-rose-600" /> Invoice Flagged for Review
+                      </p>
+                      <p className="mt-1 text-rose-700">{invoice.flag_reason || 'Marked as incorrect or disputed.'}</p>
+                    </div>
+                  )}
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 mb-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-slate-500">Invoice No.</span>
                       <span className="font-semibold">{invoice.invoice_number}</span>
                     </div>
                     <div className="flex justify-between">
+                      <span className="text-slate-500 text-sm">Subtotal</span>
+                      <span className="text-sm font-semibold">{formatCurrency(invoice.subtotal ?? invoice.total)}</span>
+                    </div>
+                    {Number(invoice.discount_amount || 0) > 0 && (
+                      <div className="flex justify-between text-sm text-amber-700">
+                        <span>Discount</span>
+                        <span className="font-semibold">-{formatCurrency(invoice.discount_amount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-slate-200 pt-2">
                       <span className="text-slate-500 text-sm">Grand Total</span>
                       <span className="text-xl font-bold">{formatCurrency(invoice.total)}</span>
                     </div>
