@@ -192,7 +192,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                   </div>
 
                   {/* Show payment form whenever invoice is not fully paid — even if jobs are already in print room */}
-                  {invoice.status !== 'paid' && ['front_desk', 'admin'].includes(role) && (
+                  {invoice.status !== 'paid' && ['front_desk', 'admin', 'accountant'].includes(role) && (
                     <PaymentForm invoice={invoice} jobId={jobs[0]?.id || ''} payments={payments} />
                   )}
 

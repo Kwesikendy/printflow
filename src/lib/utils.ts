@@ -133,7 +133,7 @@ export function canAccessRoute(role: Role, pathname: string, email?: string): bo
   if (role === 'admin') return true
 
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
-  const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory']
+  const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory', '/dashboard/jobs']
   const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
 
   if (role === 'printer') {
@@ -176,7 +176,7 @@ export function getAllowedTransitions(
   const transitions: Partial<Record<JobStatus, { statuses: JobStatus[]; roles: Role[] }[]>> = {
     draft: [{ statuses: ['quoted'], roles: ['front_desk', 'admin'] }],
     quoted: [{ statuses: ['awaiting_payment'], roles: ['front_desk', 'admin'] }],
-    awaiting_payment: [{ statuses: ['paid_released'], roles: ['front_desk', 'admin'] }],
+    awaiting_payment: [{ statuses: ['paid_released'], roles: ['front_desk', 'admin', 'accountant'] }],
     paid_released: [{ statuses: ['in_production'], roles: ['printer', 'admin'] }],
     in_production: [{ statuses: ['completed'], roles: ['printer', 'admin'] }],
     completed: [{ statuses: ['picked_up'], roles: ['front_desk', 'admin'] }],

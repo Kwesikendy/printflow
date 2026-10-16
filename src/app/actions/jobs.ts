@@ -593,6 +593,8 @@ export async function recordPaymentAction(formData: FormData) {
   revalidatePath(`/dashboard/jobs/[id]`, 'page')
   revalidatePath(`/dashboard/jobs/group/[id]`, 'page')
   revalidatePath('/dashboard/queue')
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/print/finance-report')
   return { success: true }
 }
 

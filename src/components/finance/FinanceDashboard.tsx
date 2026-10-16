@@ -23,6 +23,7 @@ import { CustomerSearchSection } from '@/components/finance/CustomerSearchSectio
 import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
 import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
 import { InvoiceFlagButton } from '@/components/finance/InvoiceFlagButton'
+import { RecordPaymentModal } from '@/components/finance/RecordPaymentModal'
 
 interface FinanceDashboardProps {
   payments: any[]
@@ -563,11 +564,12 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
                             <InvoiceFlagButton invoice={inv} />
                             <EditInvoiceModal invoice={inv} />
                             {balance > 0 && (
-                              <Link href={payUrl}>
-                                <Button variant="ghost" size="sm" className="hover:bg-amber-50 hover:text-amber-700 text-xs font-semibold px-2 py-1">
-                                  Pay
-                                </Button>
-                              </Link>
+                              <RecordPaymentModal
+                                invoice={inv}
+                                balance={balance}
+                                customerName={customerName}
+                                payUrl={payUrl}
+                              />
                             )}
                           </td>
                         </tr>
