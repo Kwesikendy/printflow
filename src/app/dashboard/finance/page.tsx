@@ -33,7 +33,7 @@ export default async function FinancePage() {
         payments ( amount )
       `)
       .order('issued_at', { ascending: false })
-      .limit(100),
+      .limit(1000),
 
     (async () => {
       try {

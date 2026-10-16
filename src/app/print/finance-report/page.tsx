@@ -2,6 +2,8 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { FinanceReportPrint } from '@/components/finance/FinanceReportPrint'
 
+import { getShiftDateString } from '@/lib/workday'
+
 export const metadata: Metadata = {
   title: 'Financial Report',
 }
@@ -11,7 +13,7 @@ export default async function PrintFinanceReportPage(props: {
 }) {
   const searchParams = await props.searchParams
   const modeParam = searchParams.mode || 'day'
-  const dayParam = searchParams.day || new Date().toISOString().split('T')[0]
+  const dayParam = searchParams.day || getShiftDateString()
   const supabase = await createClient()
 
   // Get tenant profile
@@ -48,7 +50,7 @@ export default async function PrintFinanceReportPage(props: {
         payments ( amount )
       `)
       .order('issued_at', { ascending: false })
-      .limit(300)
+      .limit(1000)
   ])
 
   const reportInvoices = (unpaidInvoices || []).filter((invoice: any) => !invoice.is_flagged)

@@ -4,6 +4,13 @@ import { useMemo, useState } from 'react'
 import { motion, type Variants } from 'framer-motion'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { formatCurrency, formatDateTime, PAYMENT_METHOD_LABELS } from '@/lib/utils'
+import { 
+  getShiftDateString, 
+  getShiftBoundsFromDateString, 
+  getPreviousShiftDateString, 
+  isTimestampInShift, 
+  isInvoiceInShift 
+} from '@/lib/workday'
 import { isThisWeek, isThisMonth, parseISO } from 'date-fns'
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -26,28 +33,31 @@ interface FinanceDashboardProps {
 const COLORS = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981']
 
 export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }: FinanceDashboardProps) {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const currentShiftDay = getShiftDateString()
   const [filterMode, setFilterMode] = useState<'day' | 'week' | 'month' | 'all'>('day')
-  const [selectedDay, setSelectedDay] = useState<string>(todayStr)
+  const [selectedDay, setSelectedDay] = useState<string>(currentShiftDay)
   const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; phone?: string | null } | null>(null)
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
   const [showFlagged, setShowFlagged] = useState(false)
+
+  // Shift bounds for currently selected shift date
+  const shiftBounds = useMemo(() => {
+    return getShiftBoundsFromDateString(selectedDay)
+  }, [selectedDay])
 
   const handleSelectCustomer = (name: string, phone?: string | null) => {
     setSelectedCustomer({ name, phone })
     setIsStatementModalOpen(true)
   }
 
-  const setToday = () => {
+  const setCurrentShift = () => {
     setFilterMode('day')
-    setSelectedDay(todayStr)
+    setSelectedDay(currentShiftDay)
   }
 
-  const setYesterday = () => {
+  const setPreviousShift = () => {
     setFilterMode('day')
-    const y = new Date()
-    y.setDate(y.getDate() - 1)
-    setSelectedDay(y.toISOString().split('T')[0])
+    setSelectedDay(getPreviousShiftDateString(currentShiftDay))
   }
 
   const filteredPayments = useMemo(() => {
@@ -56,14 +66,14 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
     return payments.filter(p => {
       if (!p.recorded_at) return false
       if (filterMode === 'day') {
-        return p.recorded_at.startsWith(selectedDay)
+        return isTimestampInShift(p.recorded_at, shiftBounds)
       }
       const date = parseISO(p.recorded_at)
       if (filterMode === 'week') return isThisWeek(date)
       if (filterMode === 'month') return isThisMonth(date)
       return true
     })
-  }, [payments, filterMode, selectedDay])
+  }, [payments, filterMode, shiftBounds])
 
   // Summary Metrics
   const invoiceCandidates = useMemo(() => {
@@ -74,8 +84,10 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         const groupJobs: any[] = inv.job_groups.jobs
         if (groupJobs.length > 0 && groupJobs.every((j: any) => j.status === 'cancelled')) return false
       }
+      if (filterMode === 'day') {
+        return isInvoiceInShift(inv, shiftBounds)
+      }
       const date = new Date(inv.issued_at)
-      if (filterMode === 'day') return date.toISOString().startsWith(selectedDay)
       if (filterMode === 'week') {
         const d = new Date()
         d.setHours(0,0,0,0)
@@ -90,7 +102,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
       }
       return true
     })
-  }, [unpaidInvoices, filterMode, selectedDay])
+  }, [unpaidInvoices, filterMode, shiftBounds])
 
   const flaggedInvoiceCount = useMemo(
     () => invoiceCandidates.filter(inv => inv.is_flagged).length,
@@ -102,16 +114,24 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
     [invoiceCandidates, showFlagged]
   )
 
+  const sortedInvoices = useMemo(() => {
+    return [...filteredInvoices].sort((a, b) => {
+      const aNum = a.invoice_number || ''
+      const bNum = b.invoice_number || ''
+      return bNum.localeCompare(aNum, undefined, { numeric: true })
+    })
+  }, [filteredInvoices])
+
   const totalRevenue = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   }, [filteredPayments])
   
-  // Total payments collected today strictly
+  // Total payments collected in current shift
   const todayRevenue = useMemo(() => {
     return payments
-      .filter(p => p.recorded_at && p.recorded_at.startsWith(todayStr))
+      .filter(p => isTimestampInShift(p.recorded_at, shiftBounds))
       .reduce((sum, p) => sum + Number(p.amount), 0)
-  }, [payments, todayStr])
+  }, [payments, shiftBounds])
 
   // Correctly compute outstanding balance (total minus payments made)
   const outstandingTotal = useMemo(() => {
@@ -130,14 +150,14 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
     return expenditures.filter(e => {
       if (!e.spent_at) return false
       if (filterMode === 'day') {
-        return e.spent_at.startsWith(selectedDay)
+        return isTimestampInShift(e.spent_at, shiftBounds)
       }
       const date = parseISO(e.spent_at)
       if (filterMode === 'week') return isThisWeek(date)
       if (filterMode === 'month') return isThisMonth(date)
       return true
     })
-  }, [expenditures, filterMode, selectedDay])
+  }, [expenditures, filterMode, shiftBounds])
 
   const totalExpenditure = useMemo(() => {
     return filteredExpenditures.reduce((sum, e) => sum + Number(e.amount || 0), 0)
@@ -174,14 +194,9 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
     if (filterMode === 'all') return 'All Time'
     if (filterMode === 'week') return 'This Week'
     if (filterMode === 'month') return 'This Month'
-    if (selectedDay === todayStr) return 'Today'
-    try {
-      const [y, m, d] = selectedDay.split('-').map(Number)
-      return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    } catch {
-      return selectedDay
-    }
-  }, [filterMode, selectedDay, todayStr])
+    if (selectedDay === currentShiftDay) return `Current Shift (${shiftBounds.label})`
+    return `Shift: ${shiftBounds.label}`
+  }, [filterMode, selectedDay, currentShiftDay, shiftBounds])
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -212,38 +227,38 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
       <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 ml-2 mr-1">
-            <Filter className="w-3.5 h-3.5" /> Filter Date:
+            <Filter className="w-3.5 h-3.5" /> Shift Filter:
           </span>
 
           <button
             type="button"
-            onClick={setToday}
+            onClick={setCurrentShift}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              filterMode === 'day' && selectedDay === todayStr
+              filterMode === 'day' && selectedDay === currentShiftDay
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            Today
+            Current Shift (5 PM)
           </button>
 
           <button
             type="button"
-            onClick={setYesterday}
+            onClick={setPreviousShift}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              filterMode === 'day' && selectedDay !== todayStr && selectedDay === new Date(Date.now() - 86400000).toISOString().split('T')[0]
+              filterMode === 'day' && selectedDay === getPreviousShiftDateString(currentShiftDay)
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
-            Yesterday
+            Previous Shift
           </button>
 
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1" title="Select Shift Date (starts at 5:00 PM)">
             <Calendar className="w-3.5 h-3.5 text-indigo-500" />
             <input 
               type="date"
-              value={selectedDay}
+              value={filterMode === 'day' ? selectedDay : ''}
               onChange={(e) => {
                 setSelectedDay(e.target.value)
                 setFilterMode('day')
@@ -519,7 +534,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/50">
-                    {filteredInvoices.map((inv) => {
+                    {sortedInvoices.map((inv) => {
                       const customerName = inv.jobs?.customer_name || inv.job_groups?.customer_name || 'Unknown'
                       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
                       const balance = Math.max(0, Number(inv.total) - paid)
