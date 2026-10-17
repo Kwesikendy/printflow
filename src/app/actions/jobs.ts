@@ -675,7 +675,7 @@ export async function releaseJobGroupAction(groupId: string, notes?: string): Pr
     .single()
 
   const role = (profile as any)?.role
-  if (!['front_desk', 'admin'].includes(role)) {
+  if (!['front_desk', 'admin', 'accountant'].includes(role)) {
     return { error: 'Insufficient permissions to release jobs' }
   }
 

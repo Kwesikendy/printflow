@@ -1,6 +1,9 @@
 'use server'
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { type PaymentMethod } from '@/types/database'
+import { releaseJobGroupAction } from './jobs'
 
 export interface CustomerTransactionSummary {
   name: string
@@ -440,3 +443,297 @@ export async function getCustomerFinancialStatement(
     jobs: filteredJobs
   }
 }
+
+/**
+ * Bulk settles all outstanding unpaid/partial invoices for a customer at a go (FIFO).
+ */
+export async function settleCustomerBalanceAction({
+  customerName,
+  customerPhone,
+  amount,
+  method,
+  reference,
+  notes,
+  releaseToPrintRoom = true
+}: {
+  customerName: string
+  customerPhone?: string | null
+  amount: number
+  method: PaymentMethod
+  reference?: string
+  notes?: string
+  releaseToPrintRoom?: boolean
+}): Promise<{
+  success?: boolean
+  error?: string
+  invoicesSettledCount?: number
+  totalSettled?: number
+  remainingBalance?: number
+}> {
+  const { user, tenantId, role } = await getAuthContext()
+
+  if (!['front_desk', 'admin', 'accountant'].includes(role)) {
+    return { error: 'Insufficient permissions. Only accounts and front desk staff can settle balances.' }
+  }
+
+  const trimmedName = customerName?.trim()
+  if (!trimmedName) {
+    return { error: 'Customer name is required' }
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    return { error: 'Payment amount must be greater than zero' }
+  }
+
+  const serviceSupabase = createServiceClient()
+  const supabase = await createClient()
+
+  // 1. Fetch all matching jobs for customer in this tenant
+  const { data: jobs, error: jobsErr } = await serviceSupabase
+    .from('jobs')
+    .select('id, group_id, status')
+    .eq('tenant_id', tenantId)
+    .ilike('customer_name', `%${trimmedName}%`)
+
+  if (jobsErr) {
+    console.error('Error fetching jobs for customer balance settlement:', jobsErr)
+    return { error: 'Database error fetching customer orders.' }
+  }
+
+  // 2. Fetch all matching job groups
+  const { data: groups } = await serviceSupabase
+    .from('job_groups')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .ilike('customer_name', `%${trimmedName}%`)
+
+  const rawJobs = jobs || []
+  const rawGroups = groups || []
+
+  const jobIds = rawJobs.map((j: any) => j.id)
+  const groupIds = Array.from(new Set([
+    ...rawJobs.map((j: any) => j.group_id).filter(Boolean),
+    ...rawGroups.map((g: any) => g.id)
+  ]))
+
+  if (jobIds.length === 0 && groupIds.length === 0) {
+    return { error: 'No orders or invoices found for this customer.' }
+  }
+
+  // 3. Fetch unpaid/partial invoices
+  let invQuery = serviceSupabase
+    .from('invoices')
+    .select('id, invoice_number, total, status, issued_at, job_id, group_id')
+    .eq('tenant_id', tenantId)
+    .neq('status', 'paid')
+
+  if (jobIds.length > 0 && groupIds.length > 0) {
+    invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
+  } else if (jobIds.length > 0) {
+    invQuery = invQuery.in('job_id', jobIds)
+  } else {
+    invQuery = invQuery.in('group_id', groupIds)
+  }
+
+  const { data: unpaidInvoices, error: invErr } = await invQuery.order('issued_at', { ascending: true })
+
+  if (invErr) {
+    console.error('Error fetching unpaid invoices:', invErr)
+    return { error: 'Failed to fetch customer invoices.' }
+  }
+
+  const invoiceIds = (unpaidInvoices || []).map((i: any) => i.id)
+  if (invoiceIds.length === 0) {
+    return { error: 'This customer has zero outstanding unpaid invoices.' }
+  }
+
+  // 4. Fetch all payments for these invoices to calculate exact balance_due per invoice
+  const { data: payData } = await serviceSupabase
+    .from('payments')
+    .select('invoice_id, amount')
+    .eq('tenant_id', tenantId)
+    .in('invoice_id', invoiceIds)
+
+  const paidPerInvoice = new Map<string, number>()
+  ;(payData || []).forEach((p: any) => {
+    paidPerInvoice.set(p.invoice_id, (paidPerInvoice.get(p.invoice_id) || 0) + Number(p.amount))
+  })
+
+  // Calculate remaining balance per invoice and filter to those with balance > 0
+  const actionableInvoices = (unpaidInvoices || [])
+    .map((inv: any) => {
+      const paid = paidPerInvoice.get(inv.id) || 0
+      const total = Number(inv.total)
+      const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100)
+      return {
+        ...inv,
+        total,
+        amount_paid: paid,
+        balance_due: balanceDue
+      }
+    })
+    .filter((inv: any) => inv.balance_due > 0.009)
+    // Sort oldest first (FIFO)
+    .sort((a: any, b: any) => new Date(a.issued_at).getTime() - new Date(b.issued_at).getTime())
+
+  const totalOutstanding = actionableInvoices.reduce((sum: number, inv: any) => sum + inv.balance_due, 0)
+  const roundedTotalOutstanding = Math.round(totalOutstanding * 100) / 100
+
+  if (actionableInvoices.length === 0 || roundedTotalOutstanding <= 0.009) {
+    return { error: 'No outstanding balance remaining to settle.' }
+  }
+
+  if (amount > roundedTotalOutstanding + 0.05) {
+    return { error: `Amount cannot exceed total outstanding balance of ₵${roundedTotalOutstanding.toFixed(2)}.` }
+  }
+
+  // 5. Allocate payment across invoices FIFO
+  let remainingToAllocate = Math.min(amount, roundedTotalOutstanding)
+  let settledCount = 0
+  let totalAllocated = 0
+
+  for (const inv of actionableInvoices) {
+    if (remainingToAllocate <= 0.009) break
+
+    const paymentForThisInvoice = Math.min(remainingToAllocate, inv.balance_due)
+    const roundedPayment = Math.round(paymentForThisInvoice * 100) / 100
+
+    if (roundedPayment <= 0.009) continue
+
+    const paymentNotes = notes
+      ? `${notes} (Bulk settlement)`
+      : `Customer ledger clearance for ${trimmedName}`
+
+    // Attempt RPC first
+    const { error: rpcError } = await supabase.rpc('record_payment', {
+      p_invoice_id: inv.id,
+      p_amount: roundedPayment,
+      p_method: method,
+      p_reference: reference || null,
+      p_notes: paymentNotes
+    } as any)
+
+    if (rpcError) {
+      console.warn(`RPC record_payment failed for invoice ${inv.invoice_number}, using service fallback:`, rpcError.message)
+
+      // Resilient service fallback:
+      // 1. Insert payment
+      const { error: insertPayErr } = await (serviceSupabase as any)
+        .from('payments')
+        .insert({
+          tenant_id: tenantId,
+          invoice_id: inv.id,
+          job_id: inv.job_id,
+          amount: roundedPayment,
+          method: method,
+          reference: reference || null,
+          notes: paymentNotes,
+          recorded_by: user.id,
+          recorded_at: new Date().toISOString()
+        })
+
+      if (insertPayErr) {
+        console.error('Service fallback payment insert error:', insertPayErr)
+        return { error: `Failed to record payment for invoice ${inv.invoice_number}: ${insertPayErr.message}` }
+      }
+
+      // 2. Update invoice status
+      const newPaidTotal = inv.amount_paid + roundedPayment
+      const isPaid = newPaidTotal >= (inv.total - 0.009)
+      await (serviceSupabase as any)
+        .from('invoices')
+        .update({ status: isPaid ? 'paid' : 'partial' })
+        .eq('id', inv.id)
+
+      // 3. Update job statuses if fully paid
+      if (isPaid) {
+        if (inv.job_id) {
+          const { data: jobData } = await (serviceSupabase as any)
+            .from('jobs')
+            .select('status')
+            .eq('id', inv.job_id)
+            .single()
+
+          if (jobData?.status === 'awaiting_payment') {
+            await (serviceSupabase as any)
+              .from('jobs')
+              .update({ status: 'paid_released', updated_at: new Date().toISOString() })
+              .eq('id', inv.job_id)
+
+            await (serviceSupabase as any).from('job_status_events').insert({
+              tenant_id: tenantId,
+              job_id: inv.job_id,
+              from_status: 'awaiting_payment',
+              to_status: 'paid_released',
+              actor_id: user.id,
+              notes: `Customer balance cleared: ${method} ${reference ? 'ref: ' + reference : ''}`
+            })
+          }
+        }
+
+        if (inv.group_id) {
+          const { data: groupJobs } = await (serviceSupabase as any)
+            .from('jobs')
+            .select('id')
+            .eq('group_id', inv.group_id)
+            .eq('tenant_id', tenantId)
+            .eq('status', 'awaiting_payment')
+
+          if (groupJobs && groupJobs.length > 0) {
+            await (serviceSupabase as any)
+              .from('jobs')
+              .update({ status: 'paid_released', updated_at: new Date().toISOString() })
+              .eq('group_id', inv.group_id)
+              .eq('tenant_id', tenantId)
+              .eq('status', 'awaiting_payment')
+
+            const events = groupJobs.map((gj: any) => ({
+              tenant_id: tenantId,
+              job_id: gj.id,
+              from_status: 'awaiting_payment',
+              to_status: 'paid_released',
+              actor_id: user.id,
+              notes: `Customer group balance cleared: ${method} ${reference ? 'ref: ' + reference : ''}`
+            }))
+            await (serviceSupabase as any).from('job_status_events').insert(events)
+          }
+        }
+      }
+    }
+
+    // Release to production queue if requested
+    if (releaseToPrintRoom) {
+      try {
+        if (inv.group_id) {
+          await releaseJobGroupAction(inv.group_id, 'Bulk settlement: released to print room')
+        } else if (inv.job_id) {
+          await supabase.rpc('transition_job_status', {
+            p_job_id: inv.job_id,
+            p_to_status: 'paid_released',
+            p_notes: 'Bulk settlement: released to print room'
+          } as any)
+        }
+      } catch (relErr) {
+        console.warn('Warning: Auto-releasing job to print room:', relErr)
+      }
+    }
+
+    remainingToAllocate = Math.round((remainingToAllocate - roundedPayment) * 100) / 100
+    totalAllocated = Math.round((totalAllocated + roundedPayment) * 100) / 100
+    settledCount++
+  }
+
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/queue')
+  revalidatePath('/print/finance-report')
+  revalidatePath('/print/customer-statement')
+
+  return {
+    success: true,
+    invoicesSettledCount: settledCount,
+    totalSettled: totalAllocated,
+    remainingBalance: Math.max(0, Math.round((roundedTotalOutstanding - totalAllocated) * 100) / 100)
+  }
+}
+

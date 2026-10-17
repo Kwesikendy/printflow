@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  X, Printer, User, Phone, CheckCircle, AlertCircle, FileText, 
+  X, Printer, User, Phone, CheckCircle, CheckCircle2, AlertCircle, FileText, 
   CreditCard, Calendar, ArrowDownRight, ArrowUpRight, TrendingUp,
   Receipt, Package, ExternalLink, Loader2, Sparkles, Filter
 } from 'lucide-react'
@@ -12,6 +12,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency, formatDateTime, formatDate, PAYMENT_METHOD_LABELS, SOURCE_LABELS } from '@/lib/utils'
 import { getCustomerFinancialStatement, type CustomerStatementData } from '@/app/actions/finance'
 import { EditInvoiceModal } from './EditInvoiceModal'
+import { RecordPaymentModal } from './RecordPaymentModal'
+import { SettleCustomerBalanceModal } from './SettleCustomerBalanceModal'
 import Link from 'next/link'
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from 'date-fns'
 
@@ -32,15 +34,11 @@ export function CustomerStatementModal({
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'ledger' | 'invoices' | 'payments' | 'jobs'>('ledger')
   const [dateFilter, setDateFilter] = useState<'all' | 'this_month' | 'last_month' | 'this_year'>('all')
+  const [isSettleModalOpen, setIsSettleModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  // Load statement data whenever customerName or dateFilter changes
-  useEffect(() => {
-    if (!isOpen || !customerName) {
-      setStatement(null)
-      return
-    }
-
+  const fetchStatementData = () => {
+    if (!customerName) return
     setLoading(true)
     let fromDate: string | undefined
     let toDate: string | undefined
@@ -71,6 +69,16 @@ export function CustomerStatementModal({
         setLoading(false)
       }
     })
+  }
+
+  // Load statement data whenever customerName or dateFilter changes
+  useEffect(() => {
+    if (!isOpen || !customerName) {
+      setStatement(null)
+      return
+    }
+
+    fetchStatementData()
   }, [isOpen, customerName, customerPhone, dateFilter])
 
   if (!isOpen || !customerName) return null
@@ -143,8 +151,18 @@ export function CustomerStatementModal({
 
               {/* Header Actions */}
               <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
+                {hasOutstanding && (
+                  <Button
+                    variant="primary"
+                    onClick={() => setIsSettleModalOpen(true)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 cursor-pointer font-bold text-xs sm:text-sm py-2 px-3.5 transition-all active:scale-[0.98]"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                    Pay Balance ({formatCurrency(statement?.summary.balance ?? 0)})
+                  </Button>
+                )}
                 <Link href={printUrl} target="_blank">
-                  <Button variant="primary" className="shadow-md shadow-indigo-600/10 cursor-pointer">
+                  <Button variant="outline" className="shadow-xs cursor-pointer font-semibold bg-white hover:bg-slate-50 text-slate-700 border-slate-200">
                     <Printer className="w-4 h-4 mr-2" />
                     Print Statement
                   </Button>
@@ -231,31 +249,45 @@ export function CustomerStatementModal({
                     <p className="text-xs text-emerald-600/80 mt-1">{statement.summary.paymentsCount} payments logged</p>
                   </div>
 
-                  <div className={`p-4 sm:p-5 rounded-2xl border ${
+                  <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col justify-between ${
                     hasOutstanding 
-                      ? 'bg-amber-50/60 border-amber-200/80' 
+                      ? 'bg-amber-50/60 border-amber-200/80 shadow-2xs' 
                       : 'bg-slate-50/80 border-slate-200/80'
                   }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-xs font-bold uppercase tracking-wider ${
-                        hasOutstanding ? 'text-amber-700' : 'text-slate-400'
-                      }`}>
-                        Net Balance Due
-                      </span>
-                      <div className={`p-1.5 rounded-lg ${
-                        hasOutstanding ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                      }`}>
-                        <TrendingUp className="w-4 h-4" />
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`text-xs font-bold uppercase tracking-wider ${
+                          hasOutstanding ? 'text-amber-700' : 'text-slate-400'
+                        }`}>
+                          Net Balance Due
+                        </span>
+                        <div className={`p-1.5 rounded-lg ${
+                          hasOutstanding ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          <TrendingUp className="w-4 h-4" />
+                        </div>
                       </div>
+                      <div className={`text-2xl font-black tracking-tight ${
+                        hasOutstanding ? 'text-amber-700' : 'text-slate-900'
+                      }`}>
+                        {formatCurrency(statement.summary.balance)}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {hasOutstanding ? 'Payment pending' : 'Zero outstanding balance'}
+                      </p>
                     </div>
-                    <div className={`text-2xl font-black tracking-tight ${
-                      hasOutstanding ? 'text-amber-700' : 'text-slate-900'
-                    }`}>
-                      {formatCurrency(statement.summary.balance)}
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      {hasOutstanding ? 'Payment pending' : 'Zero outstanding balance'}
-                    </p>
+
+                    {hasOutstanding && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSettleModalOpen(true)}
+                        className="mt-3.5 w-full py-2 px-3 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:shadow-lg active:scale-[0.98]"
+                        title="Pay all unsettled invoices at a go"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Pay Balance at a Go
+                      </button>
+                    )}
                   </div>
 
                   <div className="bg-slate-50/80 border border-slate-200/80 p-4 sm:p-5 rounded-2xl">
@@ -428,7 +460,15 @@ export function CustomerStatementModal({
                                 <td className="text-right pr-6 font-black text-amber-600">
                                   {formatCurrency(inv.balance_due)}
                                 </td>
-                                <td className="text-right pr-4">
+                                <td className="text-right pr-4 flex items-center justify-end gap-1.5">
+                                  {inv.balance_due > 0.009 && (
+                                    <RecordPaymentModal
+                                      invoice={inv}
+                                      balance={inv.balance_due}
+                                      customerName={customerName}
+                                      payUrl={inv.group_id ? `/dashboard/jobs/group/${inv.group_id}` : (inv.job_id ? `/dashboard/jobs/${inv.job_id}` : `/dashboard/jobs`)}
+                                    />
+                                  )}
                                   <EditInvoiceModal invoice={inv} />
                                 </td>
                               </tr>
@@ -573,6 +613,21 @@ export function CustomerStatementModal({
             </div>
           </div>
         </motion.div>
+
+        {/* Settle Customer Balance Modal */}
+        {statement && (
+          <SettleCustomerBalanceModal
+            isOpen={isSettleModalOpen}
+            onClose={() => setIsSettleModalOpen(false)}
+            onSuccess={() => {
+              fetchStatementData()
+            }}
+            customerName={customerName}
+            customerPhone={customerPhone}
+            totalOutstanding={statement.summary.balance}
+            invoices={statement.invoices}
+          />
+        )}
       </div>
     </AnimatePresence>
   )
