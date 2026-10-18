@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatCurrency, formatDateTime, SOURCE_LABELS, PRINT_ROOM_LABELS, canCancelJob } from '@/lib/utils'
 import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
+import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { Printer, FileText, CheckCircle2, Flag } from 'lucide-react'
@@ -230,7 +231,13 @@ export default async function JobDetailPage(props: {
                   </div>
 
                   {invoice.status !== 'paid' && !isCancelled && ['front_desk', 'admin', 'accountant'].includes(role) ? (
-                    <PaymentForm invoice={invoice} jobId={job.id} payments={payments} />
+                    <PaymentForm 
+                      invoice={invoice} 
+                      jobId={job.id} 
+                      payments={payments}
+                      customerName={job.customer_name}
+                      customerPhone={job.customer_phone}
+                    />
                   ) : invoice.status === 'paid' ? (
                     <div className="mt-4 space-y-4">
                       {/* PAID banner */}
@@ -268,6 +275,16 @@ export default async function JobDetailPage(props: {
                           Print Receipt
                         </Link>
                       </div>
+
+                      {/* Customer Arrears (if any prior unpaid orders exist) */}
+                      {job.customer_name && (
+                        <CustomerArrearsBanner
+                          customerName={job.customer_name}
+                          customerPhone={job.customer_phone}
+                          currentInvoiceId={invoice.id}
+                          currentRemaining={0}
+                        />
+                      )}
 
                       {/* Full payment history (if multiple payments) */}
                       {payments.length > 1 && (

@@ -470,7 +470,8 @@ export async function settleCustomerBalanceAction({
   totalSettled?: number
   remainingBalance?: number
 }> {
-  const { user, tenantId, role } = await getAuthContext()
+  try {
+    const { user, tenantId, role } = await getAuthContext()
 
   if (!['front_desk', 'admin', 'accountant'].includes(role)) {
     return { error: 'Insufficient permissions. Only accounts and front desk staff can settle balances.' }
@@ -729,11 +730,184 @@ export async function settleCustomerBalanceAction({
   revalidatePath('/print/finance-report')
   revalidatePath('/print/customer-statement')
 
-  return {
-    success: true,
-    invoicesSettledCount: settledCount,
-    totalSettled: totalAllocated,
-    remainingBalance: Math.max(0, Math.round((roundedTotalOutstanding - totalAllocated) * 100) / 100)
+    return {
+      success: true,
+      invoicesSettledCount: settledCount,
+      totalSettled: totalAllocated,
+      remainingBalance: Math.max(0, Math.round((roundedTotalOutstanding - totalAllocated) * 100) / 100)
+    }
+  } catch (err: any) {
+    console.error('Fatal error in settleCustomerBalanceAction:', err)
+    return { error: err.message || 'Unexpected server error settling balance' }
   }
 }
+
+export interface CustomerArrearsSummary {
+  customerName: string
+  customerPhone: string | null
+  totalArrears: number
+  otherInvoicesCount: number
+  otherInvoicesBalance: number
+  totalUnpaidInvoicesCount: number
+  unpaidInvoices: Array<{
+    id: string
+    invoice_number: string
+    issued_at: string
+    total: number
+    amount_paid: number
+    balance_due: number
+    status: string
+    job_id?: string | null
+    group_id?: string | null
+  }>
+}
+
+/**
+ * Retrieves the outstanding debt/arrears for a customer across all their jobs/invoices.
+ * Used on the Job Payment screen to alert Front Desk of prior unpaid orders.
+ */
+export async function getCustomerArrearsAction(
+  customerName: string,
+  currentInvoiceId?: string
+): Promise<CustomerArrearsSummary | null> {
+  const trimmed = customerName?.trim()
+  if (!trimmed) return null
+
+  try {
+    const { tenantId } = await getAuthContext()
+    const serviceSupabase = createServiceClient()
+
+    // 1. Fetch matching jobs
+    const { data: jobs, error: jobsErr } = await serviceSupabase
+      .from('jobs')
+      .select('id, group_id, customer_phone')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', `%${trimmed}%`)
+
+    if (jobsErr) {
+      console.error('Error fetching jobs for customer arrears:', jobsErr)
+      return null
+    }
+
+    // 2. Fetch matching job groups
+    const { data: groups } = await serviceSupabase
+      .from('job_groups')
+      .select('id, customer_phone')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', `%${trimmed}%`)
+
+    const rawJobs = (jobs as any[]) || []
+    const rawGroups = (groups as any[]) || []
+
+    const jobIds = rawJobs.map((j: any) => j.id)
+    const groupIds = Array.from(new Set([
+      ...rawJobs.map((j: any) => j.group_id).filter(Boolean),
+      ...rawGroups.map((g: any) => g.id)
+    ]))
+
+    if (jobIds.length === 0 && groupIds.length === 0) {
+      return {
+        customerName: trimmed,
+        customerPhone: null,
+        totalArrears: 0,
+        otherInvoicesCount: 0,
+        otherInvoicesBalance: 0,
+        totalUnpaidInvoicesCount: 0,
+        unpaidInvoices: []
+      }
+    }
+
+    // 3. Fetch unpaid/partial invoices
+    let invQuery = serviceSupabase
+      .from('invoices')
+      .select('id, invoice_number, total, status, issued_at, job_id, group_id')
+      .eq('tenant_id', tenantId)
+      .neq('status', 'paid')
+
+    if (jobIds.length > 0 && groupIds.length > 0) {
+      invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
+    } else if (jobIds.length > 0) {
+      invQuery = invQuery.in('job_id', jobIds)
+    } else {
+      invQuery = invQuery.in('group_id', groupIds)
+    }
+
+    const { data: invData, error: invErr } = await invQuery.order('issued_at', { ascending: true })
+    if (invErr) {
+      console.error('Error fetching unpaid invoices for customer arrears:', invErr)
+      return null
+    }
+
+    const invoices = invData || []
+    if (invoices.length === 0) {
+      return {
+        customerName: trimmed,
+        customerPhone: rawJobs[0]?.customer_phone || rawGroups[0]?.customer_phone || null,
+        totalArrears: 0,
+        otherInvoicesCount: 0,
+        otherInvoicesBalance: 0,
+        totalUnpaidInvoicesCount: 0,
+        unpaidInvoices: []
+      }
+    }
+
+    const invoiceIds = invoices.map((i: any) => i.id)
+
+    // 4. Fetch payments
+    const { data: payData } = await serviceSupabase
+      .from('payments')
+      .select('invoice_id, amount')
+      .eq('tenant_id', tenantId)
+      .in('invoice_id', invoiceIds)
+
+    const paidMap = new Map<string, number>()
+    ;(payData || []).forEach((p: any) => {
+      paidMap.set(p.invoice_id, (paidMap.get(p.invoice_id) || 0) + Number(p.amount))
+    })
+
+    // 5. Calculate balance_due per invoice
+    const actionable = invoices
+      .map((inv: any) => {
+        const paid = paidMap.get(inv.id) || 0
+        const total = Number(inv.total)
+        const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100)
+        return {
+          id: inv.id,
+          invoice_number: inv.invoice_number,
+          issued_at: inv.issued_at,
+          total,
+          amount_paid: paid,
+          balance_due: balanceDue,
+          status: inv.status,
+          job_id: inv.job_id,
+          group_id: inv.group_id
+        }
+      })
+      .filter((inv: any) => inv.balance_due > 0.009)
+      .sort((a: any, b: any) => new Date(a.issued_at).getTime() - new Date(b.issued_at).getTime())
+
+    const totalArrears = Math.round(actionable.reduce((sum: number, i: any) => sum + i.balance_due, 0) * 100) / 100
+
+    // Filter other invoices excluding currentInvoiceId
+    const otherInvoices = currentInvoiceId 
+      ? actionable.filter((i: any) => i.id !== currentInvoiceId)
+      : actionable
+
+    const otherInvoicesBalance = Math.round(otherInvoices.reduce((sum: number, i: any) => sum + i.balance_due, 0) * 100) / 100
+
+    return {
+      customerName: trimmed,
+      customerPhone: rawJobs[0]?.customer_phone || rawGroups[0]?.customer_phone || null,
+      totalArrears,
+      otherInvoicesCount: otherInvoices.length,
+      otherInvoicesBalance,
+      totalUnpaidInvoicesCount: actionable.length,
+      unpaidInvoices: actionable
+    }
+  } catch (err) {
+    console.error('Error in getCustomerArrearsAction:', err)
+    return null
+  }
+}
+
 

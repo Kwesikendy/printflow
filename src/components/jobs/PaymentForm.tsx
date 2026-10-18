@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Invoice, Payment } from '@/types/database'
 import { cn, formatCurrency } from '@/lib/utils'
 import { Banknote, Smartphone, MoreHorizontal, CheckCircle2, Clock, Edit3, X, Edit } from 'lucide-react'
+import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
 
 const METHODS = [
   { value: 'cash',  label: 'Cash',         icon: Banknote },
@@ -20,6 +21,8 @@ interface PaymentFormProps {
   invoice: Invoice
   jobId: string
   payments?: Payment[]
+  customerName?: string
+  customerPhone?: string | null
 }
 
 function EditPaymentModal({ payment }: { payment: Payment }) {
@@ -96,7 +99,13 @@ function EditPaymentModal({ payment }: { payment: Payment }) {
   )
 }
 
-export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps) {
+export function PaymentForm({ 
+  invoice, 
+  jobId, 
+  payments = [], 
+  customerName, 
+  customerPhone 
+}: PaymentFormProps) {
   const [isPending, startTransition] = useTransition()
   const [method, setMethod] = useState<string>('cash')
   const [reference, setReference] = useState('')
@@ -161,6 +170,16 @@ export function PaymentForm({ invoice, jobId, payments = [] }: PaymentFormProps)
 
   return (
     <div className="space-y-4 mt-4">
+      {/* Customer Arrears Alert Banner */}
+      {customerName && (
+        <CustomerArrearsBanner
+          customerName={customerName}
+          customerPhone={customerPhone}
+          currentInvoiceId={invoice.id}
+          currentRemaining={remaining}
+        />
+      )}
+
       {/* Partial Payment History */}
       {payments.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">

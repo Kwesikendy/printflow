@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
+import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
 import { GroupOrderActions } from '@/components/jobs/GroupOrderActions'
 import { JobActions } from '@/components/jobs/JobActions'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
@@ -193,13 +194,31 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
 
                   {/* Show payment form whenever invoice is not fully paid — even if jobs are already in print room */}
                   {invoice.status !== 'paid' && ['front_desk', 'admin', 'accountant'].includes(role) && (
-                    <PaymentForm invoice={invoice} jobId={jobs[0]?.id || ''} payments={payments} />
+                    <PaymentForm 
+                      invoice={invoice} 
+                      jobId={jobs[0]?.id || ''} 
+                      payments={payments}
+                      customerName={group.customer_name}
+                      customerPhone={group.customer_phone}
+                    />
                   )}
 
                   {invoice.status === 'paid' && (
-                    <div className="flex items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
-                      <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                      <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
+                        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                        <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                      </div>
+
+                      {/* Customer Arrears (if any prior unpaid orders exist) */}
+                      {group.customer_name && (
+                        <CustomerArrearsBanner
+                          customerName={group.customer_name}
+                          customerPhone={group.customer_phone}
+                          currentInvoiceId={invoice.id}
+                          currentRemaining={0}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
