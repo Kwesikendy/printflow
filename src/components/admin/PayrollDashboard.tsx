@@ -71,7 +71,7 @@ type PayrollEntryView = {
 
 const paymentLabels: Record<SalaryPaymentMethod, string> = { bank: 'Bank transfer', mobile_money: 'Mobile Money', cash: 'Cash' }
 
-export function PayrollDashboard({ employees: initialEmployees, settings: initialSettings, latestRun, latestEntries, runs }: { employees: PayrollEmployee[]; settings: PayrollSettingsView; latestRun: any; latestEntries: PayrollEntryView[]; runs: PayrollRunView[] }) {
+export function PayrollDashboard({ employees: initialEmployees, settings: initialSettings, latestRun, latestEntries, runs, embedded = false }: { employees: PayrollEmployee[]; settings: PayrollSettingsView; latestRun: any; latestEntries: PayrollEntryView[]; runs: PayrollRunView[]; embedded?: boolean }) {
   const { session } = useSession()
   const [employees, setEmployees] = useState(initialEmployees)
   const [settings, setSettings] = useState({
@@ -178,13 +178,18 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-800 p-6 sm:p-8 text-white shadow-[0_18px_50px_-20px_rgba(30,41,59,0.6)]">
+      {!embedded && <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-800 p-6 sm:p-8 text-white shadow-[0_18px_50px_-20px_rgba(30,41,59,0.6)]">
         <div className="absolute -right-12 -top-24 h-72 w-72 rounded-full bg-indigo-400/20 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl"><div className="flex items-center gap-2 text-indigo-200 text-sm font-semibold"><Banknote className="w-4 h-4" aria-hidden="true" /> HR payroll workspace</div><h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">Salary & payroll</h1><p className="mt-2 text-indigo-100">Prepare employee pay, review deductions, approve the payroll, and hand the final release to Finance.</p></div>
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end"><HRInviteUserModal /><label className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-200">Payroll month<input type="month" value={payrollMonth} onChange={event => setPayrollMonth(event.target.value)} className="mt-1.5 block rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-white/60" /></label><Button variant="primary" onClick={createRun} loading={isPending}><Plus className="w-4 h-4" aria-hidden="true" /> Create draft</Button></div>
         </div>
-      </section>
+      </section>}
+
+      {embedded && <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-indigo-600">Salary workspace</p><h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">Payroll & payments</h2><p className="mt-1 text-sm text-slate-500">Prepare, review, approve, and record employee salary payments from HR.</p></div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end"><label className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">Payroll month<input type="month" value={payrollMonth} onChange={event => setPayrollMonth(event.target.value)} className="input-standard mt-1.5 min-w-[160px]" /></label><Button variant="primary" onClick={createRun} loading={isPending}><Plus className="w-4 h-4" aria-hidden="true" /> Create draft</Button></div>
+      </div>}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <PayrollSummary icon={<ReceiptText className="w-5 h-5" aria-hidden="true" />} label="Gross payroll" value={formatGhs(totals.gross)} detail={latestRun ? formatMonth(latestRun.period_month) : 'Create a draft to calculate'} tone="indigo" />
@@ -211,7 +216,7 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
         </Card>
       </div>
 
-      <Card noHover>
+      {!embedded && <Card noHover>
         <CardHeader
           title="Staff directory"
           description="View the employee details HR and payroll need, invite new staff, or remove access for departing staff."
@@ -245,7 +250,7 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Card noHover>
         <CardHeader title="Latest payroll run" description={latestRun ? `${formatMonth(latestRun.period_month)} · ${latestRun.status}` : 'No payroll run has been created yet.'} action={latestRun && <RunActionButton status={latestRun.status} onClick={advanceRun} loading={isPending} />} />

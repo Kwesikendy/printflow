@@ -5,6 +5,7 @@ import { BriefcaseBusiness, CalendarDays, CalendarRange, Check, ChevronDown, Cli
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { HRInviteUserModal } from '@/components/admin/HRInviteUserModal'
+import { PayrollDashboard, type PayrollEmployee, type PayrollRunView } from '@/components/admin/PayrollDashboard'
 import { deleteUser, updateEmployeeDepartment, updateEmployeeLeave } from '@/app/actions/users'
 import { createLeaveRequest, reviewLeaveRequest } from '@/app/actions/hr'
 import { ROLE_LABELS, PRINT_ROOM_LABELS } from '@/lib/utils'
@@ -42,8 +43,22 @@ export interface HRLeaveRequest {
 const DEPARTMENTS = ['Front Desk', 'Print Room', 'Print Room 1', 'Print Room 2', 'Finance', 'Administration']
 const EMPLOYMENT_LABELS = { full_time: 'Full-time', part_time: 'Part-time', contract: 'Contract' } as const
 
-export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { initialEmployees: HRDepartmentEmployee[]; initialLeaveRequests: HRLeaveRequest[]; year: number }) {
+export interface HRPayrollWorkspace {
+  employees: PayrollEmployee[]
+  settings: {
+    tax_year: number
+    ssnit_employee_rate: number
+    ssnit_employer_rate: number
+    ssnit_ceiling: number
+  }
+  latestRun: any
+  latestEntries: any[]
+  runs: PayrollRunView[]
+}
+
+export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payroll }: { initialEmployees: HRDepartmentEmployee[]; initialLeaveRequests: HRLeaveRequest[]; year: number; payroll: HRPayrollWorkspace }) {
   const { session } = useSession()
+  const [activeSection, setActiveSection] = useState<'staff' | 'leave' | 'payroll'>('staff')
   const [employees, setEmployees] = useState(initialEmployees)
   const [requests, setRequests] = useState(initialLeaveRequests)
   const [query, setQuery] = useState('')
@@ -173,15 +188,28 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
         </div>
       </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <nav aria-label="HR workspace sections" className="flex w-full max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1 shadow-sm hide-scrollbar">
+        {([
+          ['staff', 'Staff directory', `${employees.length} people`],
+          ['leave', 'Leave & attendance', `${pendingRequests.length} pending`],
+          ['payroll', 'Payroll', 'Salary workspace'],
+        ] as const).map(([section, label, detail]) => (
+          <button key={section} type="button" onClick={() => setActiveSection(section)} className={`min-h-12 min-w-[150px] flex-1 rounded-xl px-4 py-2 text-left transition ${activeSection === section ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'}`} aria-current={activeSection === section ? 'page' : undefined}>
+            <span className="block text-sm font-bold">{label}</span>
+            <span className={`mt-0.5 block text-xs ${activeSection === section ? 'text-slate-300' : 'text-slate-400'}`}>{detail}</span>
+          </button>
+        ))}
+      </nav>
+
+      {activeSection !== 'payroll' && <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
         <SummaryCard icon={<UsersRound className="w-5 h-5" aria-hidden="true" />} label="Team members" value={String(employees.length)} detail={`${activeCount} active`} tone="indigo" />
         <SummaryCard icon={<ShieldCheck className="w-5 h-5" aria-hidden="true" />} label="Active accounts" value={String(activeCount)} detail="Can access PrintFlow" tone="emerald" />
         <SummaryCard icon={<CalendarDays className="w-5 h-5" aria-hidden="true" />} label={`Leave used · ${year}`} value={`${totalUsed} days`} detail={`${totalRemaining} days remaining`} tone="amber" />
         <SummaryCard icon={<BriefcaseBusiness className="w-5 h-5" aria-hidden="true" />} label="Annual policy" value="20 days" detail="Per employee, per year" tone="violet" />
         <SummaryCard icon={<ClipboardCheck className="w-5 h-5" aria-hidden="true" />} label="Pending requests" value={String(pendingRequests.length)} detail="Need HR review" tone="rose" />
-      </div>
+      </div>}
 
-      <Card noHover>
+      {activeSection === 'leave' && <Card noHover>
         <CardHeader
           title="Leave requests"
           description="Review planned absences and keep approved leave tied to each employee’s annual balance."
@@ -209,9 +237,9 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
 
-      <Card noHover>
+      {activeSection === 'staff' && <Card noHover>
         <CardHeader
           title="Employee directory"
           description="Search profiles, change work assignments, and keep leave balances current."
@@ -302,7 +330,9 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
             </table>
           </div>
         </CardContent>
-      </Card>
+      </Card>}
+
+      {activeSection === 'payroll' && <PayrollDashboard {...payroll} embedded />}
 
       {isRequestModalOpen && <LeaveRequestModal employees={employees} error={requestError} isPending={isPending} onClose={() => setIsRequestModalOpen(false)} onSubmit={handleCreateLeaveRequest} />}
     </div>
