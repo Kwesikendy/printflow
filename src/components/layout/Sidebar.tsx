@@ -20,6 +20,7 @@ import {
   LogOut,
   Key,
   Users,
+  BriefcaseBusiness,
   X
 } from 'lucide-react'
 
@@ -32,6 +33,7 @@ const navItems = [
   { name: 'Finance', href: '/dashboard/finance', icon: PieChart, roles: ['admin', 'accountant'] },
   { name: 'Expenditure', href: '/dashboard/finance/expenditures', icon: Receipt, roles: ['admin', 'accountant'] },
   { name: 'Staff Activity', href: '/dashboard/staff-activity', icon: Users, roles: ['admin', 'accountant'] },
+  { name: 'HR', href: '/dashboard/admin/hr', icon: BriefcaseBusiness, roles: ['admin'] },
 ]
 
 export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boolean, setMobileOpenAction: (open: boolean) => void }) {

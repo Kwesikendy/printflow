@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Package, Users, Settings } from 'lucide-react'
+import { BriefcaseBusiness, LayoutDashboard, Package, Users, Settings } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useSession } from '@/contexts/SessionContext'
 
@@ -10,6 +10,7 @@ const adminTabs = [
   { name: 'Overview', href: '/dashboard/admin', icon: LayoutDashboard },
   { name: 'Products & Pricing', href: '/dashboard/admin/products', icon: Package },
   { name: 'Users', href: '/dashboard/admin/users', icon: Users },
+  { name: 'HR', href: '/dashboard/admin/hr', icon: BriefcaseBusiness },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ]
 
@@ -34,7 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div>
       <div className="page-header">
         <h1 className="text-2xl font-bold text-slate-900">Admin Panel</h1>
-        <p className="text-slate-500 mt-1">Manage tenant settings, users, and product catalog.</p>
+        <p className="text-slate-500 mt-1">Manage people, tenant settings, users, and product catalog.</p>
       </div>
 
       <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative hide-scrollbar">

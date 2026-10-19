@@ -37,7 +37,44 @@ export interface Profile {
   email: string
   is_active: boolean
   print_room: PrintRoom | null
+  phone?: string | null
+  department?: string | null
+  job_title?: string | null
+  employment_type?: 'full_time' | 'part_time' | 'contract'
+  employment_start_date?: string | null
   created_at: string
+}
+
+export interface EmployeeLeaveBalance {
+  id: string
+  tenant_id: string
+  employee_id: string
+  leave_year: number
+  entitlement: number
+  used_days: number
+  created_at: string
+  updated_at: string
+}
+
+export type LeaveRequestType = 'annual' | 'sick' | 'unpaid' | 'other'
+export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface LeaveRequest {
+  id: string
+  tenant_id: string
+  employee_id: string
+  requested_by: string
+  start_date: string
+  end_date: string
+  days: number
+  leave_type: LeaveRequestType
+  reason: string | null
+  status: LeaveRequestStatus
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface ProductType {
@@ -226,6 +263,8 @@ export type Database = {
     Tables: {
       tenants: { Row: Tenant; Insert: Omit<Tenant, 'id' | 'created_at'>; Update: Partial<Tenant> }
       profiles: { Row: Profile; Insert: Omit<Profile, 'created_at'>; Update: Partial<Profile> }
+      employee_leave_balances: { Row: EmployeeLeaveBalance; Insert: Omit<EmployeeLeaveBalance, 'id' | 'created_at' | 'updated_at'>; Update: Partial<EmployeeLeaveBalance> }
+      leave_requests: { Row: LeaveRequest; Insert: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>; Update: Partial<LeaveRequest> }
       product_types: { Row: ProductType; Insert: Omit<ProductType, 'id' | 'created_at'>; Update: Partial<ProductType> }
       pricing_rules: { Row: PricingRule; Insert: Omit<PricingRule, 'id' | 'created_at' | 'updated_at'>; Update: Partial<PricingRule> }
       standard_sizes: { Row: StandardSize; Insert: Omit<StandardSize, 'id'>; Update: Partial<StandardSize> }

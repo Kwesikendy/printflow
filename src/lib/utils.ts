@@ -1,4 +1,4 @@
-import { type JobStatus, type Role } from '@/types/database'
+import { type JobStatus, type PrintRoom, type Role } from '@/types/database'
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
@@ -81,6 +81,18 @@ export const SOURCE_LABELS = {
 export const PRINT_ROOM_LABELS: Record<string, string> = {
   room_1: 'Print Room 1',
   room_2: 'Print Room 2',
+}
+
+// HR assignment defaults for profiles created before department tracking existed.
+// Admins can still override these assignments from the HR directory.
+export function getDefaultDepartment(role: Role, printRoom?: PrintRoom | null): string {
+  switch (role) {
+    case 'front_desk': return 'Front Desk'
+    case 'printer': return printRoom ? PRINT_ROOM_LABELS[printRoom] : 'Print Room'
+    case 'accountant': return 'Finance'
+    case 'admin': return 'Administration'
+    default: return 'Administration'
+  }
 }
 
 // ============================================================
