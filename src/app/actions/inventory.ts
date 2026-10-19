@@ -111,6 +111,7 @@ export async function createMaterialAction(payload: any) {
       action: 'add_stock',
       qty_change_rolls: qty,
       qty_change_area: area,
+      created_at: new Date().toISOString(),
       notes: `Opening stock: ${qty} rolls @ ${cost.toFixed(2)} GHS/roll`
     })
   }
@@ -211,6 +212,7 @@ export async function addStockAction(materialId: string, qtyToAdd: number, costP
     action: 'add_stock',
     qty_change_rolls: qtyToAdd,
     qty_change_area: addedArea,
+    created_at: new Date().toISOString(),
     notes: notes?.trim() 
       ? `Added ${qtyToAdd} ${unitLabel} @ ${costPerRoll.toFixed(2)} GHS/${unitSingular} - ${notes.trim()}`
       : `Restocked: +${qtyToAdd} ${unitLabel} @ ${costPerRoll.toFixed(2)} GHS/${unitSingular}`

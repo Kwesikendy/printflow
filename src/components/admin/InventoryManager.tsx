@@ -1608,6 +1608,10 @@ export function InventoryManager({
                     </div>
                   </div>
 
+                  <p className="rounded-lg border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-xs leading-5 text-indigo-800">
+                    The date and time this stock is recorded will be saved automatically in Stock Movement History.
+                  </p>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs font-bold text-slate-700">{u.addStockLabel}</Label>

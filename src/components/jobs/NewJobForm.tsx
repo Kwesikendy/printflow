@@ -417,21 +417,21 @@ function LineItemCard({
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Width</label>
                     <input
-                      type="number" step="0.01" min="0.01"
+                      type="number" step="0.00001" min="0.00001"
                       className="input-standard bg-slate-50 h-12"
                       value={item.width}
                       onChange={e => u({ width: e.target.value })}
-                      placeholder="0.00"
+                      placeholder="0.00000"
                     />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-500 mb-1">Height</label>
                     <input
-                      type="number" step="0.01" min="0.01"
+                      type="number" step="0.00001" min="0.00001"
                       className="input-standard bg-slate-50 h-12"
                       value={item.height}
                       onChange={e => u({ height: e.target.value })}
-                      placeholder="0.00"
+                      placeholder="0.00000"
                     />
                   </div>
                   <div>
