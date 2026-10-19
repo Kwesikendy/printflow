@@ -58,6 +58,7 @@ export interface HRPayrollWorkspace {
 
 export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payroll }: { initialEmployees: HRDepartmentEmployee[]; initialLeaveRequests: HRLeaveRequest[]; year: number; payroll: HRPayrollWorkspace }) {
   const { session } = useSession()
+  const isAdmin = session?.profile.role === 'admin'
   const [activeSection, setActiveSection] = useState<'staff' | 'leave' | 'payroll'>('staff')
   const [employees, setEmployees] = useState(initialEmployees)
   const [requests, setRequests] = useState(initialLeaveRequests)
@@ -184,7 +185,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
             <h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">HR directory</h1>
             <p className="mt-2 max-w-xl text-indigo-100">Keep employee information, access roles, work assignments, and annual leave in one place.</p>
           </div>
-          <HRInviteUserModal />
+          {isAdmin && <HRInviteUserModal />}
         </div>
       </section>
 
@@ -213,7 +214,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
         <CardHeader
           title="Leave requests"
           description="Review planned absences and keep approved leave tied to each employee’s annual balance."
-          action={<Button variant="primary" size="sm" onClick={() => { setRequestError(null); setIsRequestModalOpen(true) }}><Plus className="w-4 h-4" aria-hidden="true" /> Log request</Button>}
+          action={isAdmin ? <Button variant="primary" size="sm" onClick={() => { setRequestError(null); setIsRequestModalOpen(true) }}><Plus className="w-4 h-4" aria-hidden="true" /> Log request</Button> : undefined}
         />
         <CardContent className="pt-0">
           <div className="table-container -mx-4 sm:-mx-6">
@@ -228,7 +229,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
                     <td className="font-black text-slate-900">{request.days}</td>
                     <td><RequestStatus status={request.status} /></td>
                     <td className="pr-4 sm:pr-6 text-right">
-                      {request.status === 'pending' ? <div className="flex justify-end gap-2"><button type="button" onClick={() => handleReviewRequest(request, 'approved')} disabled={isPending || reviewingRequestId === request.id} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"><Check className="w-3.5 h-3.5" aria-hidden="true" /> Approve</button><button type="button" onClick={() => handleReviewRequest(request, 'rejected')} disabled={isPending || reviewingRequestId === request.id} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50"><XCircle className="w-3.5 h-3.5" aria-hidden="true" /> Reject</button></div> : <span className="text-xs font-medium text-slate-400">Reviewed</span>}
+                      {isAdmin && request.status === 'pending' ? <div className="flex justify-end gap-2"><button type="button" onClick={() => handleReviewRequest(request, 'approved')} disabled={isPending || reviewingRequestId === request.id} className="inline-flex min-h-9 items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"><Check className="w-3.5 h-3.5" aria-hidden="true" /> Approve</button><button type="button" onClick={() => handleReviewRequest(request, 'rejected')} disabled={isPending || reviewingRequestId === request.id} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:opacity-50"><XCircle className="w-3.5 h-3.5" aria-hidden="true" /> Reject</button></div> : request.status === 'pending' ? <span className="text-xs font-medium text-amber-600">Awaiting review</span> : <span className="text-xs font-medium text-slate-400">Reviewed</span>}
                     </td>
                   </tr>
                 ))}
@@ -294,13 +295,13 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
                       </td>
                       <td className="align-top">
                         <label className="sr-only" htmlFor={`department-${employee.id}`}>Assignment for {employee.full_name}</label>
-                        <div className="relative w-44">
+                        {isAdmin ? <div className="relative w-44">
                           <select id={`department-${employee.id}`} value={employee.department || ''} onChange={event => handleDepartmentChange(employee.id, event.target.value)} disabled={isPending} className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2 pr-8 text-xs font-semibold text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10">
                             <option value="">Unassigned</option>
                             {DEPARTMENTS.map(department => <option key={department}>{department}</option>)}
                           </select>
                           <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" aria-hidden="true" />
-                        </div>
+                        </div> : <p className="text-sm font-semibold text-slate-700">{employee.department || 'Unassigned'}</p>}
                         {employee.role === 'printer' && <p className="mt-2 text-xs text-slate-500">{employee.print_room ? PRINT_ROOM_LABELS[employee.print_room] : 'No print room'}</p>}
                       </td>
                       <td className="align-top">
@@ -313,14 +314,15 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
                           <span className="text-slate-500">{employee.leave.used_days}/{employee.leave.entitlement} used</span>
                         </div>
                         <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${percentUsed >= 80 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${percentUsed}%` }} /></div>
-                        <div className="mt-2 flex items-center gap-2">
+                        {isAdmin && <div className="mt-2 flex items-center gap-2">
                           <label className="sr-only" htmlFor={`leave-${employee.id}`}>Used leave days for {employee.full_name}</label>
                           <input id={`leave-${employee.id}`} type="number" min="0" max="20" value={leaveInputs[employee.id] ?? employee.leave.used_days} onChange={event => setLeaveInputs(current => ({ ...current, [employee.id]: event.target.value }))} className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/10" />
                           <button type="button" onClick={() => handleLeaveSave(employee.id)} disabled={isPending || savingLeaveId === employee.id} className="inline-flex min-h-8 items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"><Check className="w-3.5 h-3.5" aria-hidden="true" /> Save</button>
-                        </div>
+                        </div>}
                       </td>
                       <td className="pr-4 sm:pr-6 align-top text-right">
-                        {employee.id === session?.user.id ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active</span> : confirmDeleteId === employee.id ? <div className="flex flex-col items-end gap-2"><span className="text-xs font-semibold text-red-600">Remove account?</span><span className="flex gap-2"><button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button><button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button></span></div> : <div className="flex flex-col items-end gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.is_active ? 'Active' : 'Inactive'}</span><button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove</button></div>}
+                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId === employee.id ? <div className="flex flex-col items-end gap-2"><span className="text-xs font-semibold text-red-600">Remove account?</span><span className="flex gap-2"><button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button><button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button></span></div> : <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.is_active ? 'Active' : 'Inactive'}</span>}
+                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId !== employee.id && <button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove</button>}
                       </td>
                     </tr>
                   )

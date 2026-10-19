@@ -33,7 +33,7 @@ async function getAdminContext(): Promise<AdminContext | { error: string }> {
     .eq('id', user.id)
     .single() as { data: { tenant_id: string; role: string } | null; error: any }
 
-  if (!profile || profile.role !== 'admin') return { error: 'Only admins can manage payroll.' }
+  if (!profile || !['admin', 'accountant'].includes(profile.role)) return { error: 'Only admins and accountants can manage payroll.' }
   return { userId: user.id, tenantId: profile.tenant_id }
 }
 

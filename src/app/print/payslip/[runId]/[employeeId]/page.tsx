@@ -10,7 +10,7 @@ export default async function PayslipPage({ params }: { params: Promise<{ runId:
   if (!user) return <div className="p-8">Unauthorized</div>
 
   const { data: viewer } = await supabase.from('profiles').select('tenant_id, role').eq('id', user.id).single() as { data: { tenant_id: string; role: string } | null; error: any }
-  if (!viewer || viewer.role !== 'admin') return <div className="p-8">Admin access required</div>
+  if (!viewer || !['admin', 'accountant'].includes(viewer.role)) return <div className="p-8">Admin or accountant access required</div>
 
   const [{ data: run }, { data: entry }, { data: employee }, { data: tenant }] = await Promise.all([
     (supabase.from('payroll_runs') as any).select('period_month, status').eq('id', runId).eq('tenant_id', viewer.tenant_id).maybeSingle(),

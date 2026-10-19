@@ -27,19 +27,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return <>{children}</>
   }
 
-  if (session && session.profile.role !== 'admin') {
+  const isAdmin = session?.profile.role === 'admin'
+  const isAccountantHr = session?.profile.role === 'accountant' && pathname.startsWith('/dashboard/admin/hr')
+  if (session && !isAdmin && !isAccountantHr) {
     return null
   }
+
+  const visibleTabs = isAdmin ? adminTabs : adminTabs.filter(tab => tab.href === '/dashboard/admin/hr')
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="text-2xl font-bold text-slate-900">Admin Panel</h1>
-        <p className="text-slate-500 mt-1">Manage people, payroll, tenant settings, users, and product catalog.</p>
+        <h1 className="text-2xl font-bold text-slate-900">{isAdmin ? 'Admin Panel' : 'HR workspace'}</h1>
+        <p className="text-slate-500 mt-1">{isAdmin ? 'Manage people, payroll, tenant settings, users, and product catalog.' : 'View employee information, leave, and payroll.'}</p>
       </div>
 
       <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative hide-scrollbar">
-        {adminTabs.map(tab => {
+        {visibleTabs.map(tab => {
           const isActive = pathname === tab.href
           return (
             <Link
