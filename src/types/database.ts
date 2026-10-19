@@ -42,6 +42,16 @@ export interface Profile {
   job_title?: string | null
   employment_type?: 'full_time' | 'part_time' | 'contract'
   employment_start_date?: string | null
+  monthly_basic_salary?: number
+  monthly_allowances?: number
+  monthly_other_deductions?: number
+  payroll_deduction_notes?: string | null
+  ssnit_number?: string | null
+  ghana_card_number?: string | null
+  bank_name?: string | null
+  bank_account_name?: string | null
+  bank_account_number?: string | null
+  salary_payment_method?: SalaryPaymentMethod
   created_at: string
 }
 
@@ -75,6 +85,66 @@ export interface LeaveRequest {
   review_note: string | null
   created_at: string
   updated_at: string
+}
+
+export type SalaryPaymentMethod = 'bank' | 'mobile_money' | 'cash'
+export type PayrollRunStatus = 'draft' | 'approved' | 'paid'
+
+export interface PayeBand {
+  limit: number | null
+  rate: number
+}
+
+export interface PayrollSettings {
+  tenant_id: string
+  tax_year: number
+  ssnit_employee_rate: number
+  ssnit_employer_rate: number
+  ssnit_ceiling: number
+  paye_bands: PayeBand[]
+  updated_by: string | null
+  updated_at: string
+}
+
+export interface PayrollRun {
+  id: string
+  tenant_id: string
+  period_month: string
+  status: PayrollRunStatus
+  total_basic_salary: number
+  total_allowances: number
+  total_gross_salary: number
+  total_employee_ssnit: number
+  total_paye: number
+  total_other_deductions: number
+  total_net_salary: number
+  total_employer_ssnit: number
+  total_employer_cost: number
+  created_by: string
+  approved_by: string | null
+  approved_at: string | null
+  paid_by: string | null
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PayrollEntry {
+  id: string
+  run_id: string
+  tenant_id: string
+  employee_id: string
+  basic_salary: number
+  allowances: number
+  gross_salary: number
+  employee_ssnit: number
+  paye: number
+  other_deductions: number
+  net_salary: number
+  employer_ssnit: number
+  employer_cost: number
+  deduction_notes: string | null
+  created_at: string
 }
 
 export interface ProductType {
@@ -265,6 +335,9 @@ export type Database = {
       profiles: { Row: Profile; Insert: Omit<Profile, 'created_at'>; Update: Partial<Profile> }
       employee_leave_balances: { Row: EmployeeLeaveBalance; Insert: Omit<EmployeeLeaveBalance, 'id' | 'created_at' | 'updated_at'>; Update: Partial<EmployeeLeaveBalance> }
       leave_requests: { Row: LeaveRequest; Insert: Omit<LeaveRequest, 'id' | 'created_at' | 'updated_at'>; Update: Partial<LeaveRequest> }
+      payroll_settings: { Row: PayrollSettings; Insert: Omit<PayrollSettings, 'updated_at'>; Update: Partial<PayrollSettings> }
+      payroll_runs: { Row: PayrollRun; Insert: Omit<PayrollRun, 'id' | 'created_at' | 'updated_at'>; Update: Partial<PayrollRun> }
+      payroll_entries: { Row: PayrollEntry; Insert: Omit<PayrollEntry, 'id' | 'created_at'>; Update: Partial<PayrollEntry> }
       product_types: { Row: ProductType; Insert: Omit<ProductType, 'id' | 'created_at'>; Update: Partial<ProductType> }
       pricing_rules: { Row: PricingRule; Insert: Omit<PricingRule, 'id' | 'created_at' | 'updated_at'>; Update: Partial<PricingRule> }
       standard_sizes: { Row: StandardSize; Insert: Omit<StandardSize, 'id'>; Update: Partial<StandardSize> }
