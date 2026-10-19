@@ -1,19 +1,28 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { Banknote, Building2, Check, CreditCard, FileText, LockKeyhole, Pencil, Plus, ReceiptText, ShieldCheck, X } from 'lucide-react'
+import { useMemo, useState, useTransition } from 'react'
+import { Banknote, Building2, Check, FileText, LockKeyhole, Mail, Pencil, Phone, Plus, ReceiptText, Search, ShieldCheck, Trash2, UserRound, X } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { toast } from 'sonner'
 import { approvePayrollRun, createPayrollRun, markPayrollRunPaid, updatePayrollProfile, updatePayrollSettings } from '@/app/actions/payroll'
+import { deleteUser } from '@/app/actions/users'
+import { HRInviteUserModal } from '@/components/admin/HRInviteUserModal'
+import { useSession } from '@/contexts/SessionContext'
+import { PRINT_ROOM_LABELS, ROLE_LABELS } from '@/lib/utils'
 import type { SalaryPaymentMethod } from '@/types/database'
 
 export interface PayrollEmployee {
   id: string
   fullName: string
   email: string
+  phone: string | null
   role: string
   department: string | null
+  jobTitle: string | null
+  employmentType: 'full_time' | 'part_time' | 'contract'
+  employmentStartDate: string | null
+  printRoom: string | null
   isActive: boolean
   monthlyBasicSalary: number
   monthlyAllowances: number
@@ -63,6 +72,7 @@ type PayrollEntryView = {
 const paymentLabels: Record<SalaryPaymentMethod, string> = { bank: 'Bank transfer', mobile_money: 'Mobile Money', cash: 'Cash' }
 
 export function PayrollDashboard({ employees: initialEmployees, settings: initialSettings, latestRun, latestEntries, runs }: { employees: PayrollEmployee[]; settings: PayrollSettingsView; latestRun: any; latestEntries: PayrollEntryView[]; runs: PayrollRunView[] }) {
+  const { session } = useSession()
   const [employees, setEmployees] = useState(initialEmployees)
   const [settings, setSettings] = useState({
     employeeRate: Number(initialSettings.ssnit_employee_rate) || 5.5,
@@ -71,7 +81,16 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
   })
   const [payrollMonth, setPayrollMonth] = useState(currentMonth())
   const [editingEmployee, setEditingEmployee] = useState<PayrollEmployee | null>(null)
+  const [directoryQuery, setDirectoryQuery] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const directoryEmployees = useMemo(() => {
+    const normalizedQuery = directoryQuery.toLowerCase().trim()
+    if (!normalizedQuery) return employees
+    return employees.filter(employee => [employee.fullName, employee.email, employee.phone, employee.role, employee.department, employee.jobTitle]
+      .filter(Boolean).join(' ').toLowerCase().includes(normalizedQuery))
+  }, [directoryQuery, employees])
 
   const totals = latestRun ? {
     gross: Number(latestRun.total_gross_salary) || 0,
@@ -144,13 +163,26 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
     })
   }
 
+  const handleDelete = (employeeId: string) => {
+    startTransition(async () => {
+      const result = await deleteUser(employeeId)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        setEmployees(current => current.filter(employee => employee.id !== employeeId))
+        setConfirmDeleteId(null)
+        toast.success('Staff account removed')
+      }
+    })
+  }
+
   return (
     <div className="space-y-6">
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-indigo-800 p-6 sm:p-8 text-white shadow-[0_18px_50px_-20px_rgba(30,41,59,0.6)]">
         <div className="absolute -right-12 -top-24 h-72 w-72 rounded-full bg-indigo-400/20 blur-3xl" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl"><div className="flex items-center gap-2 text-indigo-200 text-sm font-semibold"><Banknote className="w-4 h-4" aria-hidden="true" /> HR payroll workspace</div><h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">Salary & payroll</h1><p className="mt-2 text-indigo-100">Prepare employee pay, review deductions, approve the payroll, and hand the final release to Finance.</p></div>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end"><label className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-200">Payroll month<input type="month" value={payrollMonth} onChange={event => setPayrollMonth(event.target.value)} className="mt-1.5 block rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-white/60" /></label><Button variant="primary" onClick={createRun} loading={isPending}><Plus className="w-4 h-4" aria-hidden="true" /> Create draft</Button></div>
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-end"><HRInviteUserModal /><label className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-200">Payroll month<input type="month" value={payrollMonth} onChange={event => setPayrollMonth(event.target.value)} className="mt-1.5 block rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white outline-none focus:border-white/60" /></label><Button variant="primary" onClick={createRun} loading={isPending}><Plus className="w-4 h-4" aria-hidden="true" /> Create draft</Button></div>
         </div>
       </section>
 
@@ -180,6 +212,42 @@ export function PayrollDashboard({ employees: initialEmployees, settings: initia
       </div>
 
       <Card noHover>
+        <CardHeader
+          title="Staff directory"
+          description="View the employee details HR and payroll need, invite new staff, or remove access for departing staff."
+          action={<span className="hidden sm:inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{directoryEmployees.length} shown</span>}
+        />
+        <CardContent>
+          <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <label className="relative block w-full md:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+              <input value={directoryQuery} onChange={event => setDirectoryQuery(event.target.value)} className="input-standard pl-10" placeholder="Search name, email, role, or department" aria-label="Search staff directory" />
+            </label>
+            <p className="text-xs font-medium text-slate-500">Salary details are managed below in Employee compensation.</p>
+          </div>
+          <div className="table-container -mx-4 sm:-mx-6">
+            <table className="table-standard min-w-[1120px]">
+              <thead><tr><th className="pl-4 sm:pl-6">Staff member</th><th>Role & title</th><th>Assignment</th><th>Employment</th><th>Pay profile</th><th className="pr-4 sm:pr-6 text-right">Account</th></tr></thead>
+              <tbody>
+                {directoryEmployees.map(employee => {
+                  const isCurrentUser = employee.id === session?.user.id
+                  return <tr key={employee.id}>
+                    <td className="pl-4 sm:pl-6 align-top"><div className="flex min-w-[235px] items-start gap-3"><div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-sm font-black text-indigo-700">{initials(employee.fullName)}</div><div className="min-w-0"><p className="max-w-[210px] truncate font-bold text-slate-900">{employee.fullName}{isCurrentUser && <span className="ml-2 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">You</span>}</p><p className="mt-1 flex max-w-[230px] items-center gap-1.5 truncate text-xs text-slate-500"><Mail className="h-3 w-3 shrink-0" aria-hidden="true" />{employee.email}</p>{employee.phone && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Phone className="h-3 w-3" aria-hidden="true" />{employee.phone}</p>}</div></div></td>
+                    <td className="align-top"><span className="inline-flex rounded-lg border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-bold text-indigo-700">{ROLE_LABELS[employee.role as keyof typeof ROLE_LABELS] || employee.role}</span><p className="mt-2 text-xs text-slate-500">{employee.jobTitle || 'No job title added'}</p></td>
+                    <td className="align-top"><p className="text-sm font-semibold text-slate-700">{employee.department || 'No department'}</p>{employee.printRoom && <p className="mt-1 text-xs text-slate-500">{PRINT_ROOM_LABELS[employee.printRoom as keyof typeof PRINT_ROOM_LABELS] || employee.printRoom}</p>}</td>
+                    <td className="align-top"><p className="text-sm font-semibold capitalize text-slate-700">{employee.employmentType.replace('_', '-')}</p><p className="mt-1 text-xs text-slate-500">{employee.employmentStartDate ? formatDate(employee.employmentStartDate) : 'Start date not set'}</p></td>
+                    <td className="align-top"><p className="text-sm font-bold text-slate-800">{formatGhs(employee.monthlyBasicSalary)} basic</p><p className="mt-1 text-xs text-slate-500">{paymentLabels[employee.salaryPaymentMethod]}{employee.monthlyAllowances > 0 ? ` · ${formatGhs(employee.monthlyAllowances)} allowance` : ''}</p></td>
+                    <td className="pr-4 sm:pr-6 align-top text-right">{isCurrentUser ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active</span> : confirmDeleteId === employee.id ? <div className="flex flex-col items-end gap-2"><span className="text-xs font-semibold text-red-600">Remove account?</span><span className="flex gap-2"><button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button><button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button></span></div> : <div className="flex flex-col items-end gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.isActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.isActive ? 'Active' : 'Inactive'}</span><button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove</button></div>}</td>
+                  </tr>
+                })}
+                {directoryEmployees.length === 0 && <tr><td colSpan={6} className="py-14 text-center"><UserRound className="mx-auto h-8 w-8 text-slate-300" aria-hidden="true" /><p className="mt-3 font-semibold text-slate-600">No staff match this search.</p><p className="mt-1 text-sm text-slate-400">Try a different name, role, or department.</p></td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card noHover>
         <CardHeader title="Latest payroll run" description={latestRun ? `${formatMonth(latestRun.period_month)} · ${latestRun.status}` : 'No payroll run has been created yet.'} action={latestRun && <RunActionButton status={latestRun.status} onClick={advanceRun} loading={isPending} />} />
         <CardContent className="pt-0"><div className="table-container -mx-4 sm:-mx-6"><table className="table-standard min-w-[1050px]"><thead><tr><th className="pl-4 sm:pl-6">Employee</th><th>Gross</th><th>Employee SSNIT</th><th>PAYE</th><th>Other deductions</th><th>Net pay</th><th>Employer cost</th><th className="pr-4 sm:pr-6">Payslip</th></tr></thead><tbody>{latestEntries.map(entry => <tr key={entry.id}><td className="pl-4 sm:pl-6 font-bold text-slate-900">{entry.employeeName}</td><td>{formatGhs(entry.gross_salary)}</td><td>{formatGhs(entry.employee_ssnit)}</td><td>{formatGhs(entry.paye)}</td><td>{formatGhs(entry.other_deductions)}</td><td className="font-black text-emerald-700">{formatGhs(entry.net_salary)}</td><td>{formatGhs(entry.employer_cost)}</td><td className="pr-4 sm:pr-6"><a href={`/print/payslip/${latestRun?.id}/${entry.employee_id}`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"><FileText className="w-3.5 h-3.5" aria-hidden="true" /> View</a></td></tr>)}{latestEntries.length === 0 && <tr><td colSpan={8} className="py-12 text-center text-sm text-slate-500">Create a draft to see the employee-by-employee payroll calculation.</td></tr>}</tbody></table></div></CardContent>
       </Card>
@@ -203,4 +271,6 @@ function PayrollStatus({ status }: { status: 'draft' | 'approved' | 'paid' }) { 
 function PayrollSummary({ icon, label, value, detail, tone }: { icon: React.ReactNode; label: string; value: string; detail: string; tone: 'indigo' | 'amber' | 'emerald' | 'violet' }) { const tones = { indigo: 'bg-indigo-50 text-indigo-600', amber: 'bg-amber-50 text-amber-600', emerald: 'bg-emerald-50 text-emerald-600', violet: 'bg-violet-50 text-violet-600' }; return <Card noHover><CardContent className="p-5"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{label}</p><p className="mt-3 text-2xl font-black tracking-tight text-slate-900">{value}</p><p className="mt-1 text-xs font-medium text-slate-500">{detail}</p></div><div className={`rounded-2xl p-3 ${tones[tone]}`}>{icon}</div></div></CardContent></Card> }
 function formatGhs(value: number) { return `GHS ${Number(value || 0).toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` }
 function formatMonth(value: string) { return new Date(`${value.slice(0, 7)}-01T00:00:00`).toLocaleDateString('en-GH', { month: 'long', year: 'numeric' }) }
+function formatDate(value: string) { return new Date(`${value}T00:00:00`).toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' }) }
 function currentMonth() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}` }
+function initials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() }

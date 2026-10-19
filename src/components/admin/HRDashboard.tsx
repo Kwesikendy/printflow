@@ -1,14 +1,15 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { BriefcaseBusiness, CalendarDays, CalendarRange, Check, ChevronDown, ClipboardCheck, Clock3, Mail, Phone, Plus, Search, ShieldCheck, UserRound, UsersRound, X, XCircle } from 'lucide-react'
+import { BriefcaseBusiness, CalendarDays, CalendarRange, Check, ChevronDown, ClipboardCheck, Clock3, Mail, Phone, Plus, Search, ShieldCheck, Trash2, UserRound, UsersRound, X, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { HRInviteUserModal } from '@/components/admin/HRInviteUserModal'
-import { updateEmployeeDepartment, updateEmployeeLeave } from '@/app/actions/users'
+import { deleteUser, updateEmployeeDepartment, updateEmployeeLeave } from '@/app/actions/users'
 import { createLeaveRequest, reviewLeaveRequest } from '@/app/actions/hr'
 import { ROLE_LABELS, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useSession } from '@/contexts/SessionContext'
 
 export interface HRDepartmentEmployee {
   id: string
@@ -42,6 +43,7 @@ const DEPARTMENTS = ['Front Desk', 'Print Room', 'Print Room 1', 'Print Room 2',
 const EMPLOYMENT_LABELS = { full_time: 'Full-time', part_time: 'Part-time', contract: 'Contract' } as const
 
 export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { initialEmployees: HRDepartmentEmployee[]; initialLeaveRequests: HRLeaveRequest[]; year: number }) {
+  const { session } = useSession()
   const [employees, setEmployees] = useState(initialEmployees)
   const [requests, setRequests] = useState(initialLeaveRequests)
   const [query, setQuery] = useState('')
@@ -51,6 +53,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null)
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [leaveInputs, setLeaveInputs] = useState<Record<string, string>>(
     Object.fromEntries(initialEmployees.map(employee => [employee.id, String(employee.leave.used_days)]))
   )
@@ -118,6 +121,20 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
         toast.success('Leave request logged for review')
         setIsRequestModalOpen(false)
         window.location.reload()
+      }
+    })
+  }
+
+  const handleDelete = (employeeId: string) => {
+    startTransition(async () => {
+      const result = await deleteUser(employeeId)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        setEmployees(current => current.filter(employee => employee.id !== employeeId))
+        setRequests(current => current.filter(request => request.employeeId !== employeeId))
+        setConfirmDeleteId(null)
+        toast.success('Staff account removed')
       }
     })
   }
@@ -275,7 +292,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year }: { 
                         </div>
                       </td>
                       <td className="pr-4 sm:pr-6 align-top text-right">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.is_active ? 'Active' : 'Inactive'}</span>
+                        {employee.id === session?.user.id ? <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active</span> : confirmDeleteId === employee.id ? <div className="flex flex-col items-end gap-2"><span className="text-xs font-semibold text-red-600">Remove account?</span><span className="flex gap-2"><button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button><button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button></span></div> : <div className="flex flex-col items-end gap-2"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.is_active ? 'Active' : 'Inactive'}</span><button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove</button></div>}
                       </td>
                     </tr>
                   )

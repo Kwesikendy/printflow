@@ -9,7 +9,7 @@ export default async function AdminPayrollPage() {
 
   const [{ data: profiles }, { data: settings }, { data: runs }] = await Promise.all([
     (supabase.from('profiles') as any)
-      .select('id, full_name, email, role, department, is_active, monthly_basic_salary, monthly_allowances, monthly_other_deductions, payroll_deduction_notes, ssnit_number, ghana_card_number, bank_name, bank_account_name, bank_account_number, salary_payment_method')
+      .select('id, full_name, email, phone, role, department, job_title, employment_type, employment_start_date, print_room, is_active, monthly_basic_salary, monthly_allowances, monthly_other_deductions, payroll_deduction_notes, ssnit_number, ghana_card_number, bank_name, bank_account_name, bank_account_number, salary_payment_method')
       .order('full_name'),
     (supabase.from('payroll_settings') as any).select('*').maybeSingle(),
     (supabase.from('payroll_runs') as any).select('*').order('period_month', { ascending: false }).limit(12),
@@ -24,8 +24,13 @@ export default async function AdminPayrollPage() {
     id: profile.id,
     fullName: profile.full_name,
     email: profile.email,
+    phone: profile.phone || null,
     role: profile.role,
     department: profile.department || null,
+    jobTitle: profile.job_title || null,
+    employmentType: profile.employment_type || 'full_time',
+    employmentStartDate: profile.employment_start_date || null,
+    printRoom: profile.print_room || null,
     isActive: Boolean(profile.is_active),
     monthlyBasicSalary: Number(profile.monthly_basic_salary) || 0,
     monthlyAllowances: Number(profile.monthly_allowances) || 0,
