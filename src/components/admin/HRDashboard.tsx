@@ -40,7 +40,7 @@ export interface HRLeaveRequest {
   createdAt: string
 }
 
-const DEPARTMENTS = ['Front Desk', 'Print Room', 'Print Room 1', 'Print Room 2', 'Finance', 'Administration']
+const DEPARTMENTS = ['Front Desk', 'Print Room', 'Print Room 1', 'Print Room 2', 'Finance', 'Administration', 'Operations']
 const EMPLOYMENT_LABELS = { full_time: 'Full-time', part_time: 'Part-time', contract: 'Contract' } as const
 
 export interface HRPayrollWorkspace {

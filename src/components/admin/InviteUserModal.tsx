@@ -15,7 +15,7 @@ interface InviteUserModalProps {
   onSuccess?: () => void
 }
 
-const ROLES = ['front_desk', 'printer', 'accountant', 'admin'] as const
+const ROLES = ['front_desk', 'printer', 'accountant', 'admin', 'cleaner', 'rider'] as const
 
 export function InviteUserModal({ onSuccess }: InviteUserModalProps) {
   const router = useRouter()

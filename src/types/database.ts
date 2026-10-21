@@ -1,6 +1,6 @@
 // PrintFlow -- Database Types
 
-export type Role = 'front_desk' | 'printer' | 'accountant' | 'admin'
+export type Role = 'front_desk' | 'printer' | 'accountant' | 'admin' | 'cleaner' | 'rider'
 export type JobStatus =
   | 'draft'
   | 'quoted'

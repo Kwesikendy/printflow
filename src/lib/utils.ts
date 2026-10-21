@@ -56,6 +56,8 @@ export const ROLE_LABELS: Record<Role, string> = {
   printer: 'Printer',
   accountant: 'Accountant',
   admin: 'Admin',
+  cleaner: 'Cleaner',
+  rider: 'Rider',
 }
 
 // ============================================================
@@ -91,6 +93,8 @@ export function getDefaultDepartment(role: Role, printRoom?: PrintRoom | null): 
     case 'printer': return printRoom ? PRINT_ROOM_LABELS[printRoom] : 'Print Room'
     case 'accountant': return 'Finance'
     case 'admin': return 'Administration'
+    case 'cleaner': return 'Operations'
+    case 'rider': return 'Operations'
     default: return 'Administration'
   }
 }

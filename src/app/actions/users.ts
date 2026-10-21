@@ -24,7 +24,7 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     return { error: 'All fields are required.' }
   }
 
-  if (!['front_desk', 'printer', 'accountant', 'admin'].includes(role)) {
+  if (!['front_desk', 'printer', 'accountant', 'admin', 'cleaner', 'rider'].includes(role)) {
     return { error: 'Please select a valid role.' }
   }
 
@@ -42,8 +42,8 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     .eq('id', user.id)
     .single() as { data: { tenant_id: string; role: string } | null, error: any }
 
-  if (!callerProfile || callerProfile.role !== 'admin') {
-    return { error: 'Only admins can add users.' }
+  if (!callerProfile || !['admin', 'accountant'].includes(callerProfile.role)) {
+    return { error: 'Only admins and accountants can add users.' }
   }
 
   const supabaseAdmin = createServiceClient()

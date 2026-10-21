@@ -9,8 +9,8 @@ import { createUser } from '@/app/actions/users'
 import { ROLE_LABELS, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { toast } from 'sonner'
 
-const ROLES = ['front_desk', 'printer', 'accountant', 'admin'] as const
-const DEPARTMENTS = ['Front Desk', 'Print Room 1', 'Print Room 2', 'Finance', 'Administration']
+const ROLES = ['front_desk', 'printer', 'accountant', 'admin', 'cleaner', 'rider'] as const
+const DEPARTMENTS = ['Front Desk', 'Print Room 1', 'Print Room 2', 'Finance', 'Administration', 'Operations']
 
 export function HRInviteUserModal() {
   const [isOpen, setIsOpen] = useState(false)
@@ -110,7 +110,13 @@ export function HRInviteUserModal() {
                             onChange={(event) => {
                               const role = event.target.value as typeof selectedRole
                               setSelectedRole(role)
-                              setSelectedDepartment(role === 'front_desk' ? 'Front Desk' : role === 'printer' ? 'Print Room' : role === 'accountant' ? 'Finance' : 'Administration')
+                              setSelectedDepartment(
+                                role === 'front_desk' ? 'Front Desk' :
+                                role === 'printer' ? 'Print Room 1' :
+                                role === 'accountant' ? 'Finance' :
+                                (role === 'cleaner' || role === 'rider') ? 'Operations' :
+                                'Administration'
+                              )
                             }}
                             className="input-standard pl-10 appearance-none"
                           >
