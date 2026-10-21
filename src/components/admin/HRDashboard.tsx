@@ -59,6 +59,7 @@ export interface HRPayrollWorkspace {
 export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payroll }: { initialEmployees: HRDepartmentEmployee[]; initialLeaveRequests: HRLeaveRequest[]; year: number; payroll: HRPayrollWorkspace }) {
   const { session } = useSession()
   const isAdmin = session?.profile.role === 'admin'
+  const isAccountant = session?.profile.role === 'accountant'
   const [activeSection, setActiveSection] = useState<'staff' | 'leave' | 'payroll'>('staff')
   const [employees, setEmployees] = useState(initialEmployees)
   const [requests, setRequests] = useState(initialLeaveRequests)
@@ -185,7 +186,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
             <h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">HR directory</h1>
             <p className="mt-2 max-w-xl text-indigo-100">Keep employee information, access roles, work assignments, and annual leave in one place.</p>
           </div>
-          {isAdmin && <HRInviteUserModal />}
+          {(isAdmin || isAccountant) && <HRInviteUserModal />}
         </div>
       </section>
 
