@@ -28,12 +28,12 @@ export default async function FinancePage() {
       .from('invoices')
       .select(`
         *,
-        jobs ( job_number, customer_name, status ),
-        job_groups ( customer_name, jobs ( id, status ) ),
+        jobs ( job_number, customer_name, customer_phone, status ),
+        job_groups ( customer_name, customer_phone, jobs ( id, status ) ),
         payments ( amount )
       `)
       .order('issued_at', { ascending: false })
-      .limit(1000),
+      .limit(2000),
 
     (async () => {
       try {

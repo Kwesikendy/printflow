@@ -7,12 +7,14 @@ interface CardProps {
   children: ReactNode
   className?: string
   noHover?: boolean
+  onClick?: () => void
 }
 
-export function Card({ children, className = '', noHover = false }: CardProps) {
+export function Card({ children, className = '', noHover = false, onClick }: CardProps) {
   const hasOverrideOverflow = className.includes('overflow-')
   return (
     <motion.div
+      onClick={onClick}
       initial={{ opacity: 0, y: 20, filter: 'blur(10px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
       transition={{ 

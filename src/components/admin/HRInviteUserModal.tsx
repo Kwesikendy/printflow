@@ -39,7 +39,13 @@ export function HRInviteUserModal() {
         return
       }
 
-      toast.success('Employee invited. They will receive an email to set their password.')
+      if (result.temporaryPassword) {
+        toast.success(`Employee created! Supabase email rate limit was reached. Temporary password: ${result.temporaryPassword}`, {
+          duration: 12000,
+        })
+      } else {
+        toast.success('Employee invited. They will receive an email to set their password.')
+      }
       setIsOpen(false)
       setError(null)
       window.location.reload()

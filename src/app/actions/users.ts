@@ -7,6 +7,9 @@ import type { Role, PrintRoom } from '@/types/database'
 export interface CreateUserResult {
   success?: boolean
   error?: string
+  deactivated?: boolean
+  temporaryPassword?: string
+  notice?: string
 }
 
 export async function createUser(formData: FormData): Promise<CreateUserResult> {
@@ -48,23 +51,48 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
 
   const supabaseAdmin = createServiceClient()
 
+  let createdUserId: string | null = null
+  let tempPassword: string | null = null
+  let noticeMsg: string | null = null
+
+  // 1. Try sending email invite
   const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
     redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/callback?type=invite`,
   })
 
   if (inviteError) {
-    return { error: inviteError.message }
+    const isRateLimited = inviteError.message?.toLowerCase().includes('rate limit')
+    if (isRateLimited) {
+      // Automatic fallback: create user directly without rate-limited SMTP
+      tempPassword = `PrintFlow@${Math.floor(1000 + Math.random() * 9000)}`
+      const { data: directData, error: directError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: { full_name: fullName },
+      })
+
+      if (directError) {
+        return { error: `Email rate limit exceeded and direct creation failed: ${directError.message}.` }
+      }
+      createdUserId = directData.user.id
+      noticeMsg = `Email rate limit was reached by Supabase. User was created directly with temporary password: ${tempPassword}`
+    } else {
+      return { error: inviteError.message }
+    }
+  } else {
+    createdUserId = inviteData.user?.id || null
   }
 
-  if (!inviteData.user) {
+  if (!createdUserId) {
     return { error: 'Failed to create user account.' }
   }
 
   const { error: profileError } = await supabaseAdmin
     .from('profiles')
     .insert({
-      id: inviteData.user.id,
+      id: createdUserId,
       tenant_id: (callerProfile as any).tenant_id,
       role: role as any,
       full_name: fullName,
@@ -79,28 +107,32 @@ export async function createUser(formData: FormData): Promise<CreateUserResult> 
     } as any)
 
   if (profileError) {
-    await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id)
+    await supabaseAdmin.auth.admin.deleteUser(createdUserId)
     return { error: `Failed to create profile: ${profileError.message}` }
   }
 
   const { error: leaveError } = await (supabaseAdmin.from('employee_leave_balances') as any)
     .insert({
       tenant_id: (callerProfile as any).tenant_id,
-      employee_id: inviteData.user.id,
+      employee_id: createdUserId,
       leave_year: new Date().getFullYear(),
       entitlement: 20,
       used_days: 0,
     })
 
   if (leaveError) {
-    await supabaseAdmin.from('profiles').delete().eq('id', inviteData.user.id)
-    await supabaseAdmin.auth.admin.deleteUser(inviteData.user.id)
+    await supabaseAdmin.from('profiles').delete().eq('id', createdUserId)
+    await supabaseAdmin.auth.admin.deleteUser(createdUserId)
     return { error: `Failed to create leave balance: ${leaveError.message}` }
   }
 
   revalidatePath('/dashboard/admin/users')
   revalidatePath('/dashboard/admin/hr')
-  return { success: true }
+  return { 
+    success: true, 
+    temporaryPassword: tempPassword || undefined,
+    notice: noticeMsg || undefined
+  }
 }
 
 export async function deleteUser(userId: string): Promise<CreateUserResult> {
@@ -123,12 +155,69 @@ export async function deleteUser(userId: string): Promise<CreateUserResult> {
 
   const supabaseAdmin = createServiceClient()
 
-  // Delete auth user (this cascades to profiles via DB trigger or FK)
+  // First try hard delete
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
-  if (deleteError) return { error: deleteError.message }
 
-  // Also delete profile explicitly (in case no cascade)
+  if (deleteError) {
+    // If hard delete fails due to database constraints (e.g. historical orders, payments, audit logs),
+    // gracefully soft-delete / deactivate the account so business integrity is preserved
+    // and access is immediately revoked.
+    const { error: updateError } = await (supabaseAdmin.from('profiles') as any)
+      .update({ is_active: false })
+      .eq('id', userId)
+
+    // Ban auth user so they can never sign in
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      ban_duration: '876600h', // 100 years
+    }).catch(() => null)
+
+    if (updateError) {
+      return { error: `Failed to deactivate account: ${updateError.message}` }
+    }
+
+    revalidatePath('/dashboard/admin/users')
+    revalidatePath('/dashboard/admin/hr')
+    return { success: true, deactivated: true }
+  }
+
+  // If hard-delete succeeded, also ensure profile record is removed
   await supabaseAdmin.from('profiles').delete().eq('id', userId)
+
+  revalidatePath('/dashboard/admin/users')
+  revalidatePath('/dashboard/admin/hr')
+  return { success: true }
+}
+
+export async function reactivateUser(userId: string): Promise<CreateUserResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: callerProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single() as { data: { role: string } | null, error: any }
+
+  if (!callerProfile || callerProfile.role !== 'admin') {
+    return { error: 'Only admins can reactivate users.' }
+  }
+
+  const supabaseAdmin = createServiceClient()
+
+  // Mark profile active
+  const { error: updateError } = await (supabaseAdmin.from('profiles') as any)
+    .update({ is_active: true })
+    .eq('id', userId)
+
+  if (updateError) {
+    return { error: `Failed to reactivate account: ${updateError.message}` }
+  }
+
+  // Lift ban from auth user
+  await supabaseAdmin.auth.admin.updateUserById(userId, {
+    ban_duration: 'none',
+  }).catch(() => null)
 
   revalidatePath('/dashboard/admin/users')
   revalidatePath('/dashboard/admin/hr')

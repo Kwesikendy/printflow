@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { BriefcaseBusiness, CalendarDays, CalendarRange, Check, ChevronDown, ClipboardCheck, Clock3, Mail, Phone, Plus, Search, ShieldCheck, Trash2, UserRound, UsersRound, X, XCircle } from 'lucide-react'
+import { BriefcaseBusiness, CalendarDays, CalendarRange, Check, ChevronDown, ClipboardCheck, Clock3, Mail, Phone, Plus, RotateCcw, Search, ShieldCheck, Trash2, UserRound, UsersRound, X, XCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { HRInviteUserModal } from '@/components/admin/HRInviteUserModal'
 import { PayrollDashboard, type PayrollEmployee, type PayrollRunView } from '@/components/admin/PayrollDashboard'
-import { deleteUser, updateEmployeeDepartment, updateEmployeeLeave } from '@/app/actions/users'
+import { deleteUser, reactivateUser, updateEmployeeDepartment, updateEmployeeLeave } from '@/app/actions/users'
 import { createLeaveRequest, reviewLeaveRequest } from '@/app/actions/hr'
 import { ROLE_LABELS, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -65,6 +65,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
   const [requests, setRequests] = useState(initialLeaveRequests)
   const [query, setQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'all' | 'inactive'>('active')
   const [isPending, startTransition] = useTransition()
   const [savingLeaveId, setSavingLeaveId] = useState<string | null>(null)
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null)
@@ -79,11 +80,12 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
     const normalizedQuery = query.toLowerCase().trim()
     return employees.filter(employee => {
       const matchesRole = roleFilter === 'all' || employee.role === roleFilter
+      const matchesStatus = statusFilter === 'all' || (statusFilter === 'active' ? employee.is_active : !employee.is_active)
       const searchable = [employee.full_name, employee.email, employee.phone, employee.department, employee.job_title]
         .filter(Boolean).join(' ').toLowerCase()
-      return matchesRole && (!normalizedQuery || searchable.includes(normalizedQuery))
+      return matchesRole && matchesStatus && (!normalizedQuery || searchable.includes(normalizedQuery))
     })
-  }, [employees, query, roleFilter])
+  }, [employees, query, roleFilter, statusFilter])
 
   const activeCount = employees.filter(employee => employee.is_active).length
   const totalUsed = employees.reduce((sum, employee) => sum + employee.leave.used_days, 0)
@@ -148,10 +150,27 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
       if (result.error) {
         toast.error(result.error)
       } else {
-        setEmployees(current => current.filter(employee => employee.id !== employeeId))
+        if (result.deactivated) {
+          setEmployees(current => current.map(employee => employee.id === employeeId ? { ...employee, is_active: false } : employee))
+          toast.success('Staff account deactivated & login revoked (records preserved)')
+        } else {
+          setEmployees(current => current.filter(employee => employee.id !== employeeId))
+          toast.success('Staff account removed')
+        }
         setRequests(current => current.filter(request => request.employeeId !== employeeId))
         setConfirmDeleteId(null)
-        toast.success('Staff account removed')
+      }
+    })
+  }
+
+  const handleReactivate = (employeeId: string) => {
+    startTransition(async () => {
+      const result = await reactivateUser(employeeId)
+      if (result.error) {
+        toast.error(result.error)
+      } else {
+        setEmployees(current => current.map(employee => employee.id === employeeId ? { ...employee, is_active: true } : employee))
+        toast.success('Staff account reactivated successfully')
       }
     })
   }
@@ -253,13 +272,23 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
               <input value={query} onChange={event => setQuery(event.target.value)} className="input-standard pl-10" placeholder="Search name, role, or department" aria-label="Search employees" />
             </label>
-            <label className="relative block w-full md:w-52">
-              <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)} className="input-standard appearance-none pr-10" aria-label="Filter employees by role">
-                <option value="all">All roles</option>
-                {Object.entries(ROLE_LABELS).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
-            </label>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <label className="relative block w-full md:w-44">
+                <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)} className="input-standard appearance-none pr-10" aria-label="Filter employees by role">
+                  <option value="all">All roles</option>
+                  {Object.entries(ROLE_LABELS).map(([role, label]) => <option key={role} value={role}>{label}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+              </label>
+              <label className="relative block w-full md:w-40">
+                <select value={statusFilter} onChange={event => setStatusFilter(event.target.value as any)} className="input-standard appearance-none pr-10" aria-label="Filter employees by status">
+                  <option value="active">Active staff</option>
+                  <option value="all">All statuses</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" aria-hidden="true" />
+              </label>
+            </div>
           </div>
 
           <div className="table-container -mx-4 sm:-mx-6">
@@ -322,8 +351,31 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
                         </div>}
                       </td>
                       <td className="pr-4 sm:pr-6 align-top text-right">
-                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId === employee.id ? <div className="flex flex-col items-end gap-2"><span className="text-xs font-semibold text-red-600">Remove account?</span><span className="flex gap-2"><button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button><button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button></span></div> : <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}><span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />{employee.is_active ? 'Active' : 'Inactive'}</span>}
-                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId !== employee.id && <button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50"><Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove</button>}
+                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId === employee.id ? (
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="text-xs font-semibold text-red-600">Remove account?</span>
+                            <span className="flex gap-2">
+                              <button type="button" onClick={() => handleDelete(employee.id)} disabled={isPending} className="rounded-lg bg-red-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-red-700 disabled:opacity-50">Remove</button>
+                              <button type="button" onClick={() => setConfirmDeleteId(null)} className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">Cancel</button>
+                            </span>
+                          </div>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${employee.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${employee.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                            {employee.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        )}
+                        {isAdmin && employee.id !== session?.user.id && confirmDeleteId !== employee.id && (
+                          employee.is_active ? (
+                            <button type="button" onClick={() => setConfirmDeleteId(employee.id)} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-2 text-xs font-bold text-red-700 transition hover:bg-red-50">
+                              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Remove
+                            </button>
+                          ) : (
+                            <button type="button" onClick={() => handleReactivate(employee.id)} disabled={isPending} className="mt-2 inline-flex min-h-9 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100">
+                              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> Reactivate
+                            </button>
+                          )
+                        )}
                       </td>
                     </tr>
                   )

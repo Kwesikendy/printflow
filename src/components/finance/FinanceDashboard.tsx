@@ -18,12 +18,13 @@ import {
 } from 'recharts'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { TrendingUp, AlertCircle, Calendar, Printer, Filter, Flag, Receipt, ArrowRight } from 'lucide-react'
+import { TrendingUp, AlertCircle, Calendar, Printer, Filter, Flag, Receipt, ArrowRight, ArrowUpRight, Users, X } from 'lucide-react'
 import { CustomerSearchSection } from '@/components/finance/CustomerSearchSection'
 import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
 import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
 import { InvoiceFlagButton } from '@/components/finance/InvoiceFlagButton'
 import { RecordPaymentModal } from '@/components/finance/RecordPaymentModal'
+import { OutstandingBalanceBreakdownModal, type OutstandingDebtor } from '@/components/finance/OutstandingBalanceBreakdownModal'
 
 interface FinanceDashboardProps {
   payments: any[]
@@ -39,6 +40,9 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
   const [selectedDay, setSelectedDay] = useState<string>(currentShiftDay)
   const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; phone?: string | null } | null>(null)
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
+  const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false)
+  const [debtorFilter, setDebtorFilter] = useState<string | null>(null)
+  const [onlyUnpaid, setOnlyUnpaid] = useState(false)
   const [showFlagged, setShowFlagged] = useState(false)
 
   // Shift bounds for currently selected shift date
@@ -123,6 +127,21 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
     })
   }, [filteredInvoices])
 
+  const displayedInvoices = useMemo(() => {
+    return sortedInvoices.filter(inv => {
+      const customerName = (inv.jobs?.customer_name || inv.job_groups?.customer_name || '').trim().toLowerCase()
+      if (debtorFilter && customerName !== debtorFilter.toLowerCase()) {
+        return false
+      }
+      if (onlyUnpaid) {
+        const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+        const balance = Math.max(0, Number(inv.total) - paid)
+        if (balance <= 0) return false
+      }
+      return true
+    })
+  }, [sortedInvoices, debtorFilter, onlyUnpaid])
+
   const totalRevenue = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   }, [filteredPayments])
@@ -141,6 +160,43 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
       const balance = Math.max(0, Number(inv.total) - paid)
       return sum + balance
     }, 0)
+  }, [filteredInvoices])
+
+  // Clients contributing to the outstanding balance
+  const outstandingContributors: OutstandingDebtor[] = useMemo(() => {
+    const customerMap = new Map<string, OutstandingDebtor>()
+
+    filteredInvoices.forEach(inv => {
+      const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+      const balance = Math.max(0, Number(inv.total) - paid)
+      if (balance <= 0) return
+
+      const name = (inv.jobs?.customer_name || inv.job_groups?.customer_name || 'Walk-in Customer').trim()
+      const phone = inv.jobs?.customer_phone || inv.job_groups?.customer_phone || null
+      const key = name.toLowerCase()
+
+      const existing = customerMap.get(key)
+      if (existing) {
+        existing.totalOutstanding += balance
+        existing.unpaidInvoicesCount += 1
+        if (inv.invoice_number) existing.invoiceNumbers.push(inv.invoice_number)
+        if (!existing.phone && phone) existing.phone = phone
+        if (new Date(inv.issued_at) > new Date(existing.latestIssuedAt)) {
+          existing.latestIssuedAt = inv.issued_at
+        }
+      } else {
+        customerMap.set(key, {
+          name,
+          phone,
+          totalOutstanding: balance,
+          unpaidInvoicesCount: 1,
+          invoiceNumbers: inv.invoice_number ? [inv.invoice_number] : [],
+          latestIssuedAt: inv.issued_at || new Date().toISOString()
+        })
+      }
+    })
+
+    return Array.from(customerMap.values()).sort((a, b) => b.totalOutstanding - a.totalOutstanding)
   }, [filteredInvoices])
 
   // Expenditures calculations
@@ -314,6 +370,15 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
             <Flag className="w-3.5 h-3.5" />
             {showFlagged ? 'Showing flagged' : 'Hide flagged'}{flaggedInvoiceCount > 0 ? ` (${flaggedInvoiceCount})` : ''}
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsBreakdownModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 shadow-2xs"
+          >
+            <Users className="w-3.5 h-3.5 text-amber-600" />
+            Debtors Breakdown ({outstandingContributors.length})
+          </button>
         </div>
 
         {/* Print Filtered Report Button */}
@@ -399,19 +464,34 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="relative overflow-hidden group h-full">
+          <Card 
+            onClick={() => setIsBreakdownModalOpen(true)}
+            className="relative overflow-hidden group h-full cursor-pointer hover:border-amber-300 hover:shadow-md transition-all border border-slate-200"
+          >
             <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
               <AlertCircle className="w-24 h-24 text-amber-900" />
             </div>
             <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shadow-sm border border-amber-100/50">
-                  <AlertCircle className="w-5 h-5" />
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shadow-sm border border-amber-100/50">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outstanding Balance</p>
                 </div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outstanding Balance</p>
+                <span className="text-[11px] font-bold text-indigo-600 group-hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100/50">
+                  Breakdown <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
               <p className="mt-3 text-3xl font-black text-amber-500 tracking-tight">{formatCurrency(outstandingTotal)}</p>
-              <p className="text-xs text-slate-400 mt-2">Unpaid balances in period</p>
+              <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-xs">
+                <span className="text-slate-500 font-medium">
+                  {outstandingContributors.length} {outstandingContributors.length === 1 ? 'client owes' : 'clients owe'} in period
+                </span>
+                <span className="text-amber-600 font-bold group-hover:underline inline-flex items-center gap-0.5">
+                  View list →
+                </span>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -521,7 +601,43 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
 
         <motion.div variants={itemVariants}>
           <Card className="h-full">
-            <CardHeader title="Recent Invoices (All Statuses)" description={`${filteredInvoices.length} invoices generated in period`} />
+            <CardHeader 
+              title={debtorFilter ? `Invoices: ${debtorFilter}` : "Recent Invoices"} 
+              description={
+                debtorFilter 
+                  ? `Filtered to show records for ${debtorFilter}` 
+                  : onlyUnpaid 
+                    ? `Showing ${displayedInvoices.length} unpaid invoices in period`
+                    : `${filteredInvoices.length} invoices generated in period`
+              }
+              action={
+                <div className="flex items-center gap-2">
+                  {debtorFilter && (
+                    <button
+                      type="button"
+                      onClick={() => setDebtorFilter(null)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 transition-colors shadow-2xs"
+                      title="Clear client filter"
+                    >
+                      <span>Client: {debtorFilter}</span>
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setOnlyUnpaid(prev => !prev)}
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                      onlyUnpaid 
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-2xs' 
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Filter className="w-3 h-3" />
+                    {onlyUnpaid ? 'Unpaid Only' : 'All Invoices'}
+                  </button>
+                </div>
+              }
+            />
             <CardContent className="p-0">
               <div className="table-container border-t border-slate-100 max-h-[420px] overflow-y-auto">
                 <table className="table-standard w-full">
@@ -535,7 +651,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100/50">
-                    {sortedInvoices.map((inv) => {
+                    {displayedInvoices.map((inv) => {
                       const customerName = inv.jobs?.customer_name || inv.job_groups?.customer_name || 'Unknown'
                       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
                       const balance = Math.max(0, Number(inv.total) - paid)
@@ -575,9 +691,9 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
                         </tr>
                       )
                     })}
-                    {filteredInvoices.length === 0 && (
+                    {displayedInvoices.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">No recent invoices found.</td>
+                        <td colSpan={5} className="text-center py-8 text-slate-400 font-medium">No invoices found matching current filter.</td>
                       </tr>
                     )}
                   </tbody>
@@ -594,6 +710,19 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         customerPhone={selectedCustomer?.phone}
         isOpen={isStatementModalOpen}
         onClose={() => setIsStatementModalOpen(false)}
+      />
+
+      {/* Outstanding Balance Contributors Breakdown Modal */}
+      <OutstandingBalanceBreakdownModal
+        isOpen={isBreakdownModalOpen}
+        onClose={() => setIsBreakdownModalOpen(false)}
+        contributors={outstandingContributors}
+        totalOutstanding={outstandingTotal}
+        filterLabel={dateLabel}
+        onSelectCustomer={handleSelectCustomer}
+        onFilterCustomer={(customerName) => {
+          setDebtorFilter(customerName)
+        }}
       />
     </motion.div>
   )
