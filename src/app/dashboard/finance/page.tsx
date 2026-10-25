@@ -5,8 +5,22 @@ import Link from 'next/link'
 import { Printer, Users, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 
+import { redirect } from 'next/navigation'
+
 export default async function FinancePage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: viewerProfile } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single() as { data: { role: string; is_active?: boolean } | null; error: any }
+
+  if (!viewerProfile || viewerProfile.is_active === false || !['admin', 'accountant'].includes(viewerProfile.role)) {
+    redirect('/dashboard')
+  }
 
   // Fetch all payments and unpaid invoices for the tenant.
   // In a real app with large data, we would do the aggregation in SQL or use date filters.

@@ -22,17 +22,23 @@ async function checkInventoryPermission() {
   return { error: null, profile }
 }
 
-export async function getMaterialsAction(tenantId: string) {
+export async function getMaterialsAction(_tenantId?: string) {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { data: [], error: permError || 'Unauthorized' }
+
   const serviceSupabase = createServiceClient()
   const { data, error } = await (serviceSupabase as any)
     .from('materials')
     .select('*')
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', profile.tenant_id)
     .order('name')
   return { data, error: error?.message }
 }
 
-export async function getInventoryLogsAction(tenantId: string, limit = 60) {
+export async function getInventoryLogsAction(_tenantId?: string, limit = 60) {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { data: [], error: permError || 'Unauthorized' }
+
   const serviceSupabase = createServiceClient()
   const { data, error } = await (serviceSupabase as any)
     .from('inventory_logs')
@@ -49,19 +55,22 @@ export async function getInventoryLogsAction(tenantId: string, limit = 60) {
       materials(name, roll_width, roll_length),
       jobs(job_number, customer_name)
     `)
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', profile.tenant_id)
     .order('created_at', { ascending: false })
     .limit(limit)
 
   return { data, error: error?.message }
 }
 
-export async function getProductTypesForMaterialsAction(tenantId: string) {
+export async function getProductTypesForMaterialsAction(_tenantId?: string) {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { data: [], error: permError || 'Unauthorized' }
+
   const serviceSupabase = createServiceClient()
   const { data, error } = await (serviceSupabase as any)
     .from('product_types')
     .select('id, name, is_active, material_id')
-    .eq('tenant_id', tenantId)
+    .eq('tenant_id', profile.tenant_id)
     .order('name')
   return { data, error: error?.message }
 }

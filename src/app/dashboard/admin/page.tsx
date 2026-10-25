@@ -7,8 +7,22 @@ import { formatDateTime, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 
+import { redirect } from 'next/navigation'
+
 export default async function AdminOverviewPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single() as { data: { role: string; is_active?: boolean } | null; error: any }
+
+  if (!profile || profile.is_active === false || profile.role !== 'admin') {
+    redirect('/dashboard')
+  }
 
   const [
     { count: jobsCount },

@@ -14,7 +14,7 @@ async function checkOne(r) {
     port: 6543,
     database: 'postgres',
     user: 'postgres.zrnnrnnzywqnvdmnpbws',
-    password: 'PRINTFLOW11@',
+    password: process.env.DB_PASSWORD || "",
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 2500
   });
@@ -37,7 +37,7 @@ async function checkSession(r) {
     port: 5432,
     database: 'postgres',
     user: 'postgres.zrnnrnnzywqnvdmnpbws',
-    password: 'PRINTFLOW11@',
+    password: process.env.DB_PASSWORD || "",
     ssl: { rejectUnauthorized: false },
     connectionTimeoutMillis: 2500
   });

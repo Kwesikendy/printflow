@@ -43,8 +43,8 @@ export async function updateSession(request: NextRequest) {
   // Refresh session — do not remove this
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Public routes that don't need auth
-  const publicRoutes = ['/login', '/print', '/track']
+  // Public routes that don't need auth (login, OAuth callback, and customer QR invoice tracker)
+  const publicRoutes = ['/login', '/auth/callback', '/track']
   const isPublic = publicRoutes.some(r => pathname.startsWith(r))
 
   if (!user && !isPublic) {

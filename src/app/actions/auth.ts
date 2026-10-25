@@ -30,16 +30,11 @@ export async function login(formData: FormData) {
         .ilike('email', email)
         .maybeSingle()
 
-      if (profileMatch && (profileMatch.is_active !== false || email.toLowerCase() === 'm.adoko@printdpigh.com')) {
+      if (profileMatch && profileMatch.is_active === true) {
         await serviceSupabase.auth.admin.updateUserById(profileMatch.id, {
           ban_duration: 'none',
           email_confirm: true,
         })
-        if (profileMatch.is_active === false) {
-          await (serviceSupabase.from('profiles') as any)
-            .update({ is_active: true })
-            .eq('id', profileMatch.id)
-        }
         const retry = await supabase.auth.signInWithPassword({
           email,
           password,

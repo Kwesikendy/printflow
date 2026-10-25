@@ -6,15 +6,24 @@ import {
 } from '@/components/admin/ProductForms'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 
+import { redirect } from 'next/navigation'
+
 export default async function AdminProductsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  let tenantId = '00000000-0000-0000-0000-000000000001'
-  if (user) {
-    const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('id', user.id).single() as { data: { tenant_id: string } | null, error: any }
-    if (profile?.tenant_id) tenantId = profile.tenant_id
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('tenant_id, role, is_active')
+    .eq('id', user.id)
+    .single() as { data: { tenant_id: string; role: string; is_active?: boolean } | null, error: any }
+
+  if (!profile || profile.is_active === false || profile.role !== 'admin') {
+    redirect('/dashboard')
   }
+
+  const tenantId = profile.tenant_id || '00000000-0000-0000-0000-000000000001'
 
   const [{ data: productTypes }, { data: pricingRules }, unitPricingConfig] = await Promise.all([
     supabase.from('product_types').select('*').order('name'),
