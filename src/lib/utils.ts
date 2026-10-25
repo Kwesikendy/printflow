@@ -147,21 +147,32 @@ export const AREA_UNIT_LABELS = {
 // ============================================================
 export function canAccessRoute(role: Role, pathname: string, email?: string): boolean {
   if (role === 'admin') return true
+  if (pathname === '/dashboard') return true
 
+  const isMavis = email?.toLowerCase() === 'm.adoko@printdpigh.com'
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
   const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory', '/dashboard/admin/hr', '/dashboard/jobs']
-  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup']
+  const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup', '/dashboard/delivery']
+  const riderRoutes = ['/dashboard/delivery', '/dashboard/pickup', '/dashboard/jobs']
+  const cleanerRoutes = ['/dashboard/jobs', '/dashboard/pickup']
 
+  if (isMavis && pathname.startsWith('/dashboard/delivery')) {
+    return true
+  }
   if (role === 'printer') {
     return printerRoutes.some(r => pathname.startsWith(r))
   }
   if (role === 'accountant') {
-    return accountantRoutes.some(r => pathname.startsWith(r)) ||
-           pathname === '/dashboard'
+    return accountantRoutes.some(r => pathname.startsWith(r))
   }
   if (role === 'front_desk') {
-    return frontDeskRoutes.some(r => pathname.startsWith(r)) ||
-           pathname === '/dashboard'
+    return frontDeskRoutes.some(r => pathname.startsWith(r))
+  }
+  if (role === 'rider') {
+    return riderRoutes.some(r => pathname.startsWith(r))
+  }
+  if (role === 'cleaner') {
+    return cleanerRoutes.some(r => pathname.startsWith(r))
   }
   return false
 }
@@ -174,8 +185,10 @@ export function getDefaultDashboardPath(role: Role, email?: string): string {
     case 'printer': return '/dashboard/queue'
     case 'accountant': return '/dashboard/finance'
     case 'front_desk': return '/dashboard/jobs'
+    case 'rider': return '/dashboard/delivery'
+    case 'cleaner': return '/dashboard/jobs'
     case 'admin': return '/dashboard/admin'
-    default: return '/dashboard'
+    default: return '/dashboard/jobs'
   }
 }
 

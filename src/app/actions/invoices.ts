@@ -87,10 +87,26 @@ export async function editInvoiceTotalAction(invoiceId: string, newTotal: number
   }
 
   const oldTotal = invoice.total
+  const serviceSupabase = createServiceClient()
+
+  // Calculate current payments to set accurate status
+  const { data: paymentsData } = await serviceSupabase
+    .from('payments')
+    .select('amount')
+    .eq('invoice_id', invoiceId)
+
+  const totalPaid = Math.round(((paymentsData || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0)) * 100) / 100
+  const roundedNewTotal = Math.round(Number(newTotal) * 100) / 100
+  const nextStatus =
+    totalPaid >= roundedNewTotal - 0.009
+      ? 'paid'
+      : totalPaid > 0.009
+      ? 'partial'
+      : 'unpaid'
 
   // Update invoice
-  const { error: updateError } = await (supabase.from('invoices') as any)
-    .update({ total: newTotal })
+  const { error: updateError } = await (serviceSupabase.from('invoices') as any)
+    .update({ total: roundedNewTotal, status: nextStatus })
     .eq('id', invoiceId)
 
   if (updateError) {
@@ -103,7 +119,7 @@ export async function editInvoiceTotalAction(invoiceId: string, newTotal: number
     invoice_id: invoiceId,
     user_id: user.id,
     old_total: oldTotal,
-    new_total: newTotal,
+    new_total: roundedNewTotal,
     reason: reason
   })
 
@@ -201,11 +217,25 @@ export async function editInvoiceItemsAction(invoiceId: string, items: any[], re
     calculatedTotal += (item.quantity * item.unit_cost)
   }
 
-  const newTotal = customTotal !== undefined ? customTotal : calculatedTotal
+  const newTotal = Math.round(Number(customTotal !== undefined ? customTotal : calculatedTotal) * 100) / 100
+  const serviceSupabase = createServiceClient()
+
+  const { data: paymentsData } = await serviceSupabase
+    .from('payments')
+    .select('amount')
+    .eq('invoice_id', invoiceId)
+
+  const totalPaid = Math.round(((paymentsData || []).reduce((sum: number, p: any) => sum + Number(p.amount), 0)) * 100) / 100
+  const nextStatus =
+    totalPaid >= newTotal - 0.009
+      ? 'paid'
+      : totalPaid > 0.009
+      ? 'partial'
+      : 'unpaid'
 
   // Update invoice
-  const { error: updateError } = await (supabase.from('invoices') as any)
-    .update({ total: newTotal })
+  const { error: updateError } = await (serviceSupabase.from('invoices') as any)
+    .update({ total: newTotal, status: nextStatus })
     .eq('id', invoiceId)
 
   if (updateError) {

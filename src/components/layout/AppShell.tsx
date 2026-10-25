@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useSession } from '@/contexts/SessionContext'
 import { AppLoadingScreen } from '@/components/ui/AppLoadingScreen'
 
-const MIN_DISPLAY_MS = 2500
+const MIN_DISPLAY_MS = 300
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           logoUrl={session?.tenant?.logo_url}
         />
       )}
-      {(!showLoader || isPrintRoute) && children}
+      {children}
     </>
   )
 }

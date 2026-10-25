@@ -33,10 +33,11 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
   const jobs: any[] = group.jobs || []
   const invoice = Array.isArray(group.invoices) ? group.invoices[0] : group.invoices
   const payments: any[] = invoice?.payments || []
-  const hasPayment = payments.length > 0 || invoice?.status === 'paid'
 
-  const totalPaid = payments.reduce((sum: number, p: any) => sum + p.amount, 0)
-  const remaining = invoice ? invoice.total - totalPaid : 0
+  const totalPaid = Math.round(payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0) * 100) / 100
+  const remaining = invoice ? Math.max(0, Math.round((Number(invoice.total) - totalPaid) * 100) / 100) : 0
+  const isFullyPaid = Boolean(invoice && remaining <= 0.009)
+  const hasPayment = payments.length > 0 || isFullyPaid
   const awaitingJobsCount = jobs.filter((j: any) => j.status === 'awaiting_payment').length
   const cancellableJobsCount = jobs.filter((j: any) => ['draft', 'quoted', 'awaiting_payment'].includes(j.status)).length
 
@@ -142,7 +143,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
         <div className="lg:col-span-1 space-y-6">
           <Card className="border-emerald-100">
             <CardHeader title="Invoice and Payment"
-              action={invoice?.status === 'paid' && (
+              action={isFullyPaid && (
                 <span className="flex items-center text-sm font-medium text-green-600 bg-green-400/10 px-2.5 py-1 rounded-md">
                   <CheckCircle2 className="w-4 h-4 mr-1.5" /> Paid
                 </span>
@@ -186,14 +187,14 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                         </div>
                         <div className="flex justify-between text-sm border-t border-slate-200 pt-2 font-bold">
                           <span>Balance</span>
-                          <span className="text-red-600">{formatCurrency(remaining)}</span>
+                          <span className={remaining > 0.009 ? 'text-red-600' : 'text-emerald-600'}>{formatCurrency(remaining)}</span>
                         </div>
                       </>
                     )}
                   </div>
 
-                  {/* Show payment form whenever invoice is not fully paid — even if jobs are already in print room */}
-                  {invoice.status !== 'paid' && ['front_desk', 'admin', 'accountant'].includes(role) && (
+                  {/* Show payment form whenever invoice has a remaining balance — even if jobs are already in print room */}
+                  {!isFullyPaid && ['front_desk', 'admin', 'accountant'].includes(role) && (
                     <PaymentForm 
                       invoice={invoice} 
                       jobId={jobs[0]?.id || ''} 
@@ -203,7 +204,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     />
                   )}
 
-                  {invoice.status === 'paid' && (
+                  {isFullyPaid && (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
                         <CheckCircle2 className="h-6 w-6 text-emerald-600" />

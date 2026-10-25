@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isSupabaseConfigured } from './mock'
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -9,6 +10,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js)$/)
   ) {
+    return NextResponse.next()
+  }
+
+  if (!isSupabaseConfigured()) {
     return NextResponse.next()
   }
 

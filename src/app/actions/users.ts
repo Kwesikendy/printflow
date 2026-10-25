@@ -199,8 +199,8 @@ export async function reactivateUser(userId: string): Promise<CreateUserResult> 
     .eq('id', user.id)
     .single() as { data: { role: string } | null, error: any }
 
-  if (!callerProfile || callerProfile.role !== 'admin') {
-    return { error: 'Only admins can reactivate users.' }
+  if (!callerProfile || !['admin', 'accountant'].includes(callerProfile.role)) {
+    return { error: 'Only admins and accountants can reactivate users.' }
   }
 
   const supabaseAdmin = createServiceClient()
@@ -217,6 +217,7 @@ export async function reactivateUser(userId: string): Promise<CreateUserResult> 
   // Lift ban from auth user
   await supabaseAdmin.auth.admin.updateUserById(userId, {
     ban_duration: 'none',
+    email_confirm: true,
   }).catch(() => null)
 
   revalidatePath('/dashboard/admin/users')

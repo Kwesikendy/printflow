@@ -336,13 +336,15 @@ export async function getCustomerFinancialStatement(
     invoicePaidMap.set(p.invoice_id, (invoicePaidMap.get(p.invoice_id) || 0) + Number(p.amount))
   })
 
-  // Enrich invoices with amount paid and remaining balance
+  // Enrich invoices with amount paid, remaining balance, and accurate status
   const enrichedInvoices = invoices.map(inv => {
     const paid = Math.round((invoicePaidMap.get(inv.id) || 0) * 100) / 100
     const total = Number(inv.total)
     const balance = Math.max(0, Math.round((total - paid) * 100) / 100)
+    const computedStatus = balance <= 0.009 ? 'paid' : paid > 0.009 ? 'partial' : 'unpaid'
     return {
       ...inv,
+      status: computedStatus,
       total,
       amount_paid: paid,
       balance_due: balance
@@ -521,12 +523,12 @@ export async function settleCustomerBalanceAction({
     return { error: 'No orders or invoices found for this customer.' }
   }
 
-  // 3. Fetch unpaid/partial invoices
+  // 3. Fetch all invoices for this customer (do NOT filter by status != 'paid' in SQL,
+  // because an invoice's status column can be out of sync with its actual total - sum(payments))
   let invQuery = serviceSupabase
     .from('invoices')
-    .select('id, invoice_number, total, status, issued_at, job_id, group_id')
+    .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
     .eq('tenant_id', tenantId)
-    .neq('status', 'paid')
 
   if (jobIds.length > 0 && groupIds.length > 0) {
     invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
@@ -536,14 +538,26 @@ export async function settleCustomerBalanceAction({
     invQuery = invQuery.in('group_id', groupIds)
   }
 
-  const { data: unpaidInvoices, error: invErr } = await invQuery.order('issued_at', { ascending: true })
+  const { data: allCustomerInvoices, error: invErr } = await invQuery.order('issued_at', { ascending: true })
 
   if (invErr) {
-    console.error('Error fetching unpaid invoices:', invErr)
+    console.error('Error fetching customer invoices:', invErr)
     return { error: 'Failed to fetch customer invoices.' }
   }
 
-  const invoiceIds = (unpaidInvoices || []).map((i: any) => i.id)
+  // Filter out flagged invoices and invoices whose jobs are all cancelled
+  const cancelledJobIds = new Set(rawJobs.filter((j: any) => j.status === 'cancelled').map((j: any) => j.id))
+  const candidateInvoices: any[] = ((allCustomerInvoices as any[]) || []).filter((inv: any) => {
+    if (inv.is_flagged) return false
+    if (inv.job_id && cancelledJobIds.has(inv.job_id)) return false
+    if (inv.group_id) {
+      const groupJobs = rawJobs.filter((j: any) => j.group_id === inv.group_id)
+      if (groupJobs.length > 0 && groupJobs.every((j: any) => j.status === 'cancelled')) return false
+    }
+    return true
+  })
+
+  const invoiceIds = candidateInvoices.map((i: any) => i.id)
   if (invoiceIds.length === 0) {
     return { error: 'This customer has zero outstanding unpaid invoices.' }
   }
@@ -560,8 +574,18 @@ export async function settleCustomerBalanceAction({
     paidPerInvoice.set(p.invoice_id, (paidPerInvoice.get(p.invoice_id) || 0) + Number(p.amount))
   })
 
+  // Auto-heal any invoice whose status is 'unpaid'/'partial' even though balance_due <= 0
+  for (const inv of candidateInvoices) {
+    const paid = paidPerInvoice.get(inv.id) || 0
+    const total = Number(inv.total)
+    const balanceDue = Math.max(0, Math.round((total - paid) * 100) / 100)
+    if (balanceDue <= 0.009 && inv.status !== 'paid') {
+      await (serviceSupabase as any).from('invoices').update({ status: 'paid' }).eq('id', inv.id)
+    }
+  }
+
   // Calculate remaining balance per invoice and filter to those with balance > 0
-  const actionableInvoices = (unpaidInvoices || [])
+  const actionableInvoices = candidateInvoices
     .map((inv: any) => {
       const paid = paidPerInvoice.get(inv.id) || 0
       const total = Number(inv.total)
@@ -604,6 +628,15 @@ export async function settleCustomerBalanceAction({
     const paymentNotes = notes
       ? `${notes} (Bulk settlement)`
       : `Customer ledger clearance for ${trimmedName}`
+
+    // If this invoice had status = 'paid' in the DB despite having a balance_due > 0,
+    // heal its status first so the RPC record_payment does not reject it.
+    if (inv.status === 'paid') {
+      await (serviceSupabase as any)
+        .from('invoices')
+        .update({ status: inv.amount_paid > 0.009 ? 'partial' : 'unpaid' })
+        .eq('id', inv.id)
+    }
 
     // Attempt RPC first
     const { error: rpcError } = await supabase.rpc('record_payment', {
@@ -780,7 +813,7 @@ export async function getCustomerArrearsAction(
     // 1. Fetch matching jobs
     const { data: jobs, error: jobsErr } = await serviceSupabase
       .from('jobs')
-      .select('id, group_id, customer_phone')
+      .select('id, group_id, customer_phone, status')
       .eq('tenant_id', tenantId)
       .ilike('customer_name', `%${trimmed}%`)
 
@@ -817,12 +850,11 @@ export async function getCustomerArrearsAction(
       }
     }
 
-    // 3. Fetch unpaid/partial invoices
+    // 3. Fetch all invoices for this customer and compute balance_due from actual payments
     let invQuery = serviceSupabase
       .from('invoices')
-      .select('id, invoice_number, total, status, issued_at, job_id, group_id')
+      .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
       .eq('tenant_id', tenantId)
-      .neq('status', 'paid')
 
     if (jobIds.length > 0 && groupIds.length > 0) {
       invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
@@ -838,7 +870,17 @@ export async function getCustomerArrearsAction(
       return null
     }
 
-    const invoices = invData || []
+    const cancelledJobIds = new Set(rawJobs.filter((j: any) => j.status === 'cancelled').map((j: any) => j.id))
+    const invoices = (invData || []).filter((inv: any) => {
+      if (inv.is_flagged) return false
+      if (inv.job_id && cancelledJobIds.has(inv.job_id)) return false
+      if (inv.group_id) {
+        const groupJobs = rawJobs.filter((j: any) => j.group_id === inv.group_id)
+        if (groupJobs.length > 0 && groupJobs.every((j: any) => j.status === 'cancelled')) return false
+      }
+      return true
+    })
+
     if (invoices.length === 0) {
       return {
         customerName: trimmed,
@@ -878,7 +920,7 @@ export async function getCustomerArrearsAction(
           total,
           amount_paid: paid,
           balance_due: balanceDue,
-          status: inv.status,
+          status: balanceDue <= 0.009 ? 'paid' : (paid > 0.009 ? 'partial' : 'unpaid'),
           job_id: inv.job_id,
           group_id: inv.group_id
         }
