@@ -28,9 +28,34 @@ import {
   SlidersHorizontal,
   FileSpreadsheet,
   Layers,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Clock
 } from 'lucide-react'
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils'
+
+function formatDateStamp(dateStr?: string) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatTimeStamp(dateStr?: string) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { toast } from 'sonner'
 import { 
@@ -302,12 +327,23 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success(`Material "${addForm.name}" created successfully`)
+        const stampedAt = res.data?.created_at || new Date().toISOString()
+        toast.success(
+          `Material "${addForm.name}" added on ${formatDateStamp(stampedAt)} at ${formatTimeStamp(stampedAt)}`
+        )
         setIsAddOpen(false)
         setAddForm({ name: '', unit: 'roll', roll_width: '3.2', roll_height: '50', unit_cost: '1200', qty_rolls: '1' })
-        // Append newly created material optimistically
+        // Append newly created material optimistically with guaranteed timestamps
         if (res.data) {
-          setMaterials(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)))
+          const itemWithStamp = {
+            ...res.data,
+            created_at: res.data.created_at || stampedAt,
+            updated_at: res.data.updated_at || stampedAt,
+          }
+          setMaterials(prev => [...prev, itemWithStamp].sort((a, b) => a.name.localeCompare(b.name)))
+        }
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
         }
       }
     } catch {
@@ -339,6 +375,7 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
         toast.success('Material details updated successfully')
         setMaterials(prev => prev.map(m => m.id === selectedMaterial.id ? {
           ...m,
@@ -349,7 +386,7 @@ export function InventoryManager({
           roll_length: parseFloat(editForm.roll_height),
           unit_cost: parseFloat(editForm.unit_cost),
           qty_rolls: editForm.qty_rolls ? parseFloat(editForm.qty_rolls) : m.qty_rolls,
-          updated_at: new Date().toISOString()
+          updated_at: stampedAt
         } : m))
         setIsEditOpen(false)
       }
@@ -377,8 +414,11 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
         const u = getUnitLabels(selectedMaterial.unit)
-        toast.success(`Successfully added ${qty} ${u.plural} to ${selectedMaterial.name}`)
+        toast.success(
+          `Added ${qty} ${u.plural} to ${selectedMaterial.name} (${formatDateStamp(stampedAt)} • ${formatTimeStamp(stampedAt)})`
+        )
         // Update local material state
         setMaterials(prev => prev.map(m => {
           if (m.id !== selectedMaterial.id) return m
@@ -386,8 +426,11 @@ export function InventoryManager({
           const currentCost = Number(m.unit_cost) || 0
           const newQty = currentQty + qty
           const newCost = newQty > 0 ? ((currentQty * currentCost) + (qty * cost)) / newQty : cost
-          return { ...m, qty_rolls: newQty, unit_cost: newCost }
+          return { ...m, qty_rolls: newQty, unit_cost: newCost, updated_at: stampedAt }
         }))
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
+        }
         setIsStockOpen(false)
       }
     } catch {
@@ -441,7 +484,8 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('Stock adjustment recorded')
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
+        toast.success(`Stock adjustment recorded (${formatDateStamp(stampedAt)} • ${formatTimeStamp(stampedAt)})`)
         setMaterials(prev => prev.map(m => {
           if (m.id !== selectedMaterial.id) return m
           let newQty = m.qty_rolls
@@ -450,8 +494,11 @@ export function InventoryManager({
           } else if (adjustForm.type === 'recount') {
             newQty = qty
           }
-          return { ...m, qty_rolls: newQty }
+          return { ...m, qty_rolls: newQty, updated_at: stampedAt }
         }))
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
+        }
         setIsAdjustOpen(false)
       }
     } catch {
@@ -525,7 +572,7 @@ export function InventoryManager({
 
   // CSV Export for Accountant / Admin reporting
   const handleExportCSV = () => {
-    const headers = ['Material Name', 'Roll Width (m)', 'Roll Height (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)']
+    const headers = ['Material Name', 'Roll Width (m)', 'Roll Height (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)', 'Date Added', 'Time Added', 'Last Updated']
     const rows = materials.map(m => {
       const rollArea = m.roll_width * (m.roll_height ?? m.roll_length ?? 0)
       const totalArea = rollArea * m.qty_rolls
@@ -538,7 +585,10 @@ export function InventoryManager({
         m.qty_rolls.toFixed(2),
         totalArea.toFixed(2),
         m.unit_cost.toFixed(2),
-        totalVal.toFixed(2)
+        totalVal.toFixed(2),
+        `"${formatDateStamp(m.created_at)}"`,
+        `"${formatTimeStamp(m.created_at)}"`,
+        `"${m.updated_at ? `${formatDateStamp(m.updated_at)} ${formatTimeStamp(m.updated_at)}` : '—'}"`
       ]
     })
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
@@ -1051,6 +1101,29 @@ export function InventoryManager({
                           <span className="font-bold text-indigo-700 text-sm">{formatCurrency(stockVal)}</span>
                         </div>
                       </div>
+
+                      {/* Date Stamp & Timestamp Footer */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-slate-500">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Added</span>
+                          <div className="flex items-center gap-2 font-medium text-slate-700">
+                            <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                              <Calendar className="w-3 h-3 text-indigo-500" />
+                              {formatDateStamp(m.created_at)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                              <Clock className="w-3 h-3 text-indigo-500" />
+                              {formatTimeStamp(m.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        {m.updated_at && m.created_at && Math.abs(new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 5000 && (
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                            <span className="uppercase font-semibold">Last Updated</span>
+                            <span>{formatDateStamp(m.updated_at)} • {formatTimeStamp(m.updated_at)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Card Actions Bottom Bar */}
@@ -1112,6 +1185,7 @@ export function InventoryManager({
                       <th className="py-3.5 px-4">Available Area</th>
                       <th className="py-3.5 px-4">Unit Cost</th>
                       <th className="py-3.5 px-4">Asset Valuation</th>
+                      <th className="py-3.5 px-4">Added (Date & Time)</th>
                       <th className="py-3.5 px-4">Status</th>
                       <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
@@ -1155,6 +1229,23 @@ export function InventoryManager({
                           </td>
                           <td className="py-3.5 px-4 font-bold text-indigo-700">
                             {formatCurrency(stockVal)}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                                <Calendar className="w-3 h-3 text-indigo-500" />
+                                {formatDateStamp(m.created_at)}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-indigo-600 font-medium text-[11px]">
+                                <Clock className="w-3 h-3 text-indigo-400" />
+                                {formatTimeStamp(m.created_at)}
+                              </div>
+                              {m.updated_at && m.created_at && Math.abs(new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 5000 && (
+                                <span className="text-[10px] text-slate-400">
+                                  Upd: {formatDateStamp(m.updated_at)} {formatTimeStamp(m.updated_at)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={cn(
@@ -1318,7 +1409,16 @@ export function InventoryManager({
                       return (
                         <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
-                            {formatDateTime(log.created_at)}
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                <Calendar className="w-3 h-3 text-indigo-500" />
+                                {formatDateStamp(log.created_at)}
+                              </span>
+                              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                <Clock className="w-3 h-3 text-indigo-500" />
+                                {formatTimeStamp(log.created_at)}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1", badgeStyle)}>
@@ -1471,6 +1571,17 @@ export function InventoryManager({
           </DialogHeader>
 
           <form onSubmit={handleCreate} className="space-y-4 mt-2">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 flex items-center justify-between text-xs text-indigo-900">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                {formatDateStamp(new Date().toISOString())}
+              </span>
+              <span className="flex items-center gap-1.5 font-semibold text-indigo-700">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                Auto-stamped with exact time added
+              </span>
+            </div>
+
             <div>
               <Label className="text-xs font-bold text-slate-700">Substrate Form / Unit</Label>
               <select
