@@ -6,6 +6,7 @@ import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type 
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 import { getWorkdayBounds } from '@/lib/workday'
+import { calculateJobConsumption, parseRollDimensions, recommendMaterialForJob } from '@/lib/material-matching'
 
 export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
   try {
@@ -788,7 +789,9 @@ export async function transitionJobStatusAction(
   toStatus: JobStatus, 
   notes?: string,
   pickupName?: string,
-  pickupPhone?: string
+  pickupPhone?: string,
+  materialIdOverride?: string | null,
+  saveAsDefaultLink?: boolean
 ) {
   const supabase = await createClient()
   
@@ -803,50 +806,78 @@ export async function transitionJobStatusAction(
     return { error: error.message }
   }
 
-  // If status is completed, automatically deduct material from inventory
-  if (toStatus === 'completed') {
+  // If status is completed, automatically deduct material from inventory using service client
+  // so printer role accounts are never blocked by RLS on materials or inventory_logs.
+  if (toStatus === 'completed' && materialIdOverride !== 'none') {
     try {
-      const { data: jobData } = await supabase
+      const serviceSupabase = createServiceClient() as any
+      const { data: jobData } = await serviceSupabase
         .from('jobs')
-        .select('id, tenant_id, width, height, quantity, dimension_unit, product_types(material_id)')
+        .select('id, job_number, customer_name, tenant_id, width, height, quantity, dimension_unit, product_type_id, product_types(id, name, material_id)')
         .eq('id', jobId)
         .single()
   
       const job = jobData as any
-      const materialId = job?.product_types?.material_id
-  
-      if (materialId && job) {
-        const { data: materialData } = await (supabase as any)
-          .from('materials')
-          .select('id, roll_width, roll_length, qty_rolls')
-          .eq('id', materialId)
-          .single()
-  
-        const material = materialData as any
-        if (material) {
-          const w_cm = toCm(job.width, job.dimension_unit)
-          const h_cm = toCm(job.height, job.dimension_unit)
-          const area_m2 = (w_cm / 100) * (h_cm / 100) * job.quantity
-          
-          const roll_height = material.roll_height || material.roll_length || 0
-          const roll_area = material.roll_width * roll_height
-          const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
-  
-          if (rolls_deducted > 0) {
-            await (supabase as any).from('inventory_logs').insert({
-              tenant_id: job.tenant_id,
-              material_id: materialId,
-              action: 'job_deduction',
-              job_id: jobId,
-              qty_change_rolls: -rolls_deducted,
-              qty_change_area: -area_m2,
-              notes: `Auto-deducted for completed job`
-            })
+      if (job) {
+        let targetMaterialId: string | null = materialIdOverride || null
+
+        if (!targetMaterialId) {
+          // Fetch all tenant materials and run smart family + smallest-fitting roll width matcher
+          const { data: allMaterials } = await serviceSupabase
+            .from('materials')
+            .select('id, name, unit, roll_width, roll_length, qty_rolls')
+            .eq('tenant_id', job.tenant_id)
+
+          const rec = recommendMaterialForJob(job, allMaterials || [])
+          targetMaterialId = rec.recommendedMaterial?.id || job?.product_types?.material_id || null
+        }
+
+        if (targetMaterialId) {
+          const { data: materialData } = await serviceSupabase
+            .from('materials')
+            .select('id, name, unit, roll_width, roll_length, qty_rolls')
+            .eq('id', targetMaterialId)
+            .single()
     
-            await (supabase as any).from('materials').update({
-              qty_rolls: material.qty_rolls - rolls_deducted,
-              updated_at: new Date().toISOString()
-            }).eq('id', materialId)
+          const material = materialData as any
+          if (material) {
+            const consumption = calculateJobConsumption(
+              job.width,
+              job.height,
+              job.quantity,
+              job.dimension_unit,
+              job.product_types?.name
+            )
+            const parsedRoll = parseRollDimensions(material)
+            const area_m2 = consumption.totalAreaM2
+            const roll_area = parsedRoll.effectiveAreaPerRollM2
+            const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
+    
+            if (rolls_deducted > 0) {
+              const nowIso = new Date().toISOString()
+              await serviceSupabase.from('inventory_logs').insert({
+                tenant_id: job.tenant_id,
+                material_id: targetMaterialId,
+                action: 'job_deduction',
+                job_id: jobId,
+                qty_change_rolls: -rolls_deducted,
+                qty_change_area: -area_m2,
+                created_at: nowIso,
+                notes: `Print Room completed ${job.job_number || ''} (${consumption.widthFt}ft × ${consumption.heightFt}ft × ${consumption.quantity} = ${area_m2.toFixed(2)} m² on ${material.name})`
+              })
+      
+              await serviceSupabase.from('materials').update({
+                qty_rolls: Math.max(0, Number(material.qty_rolls || 0) - rolls_deducted),
+                updated_at: nowIso
+              }).eq('id', targetMaterialId)
+
+              if (saveAsDefaultLink && job.product_type_id) {
+                await serviceSupabase
+                  .from('product_types')
+                  .update({ material_id: targetMaterialId })
+                  .eq('id', job.product_type_id)
+              }
+            }
           }
         }
       }
@@ -947,6 +978,7 @@ export async function transitionJobStatusAction(
   revalidatePath('/dashboard/queue')
   revalidatePath('/dashboard/pickup')
   revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/admin/inventory')
   return { success: true }
 }
 

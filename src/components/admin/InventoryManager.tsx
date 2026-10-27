@@ -64,8 +64,14 @@ import {
   adjustStockAction,
   updateMaterialAction,
   deleteMaterialAction,
-  linkProductTypeToMaterialAction
+  linkProductTypeToMaterialAction,
+  normalizeRollDimensionsAction
 } from '@/app/actions/inventory'
+import {
+  detectSubstrateFamily,
+  parseRollDimensions,
+  recommendMaterialForJob
+} from '@/lib/material-matching'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Material {
@@ -547,26 +553,84 @@ export function InventoryManager({
     }
   }
 
-  // Auto-match product types to materials by name
+  // Auto-match product types to materials by substrate family & name keywords
   const handleAutoMatch = async () => {
+    setIsSubmitting(true)
     let matchCount = 0
-    for (const pt of productTypes) {
-      if (!pt.material_id) {
-        const found = materials.find(m => 
-          pt.name.toLowerCase().includes(m.name.toLowerCase()) || 
-          m.name.toLowerCase().includes(pt.name.toLowerCase())
-        )
-        if (found) {
-          await linkProductTypeToMaterialAction(pt.id, found.id)
-          matchCount++
+    const updatedLinks: Record<string, string> = {}
+
+    try {
+      for (const pt of productTypes) {
+        if (!pt.material_id) {
+          const rec = recommendMaterialForJob(
+            {
+              width: 1,
+              height: 1,
+              quantity: 1,
+              dimension_unit: 'm',
+              product_type_id: pt.id,
+              product_types: { name: pt.name, material_id: null },
+            },
+            materials
+          )
+          if (rec.recommendedMaterial) {
+            const res = await linkProductTypeToMaterialAction(pt.id, rec.recommendedMaterial.id)
+            if (!res.error) {
+              updatedLinks[pt.id] = rec.recommendedMaterial.id
+              matchCount++
+            }
+          }
         }
       }
+
+      if (matchCount > 0) {
+        setProductTypes(prev =>
+          prev.map(pt => (updatedLinks[pt.id] ? { ...pt, material_id: updatedLinks[pt.id] } : pt))
+        )
+        toast.success(`Smart-linked ${matchCount} product types to their matching warehouse roll families!`)
+      } else {
+        toast.info('All compatible product types are already linked to material rolls.')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-    if (matchCount > 0) {
-      toast.success(`Automatically linked ${matchCount} product types to material rolls!`)
-      window.location.reload()
-    } else {
-      toast.info('No new matching product types found to auto-link.')
+  }
+
+  // Detect rolls whose width in DB was accidentally entered as 50m instead of 3FT / 4FT / 5FT
+  const misconfiguredRolls = useMemo(() => {
+    return materials.filter(m => parseRollDimensions(m).isWidthMisconfiguredInDb)
+  }, [materials])
+
+  const handleNormalizeRollDimensions = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await normalizeRollDimensionsAction()
+      if (res.error) {
+        toast.error(res.error)
+      } else if (res.updatedMaterials && res.updatedMaterials.length > 0) {
+        const map = new Map(res.updatedMaterials.map((u: any) => [u.id, u]))
+        setMaterials(prev =>
+          prev.map(m => {
+            const u = map.get(m.id)
+            return u
+              ? {
+                  ...m,
+                  roll_width: u.roll_width,
+                  roll_length: u.roll_length,
+                  roll_height: u.roll_length,
+                  updated_at: u.updated_at,
+                }
+              : m
+          })
+        )
+        toast.success(`Normalized roll widths for ${res.fixedCount} rolls (3FT → 0.91m, 4FT → 1.22m, 5FT → 1.52m)!`)
+      } else {
+        toast.info('All roll dimensions are already normalized.')
+      }
+    } catch {
+      toast.error('Failed to normalize roll dimensions')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -621,6 +685,18 @@ export function InventoryManager({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {misconfiguredRolls.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleNormalizeRollDimensions}
+              loading={isSubmitting}
+              className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-bold shadow-xs"
+            >
+              <Ruler className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+              Fix {misconfiguredRolls.length} Roll Widths (3FT / 4FT / 5FT)
+            </Button>
+          )}
+
           <Button 
             variant="outline" 
             onClick={handleExportCSV}
@@ -637,6 +713,31 @@ export function InventoryManager({
           </Button>
         </div>
       </div>
+
+      {/* Banner if SAV or Flexi rolls have 50m x 50m width instead of 3FT / 4FT / 5FT */}
+      {misconfiguredRolls.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-xs font-bold text-amber-950">
+                Detected {misconfiguredRolls.length} Roll(s) with Width Entered as 50m Instead of Roll Width (3FT / 4FT / 5FT)
+              </h3>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Rolls such as <strong>{misconfiguredRolls.slice(0, 3).map(m => m.name).join(', ')}</strong> currently have width set to 50m (2500 m²/roll). PrintFlow automatically reads their true feet width during job deductions, or you can click to permanently fix their stored roll widths now.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleNormalizeRollDimensions}
+            loading={isSubmitting}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0"
+          >
+            Normalize Roll Widths Now
+          </Button>
+        </div>
+      )}
 
       {/* Top Executive KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1480,10 +1581,10 @@ export function InventoryManager({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-indigo-950">
-                  Automated Print Room Inventory Deductions
+                  Smart Print Room Roll Matching & Automated Inventory Deductions
                 </h3>
                 <p className="text-xs text-indigo-800/80 mt-0.5">
-                  When a print operator finishes a job in the print room, PrintFlow calculates the exact width × height area and deducts it from the linked roll in real time.
+                  Products are matched to their substrate family (e.g. <strong>Flexi / Pullup Flexy → FLEXI rolls</strong>, <strong>SAV / Sticker / Vinyl → SAV rolls</strong>). When a printer marks a job <strong>Completed</strong>, PrintFlow automatically picks the smallest roll width in stock (3FT, 4FT, 5FT, or 10FT) that fits the job and lets the printer confirm in one click.
                 </p>
               </div>
             </div>
@@ -1491,9 +1592,10 @@ export function InventoryManager({
             <Button
               size="sm"
               onClick={handleAutoMatch}
+              loading={isSubmitting}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shrink-0 shadow-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 mr-1" /> Auto-Match by Name
+              <Sparkles className="w-3.5 h-3.5 mr-1" /> Smart Auto-Match All Products
             </Button>
           </div>
 
@@ -1503,26 +1605,56 @@ export function InventoryManager({
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px] font-bold">
                   <tr>
                     <th className="py-3.5 px-4">Product Catalog Item</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4">Linked Warehouse Roll</th>
-                    <th className="py-3.5 px-4 text-right">Deduction Status</th>
+                    <th className="py-3.5 px-4">Detected Family & Compatible Widths</th>
+                    <th className="py-3.5 px-4">Default Linked Roll</th>
+                    <th className="py-3.5 px-4 text-right">Print Room Deduction Behavior</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {productTypes.map(pt => {
                     const currentMaterial = materials.find(m => m.id === pt.material_id)
+                    const rec = recommendMaterialForJob(
+                      {
+                        width: 1,
+                        height: 1,
+                        quantity: 1,
+                        dimension_unit: 'm',
+                        product_type_id: pt.id,
+                        product_types: { name: pt.name, material_id: pt.material_id },
+                      },
+                      materials
+                    )
+                    const familyWidths = Array.from(
+                      new Set(rec.familyCandidates.map(c => c.parsed.widthSummary))
+                    )
+
                     return (
                       <tr key={pt.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {pt.name}
-                        </td>
                         <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{pt.name}</div>
                           <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                            "inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
                             pt.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                           )}>
                             {pt.is_active ? 'Active' : 'Inactive'}
                           </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-slate-800">{rec.familyLabel}</div>
+                          {familyWidths.length > 0 ? (
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              {familyWidths.map(w => (
+                                <span
+                                  key={w}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/70 text-[10px] font-mono tabular-nums font-bold"
+                                >
+                                  {w}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">No matching roll family in stock</span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4">
                           <select
@@ -1530,22 +1662,45 @@ export function InventoryManager({
                             onChange={e => handleLinkProductType(pt.id, e.target.value || null)}
                             className="w-full max-w-sm px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                           >
-                            <option value="">— No Material Linked (Manual) —</option>
-                            {materials.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} ({m.roll_width}m × {m.roll_height ?? m.roll_length}m • {Number(m.qty_rolls).toFixed(1)} rolls left)
-                              </option>
-                            ))}
+                            <option value="">
+                              {rec.recommendedMaterial
+                                ? `— Smart Auto-Fit (${rec.familyLabel}: ${familyWidths.join(', ')}) —`
+                                : '— No Material Linked (Manual Selection in Print Room) —'}
+                            </option>
+                            {materials.map(m => {
+                              const parsed = parseRollDimensions(m)
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} ({parsed.widthSummary} × {parsed.effectiveLengthM}m • {Number(m.qty_rolls).toFixed(2)} rolls left)
+                                </option>
+                              )
+                            })}
                           </select>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {currentMaterial ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Auto-Deducts from {currentMaterial.name}
-                            </span>
+                            <div>
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Linked to {currentMaterial.name}
+                              </span>
+                              {familyWidths.length > 1 && (
+                                <p className="text-[11px] text-indigo-600 font-medium mt-0.5">
+                                  + Auto-picks smallest fitting width ({familyWidths.join(' / ')})
+                                </p>
+                              )}
+                            </div>
+                          ) : rec.recommendedMaterial ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 text-indigo-700 font-bold text-xs">
+                                <Sparkles className="w-3.5 h-3.5" /> Smart Family Match ({rec.familyLabel})
+                              </span>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Auto-picks {familyWidths.join(' / ')} by job size
+                              </p>
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-xs font-medium">
-                              No automatic deduction
+                              Printer selects roll on completion (if any)
                             </span>
                           )}
                         </td>

@@ -28,7 +28,7 @@ export default async function JobDetailPage(props: {
     .from('jobs')
     .select(`
       *,
-      product_types(name),
+      product_types(id, name, material_id),
       profiles(full_name),
       invoices(
         *,
@@ -47,6 +47,12 @@ export default async function JobDetailPage(props: {
 
   const job = jobData as any
   if (!job) notFound()
+
+  const { data: materialsData } = await (serviceSupabase as any)
+    .from('materials')
+    .select('id, name, unit, roll_width, roll_length, qty_rolls')
+    .eq('tenant_id', job.tenant_id)
+    .order('name')
 
   let invoice = Array.isArray(job.invoices) ? job.invoices[0] : job.invoices
 
@@ -106,7 +112,7 @@ export default async function JobDetailPage(props: {
           {role === 'admin' && (
             <EditJobModal job={job} role={role} />
           )}
-          <JobActions job={job} role={role} />
+          <JobActions job={job} role={role} materials={materialsData || []} />
         </div>
       </div>
 

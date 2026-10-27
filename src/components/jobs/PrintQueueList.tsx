@@ -7,12 +7,21 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { transitionJobStatusAction } from '@/app/actions/jobs'
-import { Printer, Play, CheckCircle2, Layers, ExternalLink, FileText } from 'lucide-react'
+import { Printer, Play, CheckCircle2, Layers, ExternalLink, Boxes } from 'lucide-react'
 import type { Job } from '@/types/database'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, PRINT_ROOM_LABELS, formatDateTime } from '@/lib/utils'
+import {
+  type MaterialLike,
+  recommendMaterialForJob,
+  parseRollDimensions,
+} from '@/lib/material-matching'
+import {
+  CompleteJobMaterialModal,
+  type JobCompletionSelection,
+} from '@/components/jobs/CompleteJobMaterialModal'
 
 interface QueueGroup {
   key: string
@@ -27,9 +36,21 @@ interface QueueGroup {
   latestUpdatedAt: string
 }
 
-export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
+export function PrintQueueList({
+  initialJobs,
+  initialMaterials = [],
+}: {
+  initialJobs: Job[]
+  initialMaterials?: MaterialLike[]
+}) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
+  const [materials, setMaterials] = useState<MaterialLike[]>(initialMaterials)
   const { subscribeToJobs } = useRealtime()
+
+  // Roll confirmation modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [jobsPendingCompletion, setJobsPendingCompletion] = useState<Job[]>([])
+  const [isCompletingModal, setIsCompletingModal] = useState(false)
 
   useEffect(() => {
     const unsubscribe = subscribeToJobs((payload) => {
@@ -86,30 +107,12 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     }
   }
 
-  const handleComplete = async (jobId: string, jobNumber: string) => {
-    // Store original just in case we need to revert
-    const originalJob = jobs.find(j => j.id === jobId)
-    // Optimistically remove from queue
-    setJobs(prev => prev.filter(j => j.id !== jobId))
-    setLoadingJobId(jobId)
-    
-    const res = await transitionJobStatusAction(jobId, 'completed')
-    setLoadingJobId(null)
-    
-    if (res.error) {
-      // Revert optimistic update
-      if (originalJob) {
-        setJobs(prev => [...prev, originalJob])
-      }
-      
-      if (res.error.includes('completed -> completed')) {
-        toast.info(`Job ${jobNumber} is already completed.`)
-      } else {
-        toast.error(`Could not complete job: ${res.error}`)
-      }
-    } else {
-      toast.success(`Completed job ${jobNumber}`)
-    }
+  // Open roll confirmation modal for a single job
+  const handleComplete = (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId)
+    if (!job) return
+    setJobsPendingCompletion([job])
+    setModalOpen(true)
   }
 
   const handleStartGroup = async (group: QueueGroup) => {
@@ -132,25 +135,75 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     }
   }
 
-  const handleCompleteGroup = async (group: QueueGroup) => {
+  // Open roll confirmation modal for all in-production jobs in a group
+  const handleCompleteGroup = (group: QueueGroup) => {
     const toComplete = group.jobs.filter(j => j.status === 'in_production')
     if (toComplete.length === 0) return
+    setJobsPendingCompletion(toComplete)
+    setModalOpen(true)
+  }
 
+  // Execute completion & inventory deduction after printer confirms roll(s)
+  const handleConfirmModalComplete = async (selections: JobCompletionSelection[]) => {
+    if (selections.length === 0) return
+    setIsCompletingModal(true)
     const originalJobs = [...jobs]
-    setLoadingGroupKey(group.key)
-    setJobs(prev => prev.filter(j => !toComplete.some(tc => tc.id === j.id)))
+    const completingIds = new Set(selections.map(s => s.jobId))
+
+    // Optimistically remove from queue
+    setJobs(prev => prev.filter(j => !completingIds.has(j.id)))
 
     const results = await Promise.all(
-      toComplete.map(j => transitionJobStatusAction(j.id, 'completed'))
+      selections.map(sel =>
+        transitionJobStatusAction(
+          sel.jobId,
+          'completed',
+          undefined,
+          undefined,
+          undefined,
+          sel.materialId,
+          sel.saveAsDefaultLink
+        )
+      )
     )
-    setLoadingGroupKey(null)
+
+    setIsCompletingModal(false)
+    setModalOpen(false)
 
     const failed = results.filter(r => r.error)
     if (failed.length > 0) {
-      setJobs(originalJobs) // Revert optimistic UI update
-      toast.error(`Failed to complete some jobs: ${failed[0].error}`)
+      setJobs(originalJobs)
+      toast.error(`Failed to complete job(s): ${failed[0].error}`)
     } else {
-      toast.success(`Completed all ${toComplete.length} jobs for ${group.customerName}`)
+      // Update local materials stock preview so subsequent completions reflect new balances
+      setMaterials(prevMats => {
+        const nextMats = [...prevMats]
+        for (const sel of selections) {
+          if (sel.materialId && sel.materialId !== 'none') {
+            const jobObj = originalJobs.find(j => j.id === sel.jobId)
+            const matIdx = nextMats.findIndex(m => m.id === sel.materialId)
+            if (jobObj && matIdx !== -1) {
+              const rec = recommendMaterialForJob(jobObj as any, nextMats, sel.materialId)
+              const parsed = parseRollDimensions(nextMats[matIdx])
+              const deductedRolls =
+                parsed.effectiveAreaPerRollM2 > 0
+                  ? rec.consumption.totalAreaM2 / parsed.effectiveAreaPerRollM2
+                  : 0
+              nextMats[matIdx] = {
+                ...nextMats[matIdx],
+                qty_rolls: Math.max(0, Number(nextMats[matIdx].qty_rolls || 0) - deductedRolls),
+              }
+            }
+          }
+        }
+        return nextMats
+      })
+
+      if (selections.length === 1) {
+        toast.success(`Completed job ${selections[0].jobNumber} & updated inventory`)
+      } else {
+        toast.success(`Completed ${selections.length} jobs & updated inventory`)
+      }
     }
   }
 
@@ -332,95 +385,117 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
 
                   {/* ITEMS LIST */}
                   <div className="mt-4 space-y-3">
-                    {group.jobs.map((job, idx) => (
-                      <div
-                        key={job.id}
-                        className={cn(
-                          "p-4 rounded-xl border transition-all flex flex-col md:flex-row gap-4 justify-between md:items-center",
-                          job.status === 'in_production'
-                            ? 'bg-indigo-50/40 border-indigo-100 shadow-xs'
-                            : 'bg-slate-50/60 border-slate-200/70 hover:bg-white'
-                        )}
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            {isMulti && (
-                              <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0">
-                                {idx + 1}
-                              </span>
-                            )}
-                            <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
-                              {job.job_number}
-                            </span>
-                            <span className="font-bold text-sm text-slate-900">
-                              {job.product_types?.name || 'Item'}
-                            </span>
-                            <StatusBadge status={job.status} />
-                          </div>
+                    {group.jobs.map((job, idx) => {
+                      const rec = recommendMaterialForJob(job as any, materials)
+                      const matchedMat = rec.recommendedMaterial
 
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 mt-2">
-                            <div>
-                              <span className="text-slate-400 block font-medium">Dimensions</span>
-                              <span className="font-semibold text-slate-900">{job.width} × {job.height} {job.dimension_unit || 'cm'}</span>
+                      return (
+                        <div
+                          key={job.id}
+                          className={cn(
+                            "p-4 rounded-xl border transition-all flex flex-col md:flex-row gap-4 justify-between md:items-center",
+                            job.status === 'in_production'
+                              ? 'bg-indigo-50/40 border-indigo-100 shadow-xs'
+                              : 'bg-slate-50/60 border-slate-200/70 hover:bg-white'
+                          )}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                              {isMulti && (
+                                <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0">
+                                  {idx + 1}
+                                </span>
+                              )}
+                              <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                {job.job_number}
+                              </span>
+                              <span className="font-bold text-sm text-slate-900">
+                                {job.product_types?.name || 'Item'}
+                              </span>
+                              <StatusBadge status={job.status} />
+
+                              {matchedMat && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[11px] font-semibold font-mono tabular-nums"
+                                  title={rec.reason}
+                                >
+                                  <Boxes className="w-3 h-3 text-indigo-600" />
+                                  Roll: {matchedMat.name} ({matchedMat.parsed.widthSummary}) • -{rec.consumption.totalAreaM2.toFixed(2)} m²
+                                </span>
+                              )}
                             </div>
-                            <div>
-                              <span className="text-slate-400 block font-medium">Quantity</span>
-                              <span className="font-semibold text-slate-900">{job.quantity}</span>
-                            </div>
-                            <div>
-                              <span className="text-slate-400 block font-medium">Total Area</span>
-                              <span className="font-semibold text-slate-900">{job.area}</span>
-                            </div>
-                            {job.print_room && (
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-slate-600 mt-2">
                               <div>
-                                <span className="text-slate-400 block font-medium">Room</span>
-                                <span className="font-semibold text-slate-900">{PRINT_ROOM_LABELS[job.print_room] || job.print_room}</span>
+                                <span className="text-slate-400 block font-medium">Dimensions</span>
+                                <span className="font-semibold text-slate-900 font-mono tabular-nums">
+                                  {job.width} × {job.height} {job.dimension_unit || 'cm'}{' '}
+                                  <span className="text-slate-400 font-normal">
+                                    ({rec.consumption.widthFt}ft × {rec.consumption.heightFt}ft)
+                                  </span>
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block font-medium">Quantity</span>
+                                <span className="font-semibold text-slate-900 font-mono tabular-nums">{job.quantity}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block font-medium">Media Area (m²)</span>
+                                <span className="font-semibold text-slate-900 font-mono tabular-nums">
+                                  {rec.consumption.totalAreaM2.toFixed(2)} m²
+                                </span>
+                              </div>
+                              {job.print_room && (
+                                <div>
+                                  <span className="text-slate-400 block font-medium">Room</span>
+                                  <span className="font-semibold text-slate-900">{PRINT_ROOM_LABELS[job.print_room] || job.print_room}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {job.notes && (
+                              <div className="mt-2 text-xs text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-200/60 italic">
+                                <strong>Note:</strong> {job.notes}
                               </div>
                             )}
                           </div>
 
-                          {job.notes && (
-                            <div className="mt-2 text-xs text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-200/60 italic">
-                              <strong>Note:</strong> {job.notes}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* ITEM ACTIONS */}
-                        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                          <Link
-                            href={`/dashboard/jobs/${job.id}`}
-                            className="btn btn-outline border-slate-200 text-slate-700 hover:bg-slate-100 text-xs px-3 py-1.5"
-                          >
-                            Details
-                          </Link>
-
-                          {job.status === 'paid_released' && (
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              className="text-xs"
-                              loading={loadingJobId === job.id}
-                              onClick={() => handleStart(job.id, job.job_number)}
+                          {/* ITEM ACTIONS */}
+                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                            <Link
+                              href={`/dashboard/jobs/${job.id}`}
+                              className="btn btn-outline border-slate-200 text-slate-700 hover:bg-slate-100 text-xs px-3 py-1.5"
                             >
-                              <Play className="w-3.5 h-3.5 mr-1" /> Start
-                            </Button>
-                          )}
+                              Details
+                            </Link>
 
-                          {job.status === 'in_production' && (
-                            <Button
-                              variant="success"
-                              size="sm"
-                              className="text-xs"
-                              loading={loadingJobId === job.id}
-                              onClick={() => handleComplete(job.id, job.job_number)}
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Complete
-                            </Button>
-                          )}
+                            {job.status === 'paid_released' && (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="text-xs"
+                                loading={loadingJobId === job.id}
+                                onClick={() => handleStart(job.id, job.job_number)}
+                              >
+                                <Play className="w-3.5 h-3.5 mr-1" /> Start
+                              </Button>
+                            )}
+
+                            {job.status === 'in_production' && (
+                              <Button
+                                variant="success"
+                                size="sm"
+                                className="text-xs"
+                                loading={loadingJobId === job.id}
+                                onClick={() => handleComplete(job.id)}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Complete
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
 
                 </CardContent>
@@ -429,6 +504,16 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
           )
         })}
       </AnimatePresence>
+
+      <CompleteJobMaterialModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        jobsToComplete={jobsPendingCompletion}
+        materials={materials}
+        isSubmitting={isCompletingModal}
+        onConfirm={handleConfirmModalComplete}
+      />
     </div>
   )
 }
+

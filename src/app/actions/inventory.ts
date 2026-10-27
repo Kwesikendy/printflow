@@ -396,5 +396,56 @@ export async function linkProductTypeToMaterialAction(productTypeId: string, mat
   if (error) return { error: error.message }
 
   revalidatePath('/dashboard/admin/inventory')
+  revalidatePath('/dashboard/queue')
   return { success: true }
 }
+
+export async function normalizeRollDimensionsAction() {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { error: permError || 'Unauthorized' }
+
+  const { parseRollDimensions } = await import('@/lib/material-matching')
+  const serviceSupabase = createServiceClient()
+
+  const { data: materials, error: fetchErr } = await (serviceSupabase as any)
+    .from('materials')
+    .select('id, name, unit, roll_width, roll_length')
+    .eq('tenant_id', profile.tenant_id)
+
+  if (fetchErr || !materials) return { error: fetchErr?.message || 'Failed to load materials' }
+
+  let fixedCount = 0
+  const nowIso = new Date().toISOString()
+  const updatedMaterials: Array<{ id: string; roll_width: number; roll_length: number; updated_at: string }> = []
+
+  for (const m of materials) {
+    const parsed = parseRollDimensions(m)
+    if (parsed.isWidthMisconfiguredInDb) {
+      const newWidth = Number(parsed.effectiveWidthM.toFixed(2))
+      const newLength = Number(parsed.effectiveLengthM.toFixed(2))
+      const { error: upErr } = await (serviceSupabase as any)
+        .from('materials')
+        .update({
+          roll_width: newWidth,
+          roll_length: newLength,
+          updated_at: nowIso,
+        })
+        .eq('id', m.id)
+
+      if (!upErr) {
+        fixedCount++
+        updatedMaterials.push({
+          id: m.id,
+          roll_width: newWidth,
+          roll_length: newLength,
+          updated_at: nowIso,
+        })
+      }
+    }
+  }
+
+  revalidatePath('/dashboard/admin/inventory')
+  revalidatePath('/dashboard/queue')
+  return { success: true, fixedCount, updatedMaterials }
+}
+
