@@ -8,7 +8,7 @@ import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanne
 import { GroupOrderActions } from '@/components/jobs/GroupOrderActions'
 import { JobActions } from '@/components/jobs/JobActions'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
-import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
+import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS, isPocketOrFinishingProduct } from '@/lib/utils'
 import { FileText, CheckCircle2, ArrowLeft, Flag } from 'lucide-react'
 
 export default async function JobGroupPage(props: { params: Promise<{ id: string }> }) {
@@ -88,7 +88,14 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                       {index + 1}
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-900">{job.product_types?.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-slate-900">{job.product_types?.name}</p>
+                        {isPocketOrFinishingProduct(job.product_types?.name) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            Extra Service (Invoiced)
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <p className="text-xs text-slate-500 font-mono">{job.job_number}</p>
                         {job.print_room && (

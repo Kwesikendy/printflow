@@ -2,7 +2,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { formatCurrency, formatDateTime, SOURCE_LABELS, PRINT_ROOM_LABELS, canCancelJob } from '@/lib/utils'
+import { formatCurrency, formatDateTime, SOURCE_LABELS, PRINT_ROOM_LABELS, canCancelJob, isPocketOrFinishingProduct } from '@/lib/utils'
 import { JobActions } from '@/components/jobs/JobActions'
 import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
@@ -81,9 +81,14 @@ export default async function JobDetailPage(props: {
     <div className="max-w-5xl mx-auto pb-12">
       <div className="page-header flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-slate-900">{job.job_number}</h1>
             <StatusBadge status={job.status} />
+            {isPocketOrFinishingProduct(job.product_types?.name) && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                Extra Service (Invoiced)
+              </span>
+            )}
           </div>
           <p className="text-slate-500 mt-1">Customer: <span className="text-slate-900">{job.customer_name}</span></p>
         </div>

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
-import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
+import { formatDateTime, PRINT_ROOM_LABELS, isPocketOrFinishingProduct } from '@/lib/utils'
 import QRCode from 'react-qr-code'
 
 export async function generateMetadata(props: {
@@ -76,8 +76,15 @@ export default async function GroupJobCardPrintPage(props: {
 
   if (jobs.length === 0) notFound()
 
+  // Extra service products (like pockets and finishing) are billed on the invoice
+  // but must not appear on the print room job card so as not to confuse print room operators.
+  const printableJobs = jobs.filter(
+    (j: any) => !isPocketOrFinishingProduct(j.product_types?.name)
+  )
+  const displayJobs = printableJobs.length > 0 ? printableJobs : jobs
+
   // Group by print room for display
-  const printRooms = Array.from(new Set(jobs.map((j: any) => j.print_room || 'unassigned')))
+  const printRooms = Array.from(new Set(displayJobs.map((j: any) => j.print_room || 'unassigned')))
 
   const methodLabel: Record<string, string> = {
     momo: 'Mobile Money',
@@ -90,8 +97,8 @@ export default async function GroupJobCardPrintPage(props: {
     ? (PRINT_ROOM_LABELS[roomFilter] || roomFilter)
     : (printRooms.length === 1 ? (PRINT_ROOM_LABELS[printRooms[0]] || printRooms[0]) : 'ALL ROOMS')
 
-  // Use first job number for reference; show all job numbers in card
-  const firstJob = jobs[0]
+  // Use first printable job number for reference; show all job numbers in card
+  const firstJob = displayJobs[0] || jobs[0]
 
   const pageTitle = `JOB CARD — ${group.customer_name}`
 
@@ -194,7 +201,7 @@ export default async function GroupJobCardPrintPage(props: {
             </tr>
           </thead>
           <tbody>
-            {jobs.map((job: any, idx: number) => (
+            {displayJobs.map((job: any, idx: number) => (
               <tr key={job.id} className="border-b border-gray-300">
                 <td className="py-1.5 pr-1 text-[14px] text-gray-800 align-top">{idx + 1}</td>
                 <td className="py-1.5 pr-2 align-top">

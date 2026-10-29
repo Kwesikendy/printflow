@@ -12,7 +12,7 @@ import type { Job } from '@/types/database'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { cn, PRINT_ROOM_LABELS, formatDateTime } from '@/lib/utils'
+import { cn, PRINT_ROOM_LABELS, formatDateTime, isPocketOrFinishingProduct } from '@/lib/utils'
 
 interface QueueGroup {
   key: string
@@ -65,8 +65,14 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
   const [loadingGroupKey, setLoadingGroupKey] = useState<string | null>(null)
 
   const handleStart = async (jobId: string, jobNumber: string) => {
+    const target = jobs.find(j => j.id === jobId)
+    const isTargetExtra = isPocketOrFinishingProduct(target?.product_types?.name)
+    const companionExtraJobs = target?.group_id && !isTargetExtra
+      ? jobs.filter(j => j.group_id === target.group_id && isPocketOrFinishingProduct(j.product_types?.name))
+      : []
+
     // Optimistically update UI
-    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'in_production' } : j))
+    setJobs(prev => prev.map(j => (j.id === jobId || companionExtraJobs.some(c => c.id === j.id)) ? { ...j, status: 'in_production' } : j))
     setLoadingJobId(jobId)
     
     const res = await transitionJobStatusAction(jobId, 'in_production')
@@ -74,7 +80,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     
     if (res.error) {
       // Revert optimistic update on failure
-      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'paid_released' } : j))
+      setJobs(prev => prev.map(j => (j.id === jobId || companionExtraJobs.some(c => c.id === j.id)) ? { ...j, status: 'paid_released' } : j))
       
       if (res.error.includes('in_production -> in_production')) {
         toast.info(`Job ${jobNumber} is already in production.`)
@@ -87,10 +93,17 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
   }
 
   const handleComplete = async (jobId: string, jobNumber: string) => {
-    // Store original just in case we need to revert
-    const originalJob = jobs.find(j => j.id === jobId)
+    const originalJobs = [...jobs]
+    const target = jobs.find(j => j.id === jobId)
+    const isTargetExtra = isPocketOrFinishingProduct(target?.product_types?.name)
+    const companionExtraJobs = target?.group_id && !isTargetExtra
+      ? jobs.filter(j => j.group_id === target.group_id && isPocketOrFinishingProduct(j.product_types?.name))
+      : []
+
+    const jobsToRemove = [jobId, ...companionExtraJobs.map(c => c.id)]
+
     // Optimistically remove from queue
-    setJobs(prev => prev.filter(j => j.id !== jobId))
+    setJobs(prev => prev.filter(j => !jobsToRemove.includes(j.id)))
     setLoadingJobId(jobId)
     
     const res = await transitionJobStatusAction(jobId, 'completed')
@@ -98,9 +111,7 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
     
     if (res.error) {
       // Revert optimistic update
-      if (originalJob) {
-        setJobs(prev => [...prev, originalJob])
-      }
+      setJobs(originalJobs)
       
       if (res.error.includes('completed -> completed')) {
         toast.info(`Job ${jobNumber} is already completed.`)
@@ -355,6 +366,11 @@ export function PrintQueueList({ initialJobs }: { initialJobs: Job[] }) {
                             <span className="font-bold text-sm text-slate-900">
                               {job.product_types?.name || 'Item'}
                             </span>
+                            {isPocketOrFinishingProduct(job.product_types?.name) && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                Extra Service (Invoiced)
+                              </span>
+                            )}
                             <StatusBadge status={job.status} />
                           </div>
 

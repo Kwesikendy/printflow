@@ -6,6 +6,7 @@ import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type 
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 import { getWorkdayBounds } from '@/lib/workday'
+import { isPocketOrFinishingProduct } from '@/lib/utils'
 
 export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
   try {
@@ -732,6 +733,58 @@ export async function transitionJobStatusAction(
   if (error) {
     console.error('Transition status error:', error)
     return { error: error.message }
+  }
+
+  // Also auto-advance companion pocket/finishing jobs in the same group so non-printable extra services
+  // stay in sync with the primary printed products and don't stall the order or confuse staff
+  try {
+    const { data: currentJob } = await supabase
+      .from('jobs')
+      .select('group_id, product_types(name)')
+      .eq('id', jobId)
+      .single()
+
+    const isExtra = isPocketOrFinishingProduct((currentJob as any)?.product_types?.name)
+    const groupId = (currentJob as any)?.group_id
+
+    if (groupId && !isExtra && ['in_production', 'completed', 'picked_up'].includes(toStatus)) {
+      const { data: siblings } = await supabase
+        .from('jobs')
+        .select('id, status, product_types(name)')
+        .eq('group_id', groupId)
+
+      if (siblings && (siblings as any[]).length > 0) {
+        const siblingList = siblings as any[]
+        const printableSiblings = siblingList.filter((s: any) => !isPocketOrFinishingProduct(s.product_types?.name) && s.id !== jobId)
+        const allOtherPrintableDone = printableSiblings.every((s: any) =>
+          toStatus === 'completed' ? ['completed', 'picked_up', 'cancelled'].includes(s.status) :
+          toStatus === 'in_production' ? ['in_production', 'completed', 'picked_up'].includes(s.status) :
+          toStatus === 'picked_up' ? ['picked_up', 'cancelled'].includes(s.status) : false
+        )
+
+        if (allOtherPrintableDone) {
+          const extraSiblings = siblingList.filter((s: any) => isPocketOrFinishingProduct(s.product_types?.name))
+          for (const extraJob of extraSiblings) {
+            if (extraJob.status !== toStatus) {
+              if (toStatus === 'completed' && extraJob.status === 'paid_released') {
+                await supabase.rpc('transition_job_status', {
+                  p_job_id: extraJob.id,
+                  p_to_status: 'in_production',
+                  p_notes: 'Auto-advanced with companion print job'
+                } as any)
+              }
+              await supabase.rpc('transition_job_status', {
+                p_job_id: extraJob.id,
+                p_to_status: toStatus,
+                p_notes: notes || 'Auto-advanced with companion print job'
+              } as any)
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Non-fatal: could not sync companion pocket/finishing job:', e)
   }
 
   // If status is completed, automatically deduct material from inventory

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import { AutoPrint, PrintButton } from '@/components/print/AutoPrint'
-import { formatDateTime, PRINT_ROOM_LABELS } from '@/lib/utils'
+import { formatDateTime, PRINT_ROOM_LABELS, isPocketOrFinishingProduct } from '@/lib/utils'
 import QRCode from 'react-qr-code'
 
 export async function generateMetadata(props: {
@@ -57,6 +57,20 @@ export default async function JobCardPrintPage(props: {
   if (job.group_id) {
     const roomParam = job.print_room ? `?room=${job.print_room}` : ''
     redirect(`/print/job-card/group/${job.group_id}${roomParam}`)
+  }
+
+  // Extra service items (pockets/finishing) do not generate print room job cards
+  if (isPocketOrFinishingProduct(job.product_types?.name)) {
+    return (
+      <div className="bg-white min-h-screen flex items-center justify-center p-6 font-mono text-center">
+        <div className="max-w-md p-6 border-2 border-black rounded-lg">
+          <h1 className="text-lg font-black uppercase tracking-wider mb-2">Extra Service Item</h1>
+          <p className="text-sm font-bold text-gray-700">
+            {job.product_types?.name} is an extra service billed on the invoice and does not produce a print room job card.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   // invoices join may return array or single object depending on the relationship

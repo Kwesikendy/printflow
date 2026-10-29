@@ -213,3 +213,14 @@ export function getAllowedTransitions(
 
   return result
 }
+
+/**
+ * Determines whether a product is an extra finishing service (such as pockets or finishing)
+ * that should appear on the invoice for customer billing, but should not appear on the production
+ * job card for the print room so as not to confuse print room operators.
+ */
+export function isPocketOrFinishingProduct(name?: string | null): boolean {
+  if (!name) return false
+  const lower = name.toLowerCase().trim()
+  return lower.includes('pocket') || lower.includes('finishing')
+}
