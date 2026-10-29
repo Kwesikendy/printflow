@@ -14,19 +14,19 @@ export async function searchCustomers(query: string = ''): Promise<CustomerSugge
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
 
-    let tenantId = '00000000-0000-0000-0000-000000000001'
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('tenant_id')
-        .eq('id', user.id)
-        .single() as any
-      if (profile?.tenant_id) {
-        tenantId = profile.tenant_id
-      }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tenant_id, is_active')
+      .eq('id', user.id)
+      .single() as any
+
+    if (!profile || profile.is_active === false || !profile.tenant_id) {
+      return []
     }
 
+    const tenantId = profile.tenant_id
     const serviceSupabase = createServiceClient() as any
 
     let custQuery = serviceSupabase

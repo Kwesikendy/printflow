@@ -5,7 +5,7 @@ const regions = ['eu-central-1', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'us-east
 async function testRegions() {
   for (const r of regions) {
     const host = `aws-0-${r}.pooler.supabase.com`;
-    const connectionString = `postgresql://postgres.zrnnrnnzywqnvdmnpbws:PRINTFLOW11@@${host}:6543/postgres`;
+    const connectionString = `${process.env.DATABASE_URL || ""}`;
     const client = new Client({ connectionString, connectionTimeoutMillis: 3000 });
     try {
       await client.connect();

@@ -11,6 +11,8 @@ PrintFlow is a multi-tenant SaaS web application designed specifically for graph
 - **Dynamic Pricing Engine** (Area × Unit Cost × Quantity).
 - **Printable Job Cards & Invoices**.
 
+> **Architecture & Complete System Context**: See [CONTEXT.md](CONTEXT.md) for full documentation of database schemas, SQL migrations (001–026), endpoints, server actions, and business rules.
+
 ---
 
 ## 🚀 Setup & Local Development

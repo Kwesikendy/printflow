@@ -2,7 +2,7 @@ const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
 
-const connectionString = 'postgresql://postgres:PRINTFLOW11@@db.zrnnrnnzywqnvdmnpbws.supabase.co:5432/postgres';
+const connectionString = '${process.env.DATABASE_URL || ""}';
 
 async function run() {
   const client = new Client({ connectionString });

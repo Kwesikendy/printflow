@@ -28,9 +28,34 @@ import {
   SlidersHorizontal,
   FileSpreadsheet,
   Layers,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Clock
 } from 'lucide-react'
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils'
+
+function formatDateStamp(dateStr?: string) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatTimeStamp(dateStr?: string) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '—'
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+}
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { toast } from 'sonner'
 import { 
@@ -39,8 +64,14 @@ import {
   adjustStockAction,
   updateMaterialAction,
   deleteMaterialAction,
-  linkProductTypeToMaterialAction
+  linkProductTypeToMaterialAction,
+  normalizeRollDimensionsAction
 } from '@/app/actions/inventory'
+import {
+  detectSubstrateFamily,
+  parseRollDimensions,
+  recommendMaterialForJob
+} from '@/lib/material-matching'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Material {
@@ -302,12 +333,23 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success(`Material "${addForm.name}" created successfully`)
+        const stampedAt = res.data?.created_at || new Date().toISOString()
+        toast.success(
+          `Material "${addForm.name}" added on ${formatDateStamp(stampedAt)} at ${formatTimeStamp(stampedAt)}`
+        )
         setIsAddOpen(false)
         setAddForm({ name: '', unit: 'roll', roll_width: '3.2', roll_height: '50', unit_cost: '1200', qty_rolls: '1' })
-        // Append newly created material optimistically
+        // Append newly created material optimistically with guaranteed timestamps
         if (res.data) {
-          setMaterials(prev => [...prev, res.data].sort((a, b) => a.name.localeCompare(b.name)))
+          const itemWithStamp = {
+            ...res.data,
+            created_at: res.data.created_at || stampedAt,
+            updated_at: res.data.updated_at || stampedAt,
+          }
+          setMaterials(prev => [...prev, itemWithStamp].sort((a, b) => a.name.localeCompare(b.name)))
+        }
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
         }
       }
     } catch {
@@ -339,6 +381,7 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
         toast.success('Material details updated successfully')
         setMaterials(prev => prev.map(m => m.id === selectedMaterial.id ? {
           ...m,
@@ -349,7 +392,7 @@ export function InventoryManager({
           roll_length: parseFloat(editForm.roll_height),
           unit_cost: parseFloat(editForm.unit_cost),
           qty_rolls: editForm.qty_rolls ? parseFloat(editForm.qty_rolls) : m.qty_rolls,
-          updated_at: new Date().toISOString()
+          updated_at: stampedAt
         } : m))
         setIsEditOpen(false)
       }
@@ -377,8 +420,11 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
         const u = getUnitLabels(selectedMaterial.unit)
-        toast.success(`Successfully added ${qty} ${u.plural} to ${selectedMaterial.name}`)
+        toast.success(
+          `Added ${qty} ${u.plural} to ${selectedMaterial.name} (${formatDateStamp(stampedAt)} • ${formatTimeStamp(stampedAt)})`
+        )
         // Update local material state
         setMaterials(prev => prev.map(m => {
           if (m.id !== selectedMaterial.id) return m
@@ -386,8 +432,11 @@ export function InventoryManager({
           const currentCost = Number(m.unit_cost) || 0
           const newQty = currentQty + qty
           const newCost = newQty > 0 ? ((currentQty * currentCost) + (qty * cost)) / newQty : cost
-          return { ...m, qty_rolls: newQty, unit_cost: newCost }
+          return { ...m, qty_rolls: newQty, unit_cost: newCost, updated_at: stampedAt }
         }))
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
+        }
         setIsStockOpen(false)
       }
     } catch {
@@ -441,7 +490,8 @@ export function InventoryManager({
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('Stock adjustment recorded')
+        const stampedAt = (res as any).updatedAt || new Date().toISOString()
+        toast.success(`Stock adjustment recorded (${formatDateStamp(stampedAt)} • ${formatTimeStamp(stampedAt)})`)
         setMaterials(prev => prev.map(m => {
           if (m.id !== selectedMaterial.id) return m
           let newQty = m.qty_rolls
@@ -450,8 +500,11 @@ export function InventoryManager({
           } else if (adjustForm.type === 'recount') {
             newQty = qty
           }
-          return { ...m, qty_rolls: newQty }
+          return { ...m, qty_rolls: newQty, updated_at: stampedAt }
         }))
+        if ((res as any).log) {
+          setLogs(prev => [(res as any).log, ...prev])
+        }
         setIsAdjustOpen(false)
       }
     } catch {
@@ -500,32 +553,90 @@ export function InventoryManager({
     }
   }
 
-  // Auto-match product types to materials by name
+  // Auto-match product types to materials by substrate family & name keywords
   const handleAutoMatch = async () => {
+    setIsSubmitting(true)
     let matchCount = 0
-    for (const pt of productTypes) {
-      if (!pt.material_id) {
-        const found = materials.find(m => 
-          pt.name.toLowerCase().includes(m.name.toLowerCase()) || 
-          m.name.toLowerCase().includes(pt.name.toLowerCase())
-        )
-        if (found) {
-          await linkProductTypeToMaterialAction(pt.id, found.id)
-          matchCount++
+    const updatedLinks: Record<string, string> = {}
+
+    try {
+      for (const pt of productTypes) {
+        if (!pt.material_id) {
+          const rec = recommendMaterialForJob(
+            {
+              width: 1,
+              height: 1,
+              quantity: 1,
+              dimension_unit: 'm',
+              product_type_id: pt.id,
+              product_types: { name: pt.name, material_id: null },
+            },
+            materials
+          )
+          if (rec.recommendedMaterial) {
+            const res = await linkProductTypeToMaterialAction(pt.id, rec.recommendedMaterial.id)
+            if (!res.error) {
+              updatedLinks[pt.id] = rec.recommendedMaterial.id
+              matchCount++
+            }
+          }
         }
       }
+
+      if (matchCount > 0) {
+        setProductTypes(prev =>
+          prev.map(pt => (updatedLinks[pt.id] ? { ...pt, material_id: updatedLinks[pt.id] } : pt))
+        )
+        toast.success(`Smart-linked ${matchCount} product types to their matching warehouse roll families!`)
+      } else {
+        toast.info('All compatible product types are already linked to material rolls.')
+      }
+    } finally {
+      setIsSubmitting(false)
     }
-    if (matchCount > 0) {
-      toast.success(`Automatically linked ${matchCount} product types to material rolls!`)
-      window.location.reload()
-    } else {
-      toast.info('No new matching product types found to auto-link.')
+  }
+
+  // Detect rolls whose width in DB was accidentally entered as 50m instead of 3FT / 4FT / 5FT
+  const misconfiguredRolls = useMemo(() => {
+    return materials.filter(m => parseRollDimensions(m).isWidthMisconfiguredInDb)
+  }, [materials])
+
+  const handleNormalizeRollDimensions = async () => {
+    setIsSubmitting(true)
+    try {
+      const res = await normalizeRollDimensionsAction()
+      if (res.error) {
+        toast.error(res.error)
+      } else if (res.updatedMaterials && res.updatedMaterials.length > 0) {
+        const map = new Map(res.updatedMaterials.map((u: any) => [u.id, u]))
+        setMaterials(prev =>
+          prev.map(m => {
+            const u = map.get(m.id)
+            return u
+              ? {
+                  ...m,
+                  roll_width: u.roll_width,
+                  roll_length: u.roll_length,
+                  roll_height: u.roll_length,
+                  updated_at: u.updated_at,
+                }
+              : m
+          })
+        )
+        toast.success(`Normalized roll widths for ${res.fixedCount} rolls (3FT → 0.91m, 4FT → 1.22m, 5FT → 1.52m)!`)
+      } else {
+        toast.info('All roll dimensions are already normalized.')
+      }
+    } catch {
+      toast.error('Failed to normalize roll dimensions')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
   // CSV Export for Accountant / Admin reporting
   const handleExportCSV = () => {
-    const headers = ['Material Name', 'Roll Width (m)', 'Roll Height (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)']
+    const headers = ['Material Name', 'Roll Width (m)', 'Roll Height (m)', 'Area per Roll (m²)', 'Rolls in Stock', 'Total Usable Area (m²)', 'Unit Cost (GHS)', 'Total Valuation (GHS)', 'Date Added', 'Time Added', 'Last Updated']
     const rows = materials.map(m => {
       const rollArea = m.roll_width * (m.roll_height ?? m.roll_length ?? 0)
       const totalArea = rollArea * m.qty_rolls
@@ -538,7 +649,10 @@ export function InventoryManager({
         m.qty_rolls.toFixed(2),
         totalArea.toFixed(2),
         m.unit_cost.toFixed(2),
-        totalVal.toFixed(2)
+        totalVal.toFixed(2),
+        `"${formatDateStamp(m.created_at)}"`,
+        `"${formatTimeStamp(m.created_at)}"`,
+        `"${m.updated_at ? `${formatDateStamp(m.updated_at)} ${formatTimeStamp(m.updated_at)}` : '—'}"`
       ]
     })
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
@@ -571,6 +685,18 @@ export function InventoryManager({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {misconfiguredRolls.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleNormalizeRollDimensions}
+              loading={isSubmitting}
+              className="border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 text-xs font-bold shadow-xs"
+            >
+              <Ruler className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+              Fix {misconfiguredRolls.length} Roll Widths (3FT / 4FT / 5FT)
+            </Button>
+          )}
+
           <Button 
             variant="outline" 
             onClick={handleExportCSV}
@@ -587,6 +713,31 @@ export function InventoryManager({
           </Button>
         </div>
       </div>
+
+      {/* Banner if SAV or Flexi rolls have 50m x 50m width instead of 3FT / 4FT / 5FT */}
+      {misconfiguredRolls.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-xs font-bold text-amber-950">
+                Detected {misconfiguredRolls.length} Roll(s) with Width Entered as 50m Instead of Roll Width (3FT / 4FT / 5FT)
+              </h3>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Rolls such as <strong>{misconfiguredRolls.slice(0, 3).map(m => m.name).join(', ')}</strong> currently have width set to 50m (2500 m²/roll). PrintFlow automatically reads their true feet width during job deductions, or you can click to permanently fix their stored roll widths now.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleNormalizeRollDimensions}
+            loading={isSubmitting}
+            className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0"
+          >
+            Normalize Roll Widths Now
+          </Button>
+        </div>
+      )}
 
       {/* Top Executive KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1051,6 +1202,29 @@ export function InventoryManager({
                           <span className="font-bold text-indigo-700 text-sm">{formatCurrency(stockVal)}</span>
                         </div>
                       </div>
+
+                      {/* Date Stamp & Timestamp Footer */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-slate-500">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Added</span>
+                          <div className="flex items-center gap-2 font-medium text-slate-700">
+                            <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                              <Calendar className="w-3 h-3 text-indigo-500" />
+                              {formatDateStamp(m.created_at)}
+                            </span>
+                            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
+                              <Clock className="w-3 h-3 text-indigo-500" />
+                              {formatTimeStamp(m.created_at)}
+                            </span>
+                          </div>
+                        </div>
+                        {m.updated_at && m.created_at && Math.abs(new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 5000 && (
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                            <span className="uppercase font-semibold">Last Updated</span>
+                            <span>{formatDateStamp(m.updated_at)} • {formatTimeStamp(m.updated_at)}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Card Actions Bottom Bar */}
@@ -1112,6 +1286,7 @@ export function InventoryManager({
                       <th className="py-3.5 px-4">Available Area</th>
                       <th className="py-3.5 px-4">Unit Cost</th>
                       <th className="py-3.5 px-4">Asset Valuation</th>
+                      <th className="py-3.5 px-4">Added (Date & Time)</th>
                       <th className="py-3.5 px-4">Status</th>
                       <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
@@ -1155,6 +1330,23 @@ export function InventoryManager({
                           </td>
                           <td className="py-3.5 px-4 font-bold text-indigo-700">
                             {formatCurrency(stockVal)}
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-[11px]">
+                                <Calendar className="w-3 h-3 text-indigo-500" />
+                                {formatDateStamp(m.created_at)}
+                              </div>
+                              <div className="flex items-center gap-1.5 text-indigo-600 font-medium text-[11px]">
+                                <Clock className="w-3 h-3 text-indigo-400" />
+                                {formatTimeStamp(m.created_at)}
+                              </div>
+                              {m.updated_at && m.created_at && Math.abs(new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 5000 && (
+                                <span className="text-[10px] text-slate-400">
+                                  Upd: {formatDateStamp(m.updated_at)} {formatTimeStamp(m.updated_at)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={cn(
@@ -1318,7 +1510,16 @@ export function InventoryManager({
                       return (
                         <tr key={log.id} className="hover:bg-slate-50/70 transition-colors">
                           <td className="py-3.5 px-4 text-slate-600 font-medium whitespace-nowrap">
-                            {formatDateTime(log.created_at)}
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                <Calendar className="w-3 h-3 text-indigo-500" />
+                                {formatDateStamp(log.created_at)}
+                              </span>
+                              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded text-[11px] font-semibold">
+                                <Clock className="w-3 h-3 text-indigo-500" />
+                                {formatTimeStamp(log.created_at)}
+                              </span>
+                            </div>
                           </td>
                           <td className="py-3.5 px-4">
                             <span className={cn("px-2.5 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1", badgeStyle)}>
@@ -1380,10 +1581,10 @@ export function InventoryManager({
               </div>
               <div>
                 <h3 className="text-sm font-bold text-indigo-950">
-                  Automated Print Room Inventory Deductions
+                  Smart Print Room Roll Matching & Automated Inventory Deductions
                 </h3>
                 <p className="text-xs text-indigo-800/80 mt-0.5">
-                  When a print operator finishes a job in the print room, PrintFlow calculates the exact width × height area and deducts it from the linked roll in real time.
+                  Products are matched to their substrate family (e.g. <strong>Flexi / Pullup Flexy → FLEXI rolls</strong>, <strong>SAV / Sticker / Vinyl → SAV rolls</strong>). When a printer marks a job <strong>Completed</strong>, PrintFlow automatically picks the smallest roll width in stock (3FT, 4FT, 5FT, or 10FT) that fits the job and lets the printer confirm in one click.
                 </p>
               </div>
             </div>
@@ -1391,9 +1592,10 @@ export function InventoryManager({
             <Button
               size="sm"
               onClick={handleAutoMatch}
+              loading={isSubmitting}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shrink-0 shadow-xs"
             >
-              <Sparkles className="w-3.5 h-3.5 mr-1" /> Auto-Match by Name
+              <Sparkles className="w-3.5 h-3.5 mr-1" /> Smart Auto-Match All Products
             </Button>
           </div>
 
@@ -1403,26 +1605,56 @@ export function InventoryManager({
                 <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[11px] font-bold">
                   <tr>
                     <th className="py-3.5 px-4">Product Catalog Item</th>
-                    <th className="py-3.5 px-4">Status</th>
-                    <th className="py-3.5 px-4">Linked Warehouse Roll</th>
-                    <th className="py-3.5 px-4 text-right">Deduction Status</th>
+                    <th className="py-3.5 px-4">Detected Family & Compatible Widths</th>
+                    <th className="py-3.5 px-4">Default Linked Roll</th>
+                    <th className="py-3.5 px-4 text-right">Print Room Deduction Behavior</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {productTypes.map(pt => {
                     const currentMaterial = materials.find(m => m.id === pt.material_id)
+                    const rec = recommendMaterialForJob(
+                      {
+                        width: 1,
+                        height: 1,
+                        quantity: 1,
+                        dimension_unit: 'm',
+                        product_type_id: pt.id,
+                        product_types: { name: pt.name, material_id: pt.material_id },
+                      },
+                      materials
+                    )
+                    const familyWidths = Array.from(
+                      new Set(rec.familyCandidates.map(c => c.parsed.widthSummary))
+                    )
+
                     return (
                       <tr key={pt.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {pt.name}
-                        </td>
                         <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900">{pt.name}</div>
                           <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                            "inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
                             pt.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                           )}>
                             {pt.is_active ? 'Active' : 'Inactive'}
                           </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-semibold text-slate-800">{rec.familyLabel}</div>
+                          {familyWidths.length > 0 ? (
+                            <div className="flex items-center gap-1 flex-wrap mt-1">
+                              {familyWidths.map(w => (
+                                <span
+                                  key={w}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/70 text-[10px] font-mono tabular-nums font-bold"
+                                >
+                                  {w}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">No matching roll family in stock</span>
+                          )}
                         </td>
                         <td className="py-3.5 px-4">
                           <select
@@ -1430,22 +1662,45 @@ export function InventoryManager({
                             onChange={e => handleLinkProductType(pt.id, e.target.value || null)}
                             className="w-full max-w-sm px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
                           >
-                            <option value="">— No Material Linked (Manual) —</option>
-                            {materials.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.name} ({m.roll_width}m × {m.roll_height ?? m.roll_length}m • {Number(m.qty_rolls).toFixed(1)} rolls left)
-                              </option>
-                            ))}
+                            <option value="">
+                              {rec.recommendedMaterial
+                                ? `— Smart Auto-Fit (${rec.familyLabel}: ${familyWidths.join(', ')}) —`
+                                : '— No Material Linked (Manual Selection in Print Room) —'}
+                            </option>
+                            {materials.map(m => {
+                              const parsed = parseRollDimensions(m)
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} ({parsed.widthSummary} × {parsed.effectiveLengthM}m • {Number(m.qty_rolls).toFixed(2)} rolls left)
+                                </option>
+                              )
+                            })}
                           </select>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {currentMaterial ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Auto-Deducts from {currentMaterial.name}
-                            </span>
+                            <div>
+                              <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-xs">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Linked to {currentMaterial.name}
+                              </span>
+                              {familyWidths.length > 1 && (
+                                <p className="text-[11px] text-indigo-600 font-medium mt-0.5">
+                                  + Auto-picks smallest fitting width ({familyWidths.join(' / ')})
+                                </p>
+                              )}
+                            </div>
+                          ) : rec.recommendedMaterial ? (
+                            <div>
+                              <span className="inline-flex items-center gap-1 text-indigo-700 font-bold text-xs">
+                                <Sparkles className="w-3.5 h-3.5" /> Smart Family Match ({rec.familyLabel})
+                              </span>
+                              <p className="text-[11px] text-slate-500 mt-0.5">
+                                Auto-picks {familyWidths.join(' / ')} by job size
+                              </p>
+                            </div>
                           ) : (
                             <span className="text-slate-400 text-xs font-medium">
-                              No automatic deduction
+                              Printer selects roll on completion (if any)
                             </span>
                           )}
                         </td>
@@ -1471,6 +1726,17 @@ export function InventoryManager({
           </DialogHeader>
 
           <form onSubmit={handleCreate} className="space-y-4 mt-2">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2.5 flex items-center justify-between text-xs text-indigo-900">
+              <span className="flex items-center gap-1.5 font-semibold">
+                <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                {formatDateStamp(new Date().toISOString())}
+              </span>
+              <span className="flex items-center gap-1.5 font-semibold text-indigo-700">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                Auto-stamped with exact time added
+              </span>
+            </div>
+
             <div>
               <Label className="text-xs font-bold text-slate-700">Substrate Form / Unit</Label>
               <select

@@ -28,7 +28,7 @@ export default async function JobDetailPage(props: {
     .from('jobs')
     .select(`
       *,
-      product_types(name),
+      product_types(id, name, material_id),
       profiles(full_name),
       invoices(
         *,
@@ -47,6 +47,12 @@ export default async function JobDetailPage(props: {
 
   const job = jobData as any
   if (!job) notFound()
+
+  const { data: materialsData } = await (serviceSupabase as any)
+    .from('materials')
+    .select('id, name, unit, roll_width, roll_length, qty_rolls')
+    .eq('tenant_id', job.tenant_id)
+    .order('name')
 
   let invoice = Array.isArray(job.invoices) ? job.invoices[0] : job.invoices
 
@@ -70,6 +76,9 @@ export default async function JobDetailPage(props: {
 
   const rawPayments = invoice?.payments || []
   const payments = Array.isArray(rawPayments) ? rawPayments : [rawPayments]
+  const totalPaid = Math.round(payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0) * 100) / 100
+  const remaining = invoice ? Math.max(0, Math.round((Number(invoice.total) - totalPaid) * 100) / 100) : 0
+  const isFullyPaid = Boolean(invoice && remaining <= 0.009)
   const rawEvents = job.job_status_events || []
   const events = (Array.isArray(rawEvents) ? rawEvents : [rawEvents]).sort((a: any, b: any) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -108,7 +117,7 @@ export default async function JobDetailPage(props: {
           {role === 'admin' && (
             <EditJobModal job={job} role={role} />
           )}
-          <JobActions job={job} role={role} />
+          <JobActions job={job} role={role} materials={materialsData || []} />
         </div>
       </div>
 
@@ -201,7 +210,7 @@ export default async function JobDetailPage(props: {
           <Card>
             <CardHeader 
               title="Invoice & Payment" 
-              action={invoice?.status === 'paid' && (
+              action={isFullyPaid && (
                 <span className="flex items-center text-sm font-medium text-green-600 bg-green-400/10 px-2.5 py-1 rounded-md">
                   <CheckCircle2 className="w-4 h-4 mr-1.5" /> Paid
                 </span>
@@ -235,7 +244,7 @@ export default async function JobDetailPage(props: {
                     </div>
                   </div>
 
-                  {invoice.status !== 'paid' && !isCancelled && ['front_desk', 'admin', 'accountant'].includes(role) ? (
+                  {!isFullyPaid && !isCancelled && ['front_desk', 'admin', 'accountant'].includes(role) ? (
                     <PaymentForm 
                       invoice={invoice} 
                       jobId={job.id} 
@@ -243,7 +252,7 @@ export default async function JobDetailPage(props: {
                       customerName={job.customer_name}
                       customerPhone={job.customer_phone}
                     />
-                  ) : invoice.status === 'paid' ? (
+                  ) : isFullyPaid ? (
                     <div className="mt-4 space-y-4">
                       {/* PAID banner */}
                       <div className="flex items-center gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5">

@@ -1,12 +1,12 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getDefaultDashboardPath } from '@/lib/utils'
 
 export async function login(formData: FormData) {
-  const email = formData.get('email') as string
+  const email = (formData.get('email') as string)?.trim()
   const password = formData.get('password') as string
 
   if (!email || !password) {
@@ -15,10 +15,36 @@ export async function login(formData: FormData) {
 
   const supabase = await createClient()
 
-  const { error } = await supabase.auth.signInWithPassword({
+  let { error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
+
+  // If Supabase Auth returns "User is banned" for an employee who should have access,
+  // check their profile and lift the Auth ban automatically before retrying sign-in.
+  if (error && error.message?.toLowerCase().includes('banned')) {
+    try {
+      const serviceSupabase = createServiceClient()
+      const { data: profileMatch } = await (serviceSupabase.from('profiles') as any)
+        .select('id, email, is_active')
+        .ilike('email', email)
+        .maybeSingle()
+
+      if (profileMatch && profileMatch.is_active === true) {
+        await serviceSupabase.auth.admin.updateUserById(profileMatch.id, {
+          ban_duration: 'none',
+          email_confirm: true,
+        })
+        const retry = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+        error = retry.error
+      }
+    } catch (unbanErr) {
+      console.error('Auto-unban check failed:', unbanErr)
+    }
+  }
 
   if (error) {
     return { error: error.message }

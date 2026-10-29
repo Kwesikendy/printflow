@@ -145,15 +145,26 @@ export async function deleteUser(userId: string): Promise<CreateUserResult> {
 
   const { data: callerProfile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, tenant_id')
     .eq('id', user.id)
-    .single() as { data: { role: string } | null, error: any }
+    .single() as { data: { role: string; tenant_id: string } | null, error: any }
 
   if (!callerProfile || callerProfile.role !== 'admin') {
     return { error: 'Only admins can delete users.' }
   }
 
   const supabaseAdmin = createServiceClient()
+
+  // Verify target user belongs to the same tenant
+  const { data: targetUser } = await (supabaseAdmin.from('profiles') as any)
+    .select('id')
+    .eq('id', userId)
+    .eq('tenant_id', callerProfile.tenant_id)
+    .maybeSingle()
+
+  if (!targetUser) {
+    return { error: 'User not found in your organization.' }
+  }
 
   // First try hard delete
   const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
@@ -165,6 +176,7 @@ export async function deleteUser(userId: string): Promise<CreateUserResult> {
     const { error: updateError } = await (supabaseAdmin.from('profiles') as any)
       .update({ is_active: false })
       .eq('id', userId)
+      .eq('tenant_id', callerProfile.tenant_id)
 
     // Ban auth user so they can never sign in
     await supabaseAdmin.auth.admin.updateUserById(userId, {
@@ -181,7 +193,7 @@ export async function deleteUser(userId: string): Promise<CreateUserResult> {
   }
 
   // If hard-delete succeeded, also ensure profile record is removed
-  await supabaseAdmin.from('profiles').delete().eq('id', userId)
+  await supabaseAdmin.from('profiles').delete().eq('id', userId).eq('tenant_id', callerProfile.tenant_id)
 
   revalidatePath('/dashboard/admin/users')
   revalidatePath('/dashboard/admin/hr')
@@ -195,20 +207,32 @@ export async function reactivateUser(userId: string): Promise<CreateUserResult> 
 
   const { data: callerProfile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, tenant_id')
     .eq('id', user.id)
-    .single() as { data: { role: string } | null, error: any }
+    .single() as { data: { role: string; tenant_id: string } | null, error: any }
 
-  if (!callerProfile || callerProfile.role !== 'admin') {
-    return { error: 'Only admins can reactivate users.' }
+  if (!callerProfile || !['admin', 'accountant'].includes(callerProfile.role)) {
+    return { error: 'Only admins and accountants can reactivate users.' }
   }
 
   const supabaseAdmin = createServiceClient()
+
+  // Verify target user belongs to the same tenant
+  const { data: targetUser } = await (supabaseAdmin.from('profiles') as any)
+    .select('id')
+    .eq('id', userId)
+    .eq('tenant_id', callerProfile.tenant_id)
+    .maybeSingle()
+
+  if (!targetUser) {
+    return { error: 'User not found in your organization.' }
+  }
 
   // Mark profile active
   const { error: updateError } = await (supabaseAdmin.from('profiles') as any)
     .update({ is_active: true })
     .eq('id', userId)
+    .eq('tenant_id', callerProfile.tenant_id)
 
   if (updateError) {
     return { error: `Failed to reactivate account: ${updateError.message}` }
@@ -217,6 +241,7 @@ export async function reactivateUser(userId: string): Promise<CreateUserResult> 
   // Lift ban from auth user
   await supabaseAdmin.auth.admin.updateUserById(userId, {
     ban_duration: 'none',
+    email_confirm: true,
   }).catch(() => null)
 
   revalidatePath('/dashboard/admin/users')
@@ -231,9 +256,9 @@ export async function updateUserPrintRoom(userId: string, printRoom: PrintRoom |
 
   const { data: callerProfile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, tenant_id')
     .eq('id', user.id)
-    .single() as { data: { role: string } | null, error: any }
+    .single() as { data: { role: string; tenant_id: string } | null, error: any }
 
   if (!callerProfile || callerProfile.role !== 'admin') {
     return { error: 'Only admins can update user settings.' }
@@ -244,6 +269,7 @@ export async function updateUserPrintRoom(userId: string, printRoom: PrintRoom |
   const { error } = await (supabaseAdmin.from('profiles') as any)
     .update({ print_room: printRoom })
     .eq('id', userId)
+    .eq('tenant_id', callerProfile.tenant_id)
 
   if (error) {
     return { error: `Failed to update user: ${error.message}` }

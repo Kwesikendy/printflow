@@ -6,7 +6,7 @@ async function test() {
     port: 5432,
     database: 'postgres',
     user: 'postgres.zrnnrnnzywqnvdmnpbws',
-    password: 'PRINTFLOW11@', // directly as string, not URL parsed!
+    password: process.env.DB_PASSWORD || "", // directly as string, not URL parsed!
     ssl: { rejectUnauthorized: false }
   });
 

@@ -1,10 +1,15 @@
 'use client'
 
-import { useState, useTransition, useOptimistic } from 'react'
+import { useState, useTransition } from 'react'
 import { Button } from '@/components/ui/Button'
 import { transitionJobStatusAction } from '@/app/actions/jobs'
 import { getAllowedTransitions, JOB_STATUS_LABELS } from '@/lib/utils'
 import type { Job, JobStatus, Role } from '@/types/database'
+import type { MaterialLike } from '@/lib/material-matching'
+import {
+  CompleteJobMaterialModal,
+  type JobCompletionSelection,
+} from '@/components/jobs/CompleteJobMaterialModal'
 import { toast } from 'sonner'
 
 const BUTTON_LABELS: Partial<Record<JobStatus, string>> = {
@@ -17,9 +22,20 @@ const BUTTON_LABELS: Partial<Record<JobStatus, string>> = {
   cancelled:     'Cancel Job',
 }
 
-export function JobActions({ job, role, hasPaymentOverride }: { job: Job, role?: Role, hasPaymentOverride?: boolean }) {
+export function JobActions({
+  job,
+  role,
+  hasPaymentOverride,
+  materials = [],
+}: {
+  job: Job
+  role?: Role
+  hasPaymentOverride?: boolean
+  materials?: MaterialLike[]
+}) {
   const [isPending, startTransition] = useTransition()
   const [optimisticStatus, setOptimisticStatus] = useState<JobStatus>(job.status)
+  const [completeModalOpen, setCompleteModalOpen] = useState(false)
 
   if (!role) return null
 
@@ -41,7 +57,11 @@ export function JobActions({ job, role, hasPaymentOverride }: { job: Job, role?:
 
   if (allowedTransitions.length === 0) return null
 
-  const handleTransition = (toStatus: JobStatus) => {
+  const handleTransition = (
+    toStatus: JobStatus,
+    materialIdOverride?: string | null,
+    saveAsDefaultLink?: boolean
+  ) => {
     // Prevent double-clicking
     if (isPending) {
       toast.info('Please wait, the previous action is still in progress.')
@@ -58,7 +78,15 @@ export function JobActions({ job, role, hasPaymentOverride }: { job: Job, role?:
       // Optimistically update the UI immediately so the button changes right away
       setOptimisticStatus(toStatus)
 
-      const res = await transitionJobStatusAction(job.id, toStatus)
+      const res = await transitionJobStatusAction(
+        job.id,
+        toStatus,
+        undefined,
+        undefined,
+        undefined,
+        materialIdOverride,
+        saveAsDefaultLink
+      )
       if (res.error) {
         // Revert the optimistic update if it failed
         setOptimisticStatus(job.status)
@@ -70,46 +98,80 @@ export function JobActions({ job, role, hasPaymentOverride }: { job: Job, role?:
           toast.error(`Could not update job status: ${res.error}`)
         }
       } else {
+        setCompleteModalOpen(false)
         toast.success(
           toStatus === 'paid_released'
             ? 'Job forwarded to print room!'
+            : toStatus === 'completed'
+            ? 'Job marked as Completed & inventory updated!'
             : `Job marked as "${JOB_STATUS_LABELS[toStatus]}"`
         )
       }
     })
   }
 
+  const handleConfirmCompleteModal = (selections: JobCompletionSelection[]) => {
+    const sel = selections[0]
+    if (!sel) return
+    handleTransition('completed', sel.materialId, sel.saveAsDefaultLink)
+  }
+
   return (
-    <div className="flex items-center gap-2">
-      {allowedTransitions.map((status) => {
-        if (status === 'cancelled') {
+    <>
+      <div className="flex items-center gap-2">
+        {allowedTransitions.map((status) => {
+          if (status === 'cancelled') {
+            return (
+              <Button
+                key={status}
+                variant="danger"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to cancel this job? This cannot be undone.')) {
+                    handleTransition(status)
+                  }
+                }}
+                loading={isPending}
+              >
+                Cancel Job
+              </Button>
+            )
+          }
+
+          if (status === 'completed' && materials.length > 0) {
+            return (
+              <Button
+                key={status}
+                variant="primary"
+                onClick={() => setCompleteModalOpen(true)}
+                loading={isPending}
+              >
+                {BUTTON_LABELS[status] ?? `Mark as ${JOB_STATUS_LABELS[status]}`}
+              </Button>
+            )
+          }
+
           return (
             <Button
               key={status}
-              variant="danger"
-              onClick={() => {
-                if (window.confirm('Are you sure you want to cancel this job? This cannot be undone.')) {
-                  handleTransition(status)
-                }
-              }}
+              variant="primary"
+              onClick={() => handleTransition(status)}
               loading={isPending}
             >
-              Cancel Job
+              {BUTTON_LABELS[status] ?? `Mark as ${JOB_STATUS_LABELS[status]}`}
             </Button>
           )
-        }
+        })}
+      </div>
 
-        return (
-          <Button
-            key={status}
-            variant="primary"
-            onClick={() => handleTransition(status)}
-            loading={isPending}
-          >
-            {BUTTON_LABELS[status] ?? `Mark as ${JOB_STATUS_LABELS[status]}`}
-          </Button>
-        )
-      })}
-    </div>
+      <CompleteJobMaterialModal
+        open={completeModalOpen}
+        onOpenChange={setCompleteModalOpen}
+        jobsToComplete={[job]}
+        materials={materials}
+        isSubmitting={isPending}
+        onConfirm={handleConfirmCompleteModal}
+      />
+    </>
   )
 }
+

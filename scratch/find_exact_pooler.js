@@ -14,7 +14,7 @@ async function find() {
       port: 5432,
       database: 'postgres',
       user: 'postgres.zrnnrnnzywqnvdmnpbws',
-      password: 'PRINTFLOW11@',
+      password: process.env.DB_PASSWORD || "",
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 3000
     });

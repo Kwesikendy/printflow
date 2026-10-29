@@ -3,10 +3,25 @@ import { HRDashboard, type HRDepartmentEmployee, type HRLeaveRequest, type HRPay
 import type { Role, PrintRoom, SalaryPaymentMethod } from '@/types/database'
 import { getDefaultDepartment } from '@/lib/utils'
 
+import { redirect } from 'next/navigation'
+
 export const dynamic = 'force-dynamic'
 
 export default async function AdminHRPage() {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: viewerProfile } = await supabase
+    .from('profiles')
+    .select('role, is_active')
+    .eq('id', user.id)
+    .single() as { data: { role: string; is_active?: boolean } | null; error: any }
+
+  if (!viewerProfile || viewerProfile.is_active === false || !['admin', 'accountant'].includes(viewerProfile.role)) {
+    redirect('/dashboard')
+  }
+
   const year = new Date().getFullYear()
 
   const [{ data: profiles }, { data: balances }, { data: leaveRequests }, { data: payrollSettings }, { data: payrollRuns }] = await Promise.all([

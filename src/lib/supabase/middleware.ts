@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isSupabaseConfigured } from './mock'
 
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -9,6 +10,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith('/_next') ||
     pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js)$/)
   ) {
+    return NextResponse.next()
+  }
+
+  if (!isSupabaseConfigured()) {
     return NextResponse.next()
   }
 
@@ -38,8 +43,8 @@ export async function updateSession(request: NextRequest) {
   // Refresh session — do not remove this
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Public routes that don't need auth
-  const publicRoutes = ['/login', '/print', '/track']
+  // Public routes that don't need auth (login, OAuth callback, and customer QR invoice tracker)
+  const publicRoutes = ['/login', '/auth/callback', '/track']
   const isPublic = publicRoutes.some(r => pathname.startsWith(r))
 
   if (!user && !isPublic) {

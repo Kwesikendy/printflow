@@ -4,9 +4,9 @@ import { useEffect, useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/Card'
 import { ROLE_LABELS } from '@/lib/utils'
-import { UserCircle, Mail, Trash2 } from 'lucide-react'
+import { UserCircle, Mail, Trash2, RotateCcw } from 'lucide-react'
 import { InviteUserModal } from '@/components/admin/InviteUserModal'
-import { deleteUser, updateUserPrintRoom } from '@/app/actions/users'
+import { deleteUser, reactivateUser, updateUserPrintRoom } from '@/app/actions/users'
 import { toast } from 'sonner'
 import { useSession } from '@/contexts/SessionContext'
 import { PRINT_ROOM_LABELS } from '@/lib/utils'
@@ -34,8 +34,20 @@ export default function AdminUsersPage() {
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('User removed successfully')
+        toast.success(res.deactivated ? 'User deactivated' : 'User removed successfully')
         setConfirmDeleteId(null)
+        await fetchProfiles()
+      }
+    })
+  }
+
+  const handleReactivate = (userId: string) => {
+    startTransition(async () => {
+      const res = await reactivateUser(userId)
+      if (res.error) {
+        toast.error(res.error)
+      } else {
+        toast.success('User reactivated and unbanned successfully')
         await fetchProfiles()
       }
     })
@@ -127,7 +139,17 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="text-right pr-6">
                       {user.id !== session?.user.id && (
-                        confirmDeleteId === user.id ? (
+                        !user.is_active ? (
+                          <button
+                            onClick={() => handleReactivate(user.id)}
+                            disabled={isPending}
+                            className="inline-flex items-center gap-1.5 text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 font-semibold transition-colors disabled:opacity-50"
+                            title="Reactivate and unban user"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            Reactivate
+                          </button>
+                        ) : confirmDeleteId === user.id ? (
                           <div className="flex items-center gap-2 justify-end">
                             <span className="text-xs text-red-600 font-medium">Remove user?</span>
                             <button

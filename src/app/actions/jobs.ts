@@ -5,8 +5,9 @@ import { revalidatePath } from 'next/cache'
 import { type JobStatus, type PaymentMethod, type JobSource, type Profile, type DimensionUnit, type PrintRoom, type DeliveryMethod } from '@/types/database'
 import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
-import { getWorkdayBounds } from '@/lib/workday'
 import { isPocketOrFinishingProduct } from '@/lib/utils'
+import { getWorkdayBounds } from '@/lib/workday'
+import { calculateJobConsumption, parseRollDimensions, recommendMaterialForJob } from '@/lib/material-matching'
 
 export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
   try {
@@ -545,6 +546,7 @@ export async function createJob(formData: FormData): Promise<ActionResponse> {
 
 export async function recordPaymentAction(formData: FormData) {
   const supabase = await createClient()
+  const serviceSupabase = createServiceClient()
   
   const invoiceId = formData.get('invoiceId') as string
   const amount = parseFloat(formData.get('amount') as string)
@@ -553,39 +555,107 @@ export async function recordPaymentAction(formData: FormData) {
   const notes = formData.get('notes') as string
   const releaseToPrintRoom = formData.get('releaseToPrintRoom') === 'true'
 
-  if (!invoiceId || isNaN(amount) || !method) {
+  if (!invoiceId || isNaN(amount) || amount <= 0 || !method) {
     return { error: 'Invalid payment data' }
   }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  // Inspect invoice and existing payments first so out-of-sync status = 'paid' doesn't block payment
+  const { data: invCheck } = await (serviceSupabase.from('invoices') as any)
+    .select('id, tenant_id, job_id, group_id, total, status, payments(amount)')
+    .eq('id', invoiceId)
+    .single()
+
+  if (!invCheck) {
+    return { error: 'Invoice not found' }
+  }
+
+  const existingPaid = Math.round(((invCheck.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)) * 100) / 100
+  const invTotal = Math.round(Number(invCheck.total) * 100) / 100
+  const remainingBefore = Math.max(0, Math.round((invTotal - existingPaid) * 100) / 100)
+
+  if (remainingBefore <= 0.009) {
+    if (invCheck.status !== 'paid') {
+      await (serviceSupabase.from('invoices') as any).update({ status: 'paid' }).eq('id', invoiceId)
+    }
+    return { error: 'This invoice is already fully paid.' }
+  }
+
+  if (invCheck.status === 'paid' && remainingBefore > 0.009) {
+    await (serviceSupabase.from('invoices') as any)
+      .update({ status: existingPaid > 0.009 ? 'partial' : 'unpaid' })
+      .eq('id', invoiceId)
+  }
+
+  const roundedAmount = Math.round(Math.min(amount, remainingBefore) * 100) / 100
+
   const { error } = await supabase.rpc('record_payment', {
     p_invoice_id: invoiceId,
-    p_amount: amount,
+    p_amount: roundedAmount,
     p_method: method,
     p_reference: reference || null,
     p_notes: notes || null
   } as any)
 
   if (error) {
-    console.error('Record payment error:', error)
-    return { error: error.message }
+    console.warn('RPC record_payment failed, using service fallback:', error.message)
+    const { error: insertPayErr } = await (serviceSupabase.from('payments') as any).insert({
+      tenant_id: invCheck.tenant_id,
+      invoice_id: invoiceId,
+      job_id: invCheck.job_id,
+      amount: roundedAmount,
+      method,
+      reference: reference || null,
+      notes: notes || null,
+      recorded_by: user.id,
+      recorded_at: new Date().toISOString(),
+    })
+
+    if (insertPayErr) {
+      console.error('Record payment fallback error:', insertPayErr)
+      return { error: insertPayErr.message }
+    }
+
+    const newTotalPaid = Math.round((existingPaid + roundedAmount) * 100) / 100
+    const isNowPaid = newTotalPaid >= invTotal - 0.009
+    await (serviceSupabase.from('invoices') as any)
+      .update({ status: isNowPaid ? 'paid' : 'partial' })
+      .eq('id', invoiceId)
+
+    if (isNowPaid) {
+      if (invCheck.group_id) {
+        await (serviceSupabase.from('jobs') as any)
+          .update({ status: 'paid_released', updated_at: new Date().toISOString() })
+          .eq('group_id', invCheck.group_id)
+          .eq('status', 'awaiting_payment')
+      } else if (invCheck.job_id) {
+        await (serviceSupabase.from('jobs') as any)
+          .update({ status: 'paid_released', updated_at: new Date().toISOString() })
+          .eq('id', invCheck.job_id)
+          .eq('status', 'awaiting_payment')
+      }
+    }
+  } else {
+    // Also guard against floating point precision in Postgres RPC leaving a fully paid invoice as 'partial'
+    const newTotalPaid = Math.round((existingPaid + roundedAmount) * 100) / 100
+    if (newTotalPaid >= invTotal - 0.009) {
+      await (serviceSupabase.from('invoices') as any)
+        .update({ status: 'paid' })
+        .eq('id', invoiceId)
+    }
   }
 
   // If user requested forwarding to print room upon partial payment
   if (releaseToPrintRoom) {
-    const { data: invData } = await supabase
-      .from('invoices')
-      .select('job_id, group_id')
-      .eq('id', invoiceId)
-      .single()
-
-    const inv = invData as { job_id: string | null; group_id: string | null } | null
-    if (inv?.group_id) {
-      await releaseJobGroupAction(inv.group_id, 'Forwarded to print room after partial payment')
-    } else if (inv?.job_id) {
+    if (invCheck.group_id) {
+      await releaseJobGroupAction(invCheck.group_id, 'Forwarded to print room after payment')
+    } else if (invCheck.job_id) {
       await supabase.rpc('transition_job_status', {
-        p_job_id: inv.job_id,
+        p_job_id: invCheck.job_id,
         p_to_status: 'paid_released',
-        p_notes: 'Forwarded to print room after partial payment'
+        p_notes: 'Forwarded to print room after payment'
       } as any)
     }
   }
@@ -720,7 +790,9 @@ export async function transitionJobStatusAction(
   toStatus: JobStatus, 
   notes?: string,
   pickupName?: string,
-  pickupPhone?: string
+  pickupPhone?: string,
+  materialIdOverride?: string | null,
+  saveAsDefaultLink?: boolean
 ) {
   const supabase = await createClient()
   
@@ -787,50 +859,78 @@ export async function transitionJobStatusAction(
     console.warn('Non-fatal: could not sync companion pocket/finishing job:', e)
   }
 
-  // If status is completed, automatically deduct material from inventory
-  if (toStatus === 'completed') {
+  // If status is completed, automatically deduct material from inventory using service client
+  // so printer role accounts are never blocked by RLS on materials or inventory_logs.
+  if (toStatus === 'completed' && materialIdOverride !== 'none') {
     try {
-      const { data: jobData } = await supabase
+      const serviceSupabase = createServiceClient() as any
+      const { data: jobData } = await serviceSupabase
         .from('jobs')
-        .select('id, tenant_id, width, height, quantity, dimension_unit, product_types(material_id)')
+        .select('id, job_number, customer_name, tenant_id, width, height, quantity, dimension_unit, product_type_id, product_types(id, name, material_id)')
         .eq('id', jobId)
         .single()
   
       const job = jobData as any
-      const materialId = job?.product_types?.material_id
-  
-      if (materialId && job) {
-        const { data: materialData } = await (supabase as any)
-          .from('materials')
-          .select('id, roll_width, roll_length, qty_rolls')
-          .eq('id', materialId)
-          .single()
-  
-        const material = materialData as any
-        if (material) {
-          const w_cm = toCm(job.width, job.dimension_unit)
-          const h_cm = toCm(job.height, job.dimension_unit)
-          const area_m2 = (w_cm / 100) * (h_cm / 100) * job.quantity
-          
-          const roll_height = material.roll_height || material.roll_length || 0
-          const roll_area = material.roll_width * roll_height
-          const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
-  
-          if (rolls_deducted > 0) {
-            await (supabase as any).from('inventory_logs').insert({
-              tenant_id: job.tenant_id,
-              material_id: materialId,
-              action: 'job_deduction',
-              job_id: jobId,
-              qty_change_rolls: -rolls_deducted,
-              qty_change_area: -area_m2,
-              notes: `Auto-deducted for completed job`
-            })
+      if (job) {
+        let targetMaterialId: string | null = materialIdOverride || null
+
+        if (!targetMaterialId) {
+          // Fetch all tenant materials and run smart family + smallest-fitting roll width matcher
+          const { data: allMaterials } = await serviceSupabase
+            .from('materials')
+            .select('id, name, unit, roll_width, roll_length, qty_rolls')
+            .eq('tenant_id', job.tenant_id)
+
+          const rec = recommendMaterialForJob(job, allMaterials || [])
+          targetMaterialId = rec.recommendedMaterial?.id || job?.product_types?.material_id || null
+        }
+
+        if (targetMaterialId) {
+          const { data: materialData } = await serviceSupabase
+            .from('materials')
+            .select('id, name, unit, roll_width, roll_length, qty_rolls')
+            .eq('id', targetMaterialId)
+            .single()
     
-            await (supabase as any).from('materials').update({
-              qty_rolls: material.qty_rolls - rolls_deducted,
-              updated_at: new Date().toISOString()
-            }).eq('id', materialId)
+          const material = materialData as any
+          if (material) {
+            const consumption = calculateJobConsumption(
+              job.width,
+              job.height,
+              job.quantity,
+              job.dimension_unit,
+              job.product_types?.name
+            )
+            const parsedRoll = parseRollDimensions(material)
+            const area_m2 = consumption.totalAreaM2
+            const roll_area = parsedRoll.effectiveAreaPerRollM2
+            const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
+    
+            if (rolls_deducted > 0) {
+              const nowIso = new Date().toISOString()
+              await serviceSupabase.from('inventory_logs').insert({
+                tenant_id: job.tenant_id,
+                material_id: targetMaterialId,
+                action: 'job_deduction',
+                job_id: jobId,
+                qty_change_rolls: -rolls_deducted,
+                qty_change_area: -area_m2,
+                created_at: nowIso,
+                notes: `Print Room completed ${job.job_number || ''} (${consumption.widthFt}ft × ${consumption.heightFt}ft × ${consumption.quantity} = ${area_m2.toFixed(2)} m² on ${material.name})`
+              })
+      
+              await serviceSupabase.from('materials').update({
+                qty_rolls: Math.max(0, Number(material.qty_rolls || 0) - rolls_deducted),
+                updated_at: nowIso
+              }).eq('id', targetMaterialId)
+
+              if (saveAsDefaultLink && job.product_type_id) {
+                await serviceSupabase
+                  .from('product_types')
+                  .update({ material_id: targetMaterialId })
+                  .eq('id', job.product_type_id)
+              }
+            }
           }
         }
       }
@@ -931,6 +1031,7 @@ export async function transitionJobStatusAction(
   revalidatePath('/dashboard/queue')
   revalidatePath('/dashboard/pickup')
   revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/admin/inventory')
   return { success: true }
 }
 
@@ -1078,25 +1179,39 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
 
   if (error) return { error: error.message }
 
-  // Update invoice total and group if necessary
+  // Update invoice total and status, and group if necessary
+  const serviceSupabase = createServiceClient()
   if (job.group_id) {
-    const { data: allJobsData } = await supabase.from('jobs').select('line_total').eq('group_id', job.group_id)
+    const { data: allJobsData } = await serviceSupabase.from('jobs').select('line_total').eq('group_id', job.group_id)
     const allJobs = allJobsData as any[] | null
-    const newTotal = allJobs?.reduce((sum: number, j: any) => sum + Number(j.line_total), 0) || 0
-    await (supabase.from('invoices') as any).update({ total: newTotal }).eq('group_id', job.group_id)
+    const newTotal = Math.round(((allJobs?.reduce((sum: number, j: any) => sum + Number(j.line_total), 0)) || 0) * 100) / 100
+    const { data: groupInv } = await (serviceSupabase.from('invoices') as any)
+      .select('id, payments(amount)')
+      .eq('group_id', job.group_id)
+      .maybeSingle()
+    const totalPaid = Math.round(((groupInv?.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)) * 100) / 100
+    const nextStatus = totalPaid >= newTotal - 0.009 ? 'paid' : totalPaid > 0.009 ? 'partial' : 'unpaid'
+    await (serviceSupabase.from('invoices') as any).update({ total: newTotal, status: nextStatus }).eq('group_id', job.group_id)
 
     // Update group customer details if changed
     if (updates.customerName !== undefined || updates.customerPhone !== undefined) {
       const groupUpdate: any = {}
       if (updates.customerName !== undefined) groupUpdate.customer_name = updates.customerName
       if (updates.customerPhone !== undefined) groupUpdate.customer_phone = updates.customerPhone
-      await (supabase.from('job_groups') as any).update(groupUpdate).eq('id', job.group_id)
+      await (serviceSupabase.from('job_groups') as any).update(groupUpdate).eq('id', job.group_id)
     }
   } else {
-    await (supabase.from('invoices') as any).update({ total: lineTotal }).eq('job_id', jobId)
+    const { data: singleInv } = await (serviceSupabase.from('invoices') as any)
+      .select('id, payments(amount)')
+      .eq('job_id', jobId)
+      .maybeSingle()
+    const totalPaid = Math.round(((singleInv?.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)) * 100) / 100
+    const nextStatus = totalPaid >= lineTotal - 0.009 ? 'paid' : totalPaid > 0.009 ? 'partial' : 'unpaid'
+    await (serviceSupabase.from('invoices') as any).update({ total: lineTotal, status: nextStatus }).eq('job_id', jobId)
   }
 
   revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/finance')
   revalidatePath(`/dashboard/jobs/${jobId}`)
   if (job.group_id) revalidatePath(`/dashboard/jobs/group/${job.group_id}`)
   
@@ -1178,10 +1293,17 @@ export async function deleteJobAction(jobId: string): Promise<ActionResponse> {
         return { error: delErr.message }
       }
 
-      // Recalculate group invoice total
-      const newTotal = remainingJobs.reduce((sum: number, j: any) => sum + Number(j.line_total), 0)
+      // Recalculate group invoice total and status
+      const newTotal = Math.round(remainingJobs.reduce((sum: number, j: any) => sum + Number(j.line_total), 0) * 100) / 100
+      const { data: groupInv } = await (serviceSupabase.from('invoices') as any)
+        .select('id, payments(amount)')
+        .eq('group_id', job.group_id)
+        .eq('tenant_id', profile.tenant_id)
+        .maybeSingle()
+      const totalPaid = Math.round(((groupInv?.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)) * 100) / 100
+      const nextStatus = totalPaid >= newTotal - 0.009 ? 'paid' : totalPaid > 0.009 ? 'partial' : 'unpaid'
       await (serviceSupabase.from('invoices') as any)
-        .update({ total: Math.round(newTotal * 100) / 100 })
+        .update({ total: newTotal, status: nextStatus })
         .eq('group_id', job.group_id)
         .eq('tenant_id', profile.tenant_id)
     }
