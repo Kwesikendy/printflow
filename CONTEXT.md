@@ -275,3 +275,20 @@ All server actions reside in `src/app/actions/` and use `'use server'`:
    npm run build
    pm2 start ecosystem.config.cjs
    ```
+
+---
+
+## 10. Automated Backups & Disaster Recovery Reference
+
+- **Admin UI**: `/dashboard/admin/backups`
+- **CLI Runner**: `npm run backup` (or `node scripts/run-backup.mjs`)
+- **Engine Core**:
+  - `src/lib/backup.ts`: Paginates all 19 database tables, compiles JSONs and `manifest.json`, and streams into a compressed `.zip` archive via `ZipArchive`. Optionally downloads Supabase `artworks` bucket storage assets.
+  - `src/lib/google-drive.ts`: Authenticates via Google Cloud Service Account (JWT) and uploads the backup archive directly into a designated Google Drive folder with automatic 30-day retention cleanup.
+  - `src/app/actions/backup.ts`: Admin server actions for triggering on-demand backups, testing Drive connectivity, and managing archives.
+  - `src/app/api/admin/backups/download/route.ts`: Streaming download API route for direct offline backup retrieval by administrators.
+- **Environment Variables**:
+  - `GOOGLE_SERVICE_ACCOUNT_EMAIL`
+  - `GOOGLE_PRIVATE_KEY`
+  - `GOOGLE_DRIVE_FOLDER_ID`
+  *(Or drop `google-service-account.json` into the project root and set `GOOGLE_DRIVE_FOLDER_ID`).*

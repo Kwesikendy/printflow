@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BriefcaseBusiness, LayoutDashboard, Package, Users, Settings } from 'lucide-react'
+import { BriefcaseBusiness, LayoutDashboard, Package, Users, Settings, CloudUpload } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useSession } from '@/contexts/SessionContext'
 
@@ -11,6 +11,7 @@ const adminTabs = [
   { name: 'Products & Pricing', href: '/dashboard/admin/products', icon: Package },
   { name: 'Users', href: '/dashboard/admin/users', icon: Users },
   { name: 'HR', href: '/dashboard/admin/hr', icon: BriefcaseBusiness },
+  { name: 'Backups', href: '/dashboard/admin/backups', icon: CloudUpload },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ]
 
