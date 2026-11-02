@@ -111,8 +111,8 @@ export function AppLoadingScreen({ visible, tenantName, logoUrl }: AppLoadingScr
                 />
               ) : (
                 <Image
-                  src={process.env.NEXT_PUBLIC_APP_LOGO || "/printflow-logo.jpg"}
-                  alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintFlow"}
+                  src={process.env.NEXT_PUBLIC_APP_LOGO || "/Print_DPI_Logo.png"}
+                  alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintDpi"}
                   width={320}
                   height={100}
                   priority

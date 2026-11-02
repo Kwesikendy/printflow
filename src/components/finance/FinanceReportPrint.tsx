@@ -245,8 +245,8 @@ export function FinanceReportPrint({
             />
           ) : (
             <Image
-              src={process.env.NEXT_PUBLIC_APP_LOGO || "/printflow-logo.jpg"}
-              alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintFlow"}
+              src={process.env.NEXT_PUBLIC_APP_LOGO || "/Print_DPI_Logo.png"}
+              alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintDpi"}
               width={160}
               height={50}
               className="object-contain"

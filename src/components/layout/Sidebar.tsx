@@ -56,8 +56,8 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
     <div className="flex h-full flex-col" style={{ background: '#EFEFEF' }}>
       <div className="flex flex-col items-start px-5 py-5 border-b border-slate-100 gap-2">
         <Image
-          src={session.tenant?.logo_url || process.env.NEXT_PUBLIC_APP_LOGO || "/printflow-logo.jpg"}
-          alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintFlow"}
+          src={session.tenant?.logo_url || process.env.NEXT_PUBLIC_APP_LOGO || "/Print_DPI_Logo.png"}
+          alt={process.env.NEXT_PUBLIC_APP_NAME || "PrintDpi"}
           width={160}
           height={50}
           priority
