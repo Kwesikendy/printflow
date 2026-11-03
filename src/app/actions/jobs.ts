@@ -96,7 +96,7 @@ function getDatePrefix(prefix: 'PF' | 'INV', now = new Date()): string {
   return `${prefix}-${yy}${mm}${dd}-`
 }
 
-async function generateDateJobNumbers(
+export async function generateDateJobNumbers(
 
   serviceSupabase: any,
   tenantId: string,
@@ -132,7 +132,7 @@ async function generateDateJobNumbers(
   return results
 }
 
-async function generateDateInvoiceNumber(
+export async function generateDateInvoiceNumber(
   serviceSupabase: any,
   tenantId: string
 ): Promise<string> {

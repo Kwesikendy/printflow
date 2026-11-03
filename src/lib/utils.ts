@@ -151,7 +151,7 @@ export function canAccessRoute(role: Role, pathname: string, email?: string): bo
 
   const isMavis = email?.toLowerCase() === 'm.adoko@printdpigh.com'
   const printerRoutes = ['/dashboard/queue', '/dashboard/jobs']
-  const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory', '/dashboard/admin/hr', '/dashboard/jobs']
+  const accountantRoutes = ['/dashboard/finance', '/dashboard/staff-activity', '/dashboard/admin/inventory', '/dashboard/admin/hr', '/dashboard/admin/clients', '/dashboard/jobs']
   const frontDeskRoutes = ['/dashboard/jobs', '/dashboard/pickup', '/dashboard/delivery']
   const riderRoutes = ['/dashboard/delivery', '/dashboard/pickup', '/dashboard/jobs']
   const cleanerRoutes = ['/dashboard/jobs', '/dashboard/pickup']

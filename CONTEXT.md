@@ -292,3 +292,21 @@ All server actions reside in `src/app/actions/` and use `'use server'`:
   - `GOOGLE_PRIVATE_KEY`
   - `GOOGLE_DRIVE_FOLDER_ID`
   *(Or drop `google-service-account.json` into the project root and set `GOOGLE_DRIVE_FOLDER_ID`).*
+
+---
+
+## 11. Historical Clients & Legacy Arrears Tracking
+
+- **Overview**:
+  - Prior to adopting PrintFlow, PrintDPI GH operated on manual books and receipts.
+  - The Historical Clients & Debt Intake module enables Admins and Accountants to register legacy clients and record pre-existing debts/opening balances into PrintFlow.
+- **Access Routes & Components**:
+  - Dedicated Directory: `/dashboard/admin/clients` (`ClientsDirectoryClient.tsx`), accessible by both `admin` and `accountant`.
+  - Fast Intake Modal: `src/components/customers/AddClientModal.tsx`, accessible directly from the Admin Panel, Finance Dashboard (`/dashboard/finance`), Debtors Breakdown, and Customer Search.
+  - Server Actions: `src/app/actions/customers.ts` (`createClientOrLegacyDebtAction`, `getCustomersDirectoryAction`, `searchCustomers`).
+- **System Reflection**:
+  - **Front Desk Intake (`/dashboard/jobs/new`)**: Autocompletes customer name/phone. `CustomerArrearsBanner` automatically detects legacy debt and prompts front-desk staff before releasing new orders.
+  - **Finance Dashboard (`/dashboard/finance`)**: Legacy debt generates picked-up orders under `Debt` product type and unpaid invoices. Debts reflect in shift receivables, `OutstandingBalanceBreakdownModal`, and aging summaries.
+  - **Statements & Printouts**: Immediately populates `/print/customer-statement?customer=[Name]` with opening ledger debit.
+  - **Settlement**: 1-click settlement via `SettleCustomerBalanceModal` or partial payments record directly into the daily shift revenue.
+

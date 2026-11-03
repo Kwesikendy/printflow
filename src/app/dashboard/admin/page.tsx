@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { PageLoader } from '@/components/ui/EmptyState'
-import { FileText, Users, Package, Clock } from 'lucide-react'
+import { FileText, Users, Package, Clock, Contact2 } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
@@ -27,11 +27,13 @@ export default async function AdminOverviewPage() {
   const [
     { count: jobsCount },
     { count: usersCount },
-    { count: productsCount }
+    { count: productsCount },
+    { count: customersCount }
   ] = await Promise.all([
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('product_types').select('*', { count: 'exact', head: true }).eq('is_active', true)
+    supabase.from('product_types').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('customers').select('*', { count: 'exact', head: true })
   ])
 
   // Get job counts by status for operational overview
@@ -70,15 +72,23 @@ export default async function AdminOverviewPage() {
           <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
           <p className="text-slate-500 mt-1">Operational summary and staff oversight.</p>
         </div>
-        <Link href="/dashboard/staff-activity">
-          <Button variant="primary" className="shadow-sm">
-            <Users className="w-4 h-4 mr-2" />
-            Staff Work Rate & Activity
-          </Button>
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/dashboard/admin/clients">
+            <Button variant="outline" className="bg-white hover:bg-slate-50 border-slate-200 text-indigo-700 font-bold">
+              <Contact2 className="w-4 h-4 mr-2" />
+              Clients & Arrears
+            </Button>
+          </Link>
+          <Link href="/dashboard/staff-activity">
+            <Button variant="primary" className="shadow-sm">
+              <Users className="w-4 h-4 mr-2" />
+              Staff Work Rate & Activity
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card className="relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-6 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
             <FileText className="w-24 h-24 text-indigo-600" />
@@ -106,6 +116,24 @@ export default async function AdminOverviewPage() {
               <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Active Users</p>
             </div>
             <p className="mt-4 text-4xl font-bold text-slate-900 tracking-tight">{usersCount || 0}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-6 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
+            <Contact2 className="w-24 h-24 text-purple-600" />
+          </div>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-purple-50 text-purple-600 rounded-lg shadow-sm border border-purple-100/50">
+                <Contact2 className="w-5 h-5" />
+              </div>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Clients</p>
+            </div>
+            <p className="mt-4 text-4xl font-bold text-slate-900 tracking-tight">{customersCount || 0}</p>
+            <Link href="/dashboard/admin/clients" className="mt-2 text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1">
+              View Directory &rarr;
+            </Link>
           </CardContent>
         </Card>
 

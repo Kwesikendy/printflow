@@ -21,6 +21,7 @@ import {
   Key,
   Users,
   BriefcaseBusiness,
+  Contact2,
   X
 } from 'lucide-react'
 
@@ -28,6 +29,7 @@ const navItems = [
   { name: 'Dashboard', href: '/dashboard/admin', icon: LayoutDashboard, roles: ['admin'] },
   { name: 'Inventory', href: '/dashboard/admin/inventory', icon: Package, roles: ['admin', 'accountant'] },
   { name: 'Jobs', href: '/dashboard/jobs', icon: FileText, roles: ['admin', 'front_desk', 'accountant'] },
+  { name: 'Clients & Arrears', href: '/dashboard/admin/clients', icon: Contact2, roles: ['admin', 'accountant'] },
   { name: 'Pickup Queue', href: '/dashboard/pickup', icon: ListChecks, roles: ['admin', 'front_desk'] },
   { name: 'Print Queue', href: '/dashboard/queue', icon: Printer, roles: ['admin', 'printer'] },
   { name: 'Finance', href: '/dashboard/finance', icon: PieChart, roles: ['admin', 'accountant'] },

@@ -245,6 +245,10 @@ export interface Customer {
   name: string
   phone: string | null
   email: string | null
+  company_name?: string | null
+  address?: string | null
+  notes?: string | null
+  source?: JobSource
   created_at: string
 }
 

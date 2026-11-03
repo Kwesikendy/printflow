@@ -18,13 +18,14 @@ import {
 } from 'recharts'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
-import { TrendingUp, AlertCircle, Calendar, Printer, Filter, Flag, Receipt, ArrowRight, ArrowUpRight, Users, X } from 'lucide-react'
+import { TrendingUp, AlertCircle, Calendar, Printer, Filter, Flag, Receipt, ArrowRight, ArrowUpRight, Users, X, UserPlus } from 'lucide-react'
 import { CustomerSearchSection } from '@/components/finance/CustomerSearchSection'
 import { CustomerStatementModal } from '@/components/finance/CustomerStatementModal'
 import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
 import { InvoiceFlagButton } from '@/components/finance/InvoiceFlagButton'
 import { RecordPaymentModal } from '@/components/finance/RecordPaymentModal'
 import { OutstandingBalanceBreakdownModal, type OutstandingDebtor } from '@/components/finance/OutstandingBalanceBreakdownModal'
+import { AddClientModal } from '@/components/customers/AddClientModal'
 
 interface FinanceDashboardProps {
   payments: any[]
@@ -41,6 +42,8 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
   const [selectedCustomer, setSelectedCustomer] = useState<{ name: string; phone?: string | null } | null>(null)
   const [isStatementModalOpen, setIsStatementModalOpen] = useState(false)
   const [isBreakdownModalOpen, setIsBreakdownModalOpen] = useState(false)
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false)
+  const [addClientInitialName, setAddClientInitialName] = useState('')
   const [debtorFilter, setDebtorFilter] = useState<string | null>(null)
   const [onlyUnpaid, setOnlyUnpaid] = useState(false)
   const [showFlagged, setShowFlagged] = useState(false)
@@ -277,6 +280,10 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         <CustomerSearchSection
           onSelectCustomer={handleSelectCustomer}
           selectedCustomerName={selectedCustomer?.name}
+          onAddClient={(name) => {
+            setAddClientInitialName(name || '')
+            setIsAddClientModalOpen(true)
+          }}
         />
       </motion.div>
 
@@ -374,10 +381,22 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
           <button
             type="button"
             onClick={() => setIsBreakdownModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 shadow-2xs cursor-pointer"
           >
             <Users className="w-3.5 h-3.5 text-amber-600" />
             Debtors Breakdown ({outstandingContributors.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAddClientInitialName('')
+              setIsAddClientModalOpen(true)
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-2xs cursor-pointer"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+            Add Client / Debt
           </button>
         </div>
 
@@ -722,6 +741,16 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         onSelectCustomer={handleSelectCustomer}
         onFilterCustomer={(customerName) => {
           setDebtorFilter(customerName)
+        }}
+      />
+
+      {/* Add Client / Historical Debt Modal */}
+      <AddClientModal
+        isOpen={isAddClientModalOpen}
+        onClose={() => setIsAddClientModalOpen(false)}
+        initialCustomerName={addClientInitialName}
+        onSuccess={() => {
+          window.location.reload()
         }}
       />
     </motion.div>

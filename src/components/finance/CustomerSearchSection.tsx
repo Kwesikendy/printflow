@@ -1,16 +1,17 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
-import { Search, User, Phone, ArrowRight, CheckCircle, AlertCircle, Clock, Loader2, X } from 'lucide-react'
+import { Search, User, Phone, ArrowRight, CheckCircle, AlertCircle, Clock, Loader2, X, UserPlus } from 'lucide-react'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { searchTransactionCustomers, getRecentTransactionCustomers, type CustomerTransactionSummary } from '@/app/actions/finance'
 
 interface CustomerSearchSectionProps {
   onSelectCustomer: (customerName: string, customerPhone?: string | null) => void
   selectedCustomerName?: string | null
+  onAddClient?: (name?: string) => void
 }
 
-export function CustomerSearchSection({ onSelectCustomer, selectedCustomerName }: CustomerSearchSectionProps) {
+export function CustomerSearchSection({ onSelectCustomer, selectedCustomerName, onAddClient }: CustomerSearchSectionProps) {
   const [query, setQuery] = useState('')
   const [isFocused, setIsFocused] = useState(false)
   const [results, setResults] = useState<CustomerTransactionSummary[]>([])
@@ -238,9 +239,22 @@ export function CustomerSearchSection({ onSelectCustomer, selectedCustomerName }
               })}
             </div>
           ) : query.trim().length >= 1 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm font-semibold text-slate-700">No customers found</p>
-              <p className="text-xs text-slate-400 mt-1">No past transactions found matching &ldquo;{query}&rdquo;</p>
+            <div className="p-8 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-700">No transactions found</p>
+              <p className="text-xs text-slate-400">No past transactions found matching &ldquo;{query}&rdquo;</p>
+              {onAddClient && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFocused(false)
+                    onAddClient(query.trim())
+                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-2xs transition-all cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Add &ldquo;{query.trim()}&rdquo; as Historical Client / Debt</span>
+                </button>
+              )}
             </div>
           ) : null}
         </div>
