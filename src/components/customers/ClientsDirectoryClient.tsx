@@ -18,9 +18,8 @@ import {
   ExternalLink, 
   Plus, 
   Clock, 
-  Sparkles,
-  ArrowUpRight,
-  Printer,
+  ArrowUpRight, 
+  Printer, 
   ChevronRight
 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -413,7 +412,6 @@ export function ClientsDirectoryClient({ initialData }: ClientsDirectoryClientPr
                             disabled={settleLoading}
                             className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs cursor-pointer"
                           >
-                            <DollarSign className="w-3.5 h-3.5 mr-0.5" />
                             Settle
                           </Button>
                         )}

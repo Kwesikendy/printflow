@@ -13,9 +13,8 @@ import {
   Mail, 
   CreditCard, 
   CheckCircle2, 
-  Sparkles,
-  HelpCircle,
-  Building,
+  HelpCircle, 
+  Building, 
   ArrowRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -210,8 +209,7 @@ export function AddClientModal({
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 mb-1">
-                    <Sparkles className="w-3.5 h-3.5" />
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 mb-1">
                     Customer Directory & Legacy Arrears
                   </div>
                   <h2 className="text-xl sm:text-2xl font-black text-slate-900">
