@@ -12,8 +12,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPrintRoute = pathname?.startsWith('/print')
   const { loading, session } = useSession()
   const [minTimeDone, setMinTimeDone] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
     const timer = setTimeout(() => setMinTimeDone(true), MIN_DISPLAY_MS)
     return () => clearTimeout(timer)
   }, [])
@@ -25,8 +27,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {!isPrintRoute && (
         <AppLoadingScreen
           visible={showLoader}
-          tenantName={session?.tenant?.name}
-          logoUrl={session?.tenant?.logo_url}
+          tenantName={mounted ? session?.tenant?.name : undefined}
+          logoUrl={mounted ? session?.tenant?.logo_url : undefined}
         />
       )}
       {children}

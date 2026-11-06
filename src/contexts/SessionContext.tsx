@@ -19,24 +19,8 @@ const SessionContext = createContext<SessionContextType>({
 })
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<UserSession | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = sessionStorage.getItem('printflow_cached_session')
-        if (cached) return JSON.parse(cached)
-      } catch {}
-    }
-    return null
-  })
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = sessionStorage.getItem('printflow_cached_session')
-        if (cached) return false
-      } catch {}
-    }
-    return true
-  })
+  const [session, setSession] = useState<UserSession | null>(null)
+  const [loading, setLoading] = useState(true)
   const [supabase] = useState(() => createClient())
 
   const loadSession = useCallback(async () => {
@@ -104,6 +88,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [supabase])
 
   useEffect(() => {
+    // 1. Immediately hydrate from client sessionStorage without blocking or causing SSR hydration mismatch
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('printflow_cached_session')
+        if (cached) {
+          setSession(JSON.parse(cached))
+          setLoading(false)
+        }
+      } catch {}
+    }
+
     loadSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

@@ -121,7 +121,7 @@ export function AppLoadingScreen({ visible, tenantName, logoUrl }: AppLoadingScr
                 />
               )}
               {tenantName && (
-                <p className="text-2xl font-black text-slate-800 tracking-tight">{tenantName}</p>
+                <p suppressHydrationWarning className="text-2xl font-black text-slate-800 tracking-tight">{tenantName}</p>
               )}
             </motion.div>
 
