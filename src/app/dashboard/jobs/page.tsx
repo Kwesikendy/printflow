@@ -43,7 +43,17 @@ export default async function JobsPage(props: {
     }
   }
 
-  const { data: jobs, count, error } = await supaQuery
+  const [
+    jobsRes,
+    seqRes,
+    authRes
+  ] = await Promise.all([
+    supaQuery,
+    supabase.from('job_sequences').select('last_reset_time').single(),
+    supabase.auth.getUser()
+  ])
+
+  const { data: jobs, count, error } = jobsRes
   const totalPages = Math.ceil((count || 0) / pageSize)
 
   // Always fetch ALL unpaid/awaiting_payment jobs from any shift so they remain
@@ -52,12 +62,11 @@ export default async function JobsPage(props: {
   if (!query && status === 'all') {
     const { data: unpaidJobs } = await supabase
       .from('jobs')
-      .select(`*, product_types(name), job_status_events(to_status, created_at)`)
+      .select(`*, product_types(name)`)
       .in('status', ['awaiting_payment', 'pending_review'])
       .order('created_at', { ascending: false })
 
     if (unpaidJobs && unpaidJobs.length > 0) {
-      // Merge: add any awaiting_payment jobs not already in the main result
       const mainIds = new Set((jobs || []).map((j: any) => j.id))
       allAwaitingPayment = unpaidJobs.filter((j: any) => !mainIds.has(j.id))
     }
@@ -65,9 +74,8 @@ export default async function JobsPage(props: {
 
   const mergedJobs = [...(jobs || []), ...allAwaitingPayment]
 
-
   const { start: workdayStart } = getWorkdayBounds()
-  const { data: seqData } = await supabase.from('job_sequences').select('last_reset_time').single()
+  const seqData = seqRes.data
   const dbResetTime = (seqData as any)?.last_reset_time ? new Date((seqData as any).last_reset_time) : null
 
   // Use the later of DB reset time or current 5 PM shift start
@@ -77,7 +85,7 @@ export default async function JobsPage(props: {
 
   const lastResetTime = effectiveReset.toISOString()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = authRes.data.user
   const { data: profile } = user 
     ? await supabase.from('profiles').select('role').eq('id', user.id).single()
     : { data: null }

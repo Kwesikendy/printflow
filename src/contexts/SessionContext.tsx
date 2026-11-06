@@ -19,8 +19,24 @@ const SessionContext = createContext<SessionContextType>({
 })
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<UserSession | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState<UserSession | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('printflow_cached_session')
+        if (cached) return JSON.parse(cached)
+      } catch {}
+    }
+    return null
+  })
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('printflow_cached_session')
+        if (cached) return false
+      } catch {}
+    }
+    return true
+  })
   const [supabase] = useState(() => createClient())
 
   const loadSession = useCallback(async () => {
@@ -28,6 +44,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setSession(null)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('printflow_cached_session')
+        }
         return
       }
 
@@ -39,10 +58,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         .maybeSingle()
 
       if (!profile) {
-        // If they have an auth session but no profile, they are in a broken state. 
-        // Sign them out locally so they can try again.
         await supabase.auth.signOut()
         setSession(null)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('printflow_cached_session')
+        }
         return
       }
 
@@ -54,17 +74,30 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
       if (!tenant) {
         setSession(null)
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('printflow_cached_session')
+        }
         return
       }
 
-      setSession({
+      const activeSession = {
         user: { id: user.id, email: user.email! },
         profile: profile as Profile,
         tenant: tenant as Tenant,
-      })
+      }
+
+      setSession(activeSession)
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem('printflow_cached_session', JSON.stringify(activeSession))
+        } catch {}
+      }
     } catch (error) {
       console.error('Session load error:', error)
       setSession(null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('printflow_cached_session')
+      }
     } finally {
       setLoading(false)
     }
@@ -80,6 +113,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } else if (event === 'SIGNED_OUT') {
           setSession(null)
           setLoading(false)
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('printflow_cached_session')
+          }
         }
       }
     )
@@ -88,6 +124,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [loadSession, supabase.auth])
 
   const signOut = useCallback(async () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('printflow_cached_session')
+    }
     await supabase.auth.signOut()
     setSession(null)
     window.location.href = '/login'

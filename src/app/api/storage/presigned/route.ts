@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createPresignedUploadUrl } from '@/lib/r2'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +11,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { filename, contentType, path: customPath } = body
+    const { filename, path: customPath } = body
 
     if (!filename) {
       return NextResponse.json({ error: 'Filename is required' }, { status: 400 })
@@ -26,20 +25,33 @@ export async function POST(req: NextRequest) {
       ? `${customPath.replace(/^\/+|\/+$/g, '')}/${uniqueName}` 
       : uniqueName
 
-    const result = await createPresignedUploadUrl(
-      targetKey,
-      contentType || 'application/octet-stream',
-      3600 // 1 hour validity
-    )
+    const serviceSupabase = createServiceClient() as any
+    const { data: signData, error: signError } = await serviceSupabase.storage
+      .from('artworks')
+      .createSignedUploadUrl(targetKey)
+
+    if (signError) {
+      console.error('[Supabase Storage Signed URL Error]:', signError)
+      return NextResponse.json(
+        { error: signError.message || 'Failed to generate storage upload URL' },
+        { status: 500 }
+      )
+    }
+
+    const { data: pubData } = serviceSupabase.storage
+      .from('artworks')
+      .getPublicUrl(targetKey)
 
     return NextResponse.json({
       success: true,
-      uploadUrl: result.uploadUrl,
-      publicUrl: result.publicUrl,
-      key: result.key,
+      path: signData.path,
+      token: signData.token,
+      signedUrl: signData.signedUrl,
+      publicUrl: pubData.publicUrl,
+      key: targetKey,
     })
   } catch (err: any) {
-    console.error('[R2 Presigned URL Generation Error]:', err)
+    console.error('[Storage Presigned URL Generation Error]:', err)
     return NextResponse.json(
       { error: err.message || 'Failed to generate direct upload URL' },
       { status: 500 }

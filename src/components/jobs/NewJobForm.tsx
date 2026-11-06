@@ -738,14 +738,13 @@ export function NewJobForm({
             
             const file = it.artworkFile
 
-            // Try Direct Presigned Upload to Cloudflare R2 first
+            // Direct upload straight to storage using signed upload URL (bypasses server payload limits)
             try {
               const presignedRes = await fetch('/api/storage/presigned', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   filename: file.name,
-                  contentType: file.type || 'application/octet-stream',
                   path: tenantId,
                 }),
               })
@@ -758,24 +757,26 @@ export function NewJobForm({
                 // Ignore non-json
               }
 
-              if (presignedRes.ok && presignedJson?.uploadUrl && presignedJson?.publicUrl) {
-                const putRes = await fetch(presignedJson.uploadUrl, {
-                  method: 'PUT',
-                  body: file,
-                  headers: {
-                    'Content-Type': file.type || 'application/octet-stream',
-                  },
-                })
+              if (presignedRes.ok && presignedJson?.path && presignedJson?.token) {
+                // Upload file directly to Supabase storage with signed token
+                const { error: storageErr } = await supabase.storage
+                  .from('artworks')
+                  .uploadToSignedUrl(presignedJson.path, presignedJson.token, file, {
+                    contentType: file.type || 'application/octet-stream',
+                  })
 
-                if (putRes.ok) {
+                if (!storageErr && presignedJson.publicUrl) {
                   return presignedJson.publicUrl
                 }
+                if (storageErr) {
+                  console.warn('uploadToSignedUrl returned error:', storageErr)
+                }
               }
-            } catch (presignedErr) {
-              console.warn('Direct R2 presigned upload error, falling back to server route:', presignedErr)
+            } catch (storageErr) {
+              console.warn('Storage signed upload error:', storageErr)
             }
 
-            // Fallback to server route
+            // Fallback for smaller files if signed direct upload fails
             const uploadFormData = new FormData()
             uploadFormData.append('file', file)
             uploadFormData.append('path', tenantId)

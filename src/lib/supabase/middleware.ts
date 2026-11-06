@@ -5,10 +5,11 @@ import { isSupabaseConfigured } from './mock'
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
   
-  // Fast path: bypass all auth and session checks for static assets
+  // Fast path: bypass all auth and session checks for static assets and API routes
   if (
     pathname.startsWith('/_next') ||
-    pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js)$/)
+    pathname.startsWith('/api') ||
+    pathname.match(/\.(png|jpg|jpeg|gif|webp|svg|ico|css|js|txt|pdf)$/)
   ) {
     return NextResponse.next()
   }

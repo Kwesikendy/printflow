@@ -28,42 +28,35 @@ export default async function AdminOverviewPage() {
     { count: jobsCount },
     { count: usersCount },
     { count: productsCount },
-    { count: customersCount }
+    { count: customersCount },
+    { count: awaitingCount },
+    { count: inProdCount },
+    { count: readyPickupCount },
+    { count: completedCount },
+    recentJobsRes,
+    invoiceEditsRes
   ] = await Promise.all([
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
     supabase.from('product_types').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('customers').select('*', { count: 'exact', head: true })
+    supabase.from('customers').select('*', { count: 'exact', head: true }),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['awaiting_payment', 'pending_review']),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['in_production', 'ready_to_print', 'printing', 'preflight', 'paid_released']),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['ready_for_pickup', 'picked_up']),
+    supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+    supabase.from('jobs').select('*, product_types(name)').order('created_at', { ascending: false }).limit(10),
+    supabase.from('invoice_edits').select('*, invoices(invoice_number), profiles(full_name)').order('created_at', { ascending: false }).limit(5)
   ])
 
-  // Get job counts by status for operational overview
-  const { data: statusData } = await supabase
-    .from('jobs')
-    .select('status')
-  
-  const statusCounts = (statusData || []).reduce((acc: Record<string, number>, job: any) => {
-    acc[job.status] = (acc[job.status] || 0) + 1
-    return acc
-  }, {})
+  const statusCounts: Record<string, number> = {
+    awaiting_payment: awaitingCount || 0,
+    in_production: inProdCount || 0,
+    ready_for_pickup: readyPickupCount || 0,
+    completed: completedCount || 0,
+  }
 
-  const { data: recentJobs } = await supabase
-    .from('jobs')
-    .select('*, product_types(name)')
-    .order('created_at', { ascending: false })
-    .limit(10)
-
-  // Fetch recent invoice edits (gracefully handle if table doesn't exist yet)
-  const { data: invoiceEditsData, error: editsError } = await supabase
-    .from('invoice_edits')
-    .select(`
-      *,
-      invoices ( invoice_number ),
-      profiles ( full_name )
-    `)
-    .order('created_at', { ascending: false })
-    .limit(5)
-
-  const invoiceEdits = editsError ? [] : (invoiceEditsData || [])
+  const recentJobs = recentJobsRes.data || []
+  const invoiceEdits = invoiceEditsRes.error ? [] : (invoiceEditsRes.data || [])
 
   return (
     <div className="space-y-6">

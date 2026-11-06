@@ -458,40 +458,42 @@ export async function getCustomersDirectoryAction(options?: {
   const q = options?.query?.trim().toLowerCase() || ''
   const filter = options?.filter || 'all'
 
-  // 1. Fetch registered customers in this tenant
-  const { data: registeredCustomers, error: custErr } = await serviceSupabase
-    .from('customers')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .order('created_at', { ascending: false })
+  // Run all 5 queries in parallel for high performance
+  const [
+    custRes,
+    jobsRes,
+    groupsRes,
+    invoicesRes,
+    paymentsRes
+  ] = await Promise.all([
+    serviceSupabase
+      .from('customers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false }),
+    serviceSupabase
+      .from('jobs')
+      .select('id, group_id, customer_name, customer_phone, source, status, line_total, created_at')
+      .eq('tenant_id', tenantId),
+    serviceSupabase
+      .from('job_groups')
+      .select('id, customer_name, customer_phone, source, created_at')
+      .eq('tenant_id', tenantId),
+    serviceSupabase
+      .from('invoices')
+      .select('id, job_id, group_id, invoice_number, total, status, is_flagged, issued_at')
+      .eq('tenant_id', tenantId),
+    serviceSupabase
+      .from('payments')
+      .select('id, invoice_id, amount')
+      .eq('tenant_id', tenantId)
+  ])
 
-  if (custErr) {
-    console.error('Error fetching customers directory:', custErr)
-  }
-
-  // 2. Fetch all jobs for tenant to correlate customer transactions
-  const { data: allJobs } = await serviceSupabase
-    .from('jobs')
-    .select('id, group_id, customer_name, customer_phone, source, status, line_total, created_at')
-    .eq('tenant_id', tenantId)
-
-  // 3. Fetch all job groups for tenant
-  const { data: allGroups } = await serviceSupabase
-    .from('job_groups')
-    .select('id, customer_name, customer_phone, source, created_at')
-    .eq('tenant_id', tenantId)
-
-  // 4. Fetch all invoices
-  const { data: allInvoices } = await serviceSupabase
-    .from('invoices')
-    .select('id, job_id, group_id, invoice_number, total, status, is_flagged, issued_at')
-    .eq('tenant_id', tenantId)
-
-  // 5. Fetch all payments
-  const { data: allPayments } = await serviceSupabase
-    .from('payments')
-    .select('id, invoice_id, amount')
-    .eq('tenant_id', tenantId)
+  const registeredCustomers = custRes.data || []
+  const allJobs = jobsRes.data || []
+  const allGroups = groupsRes.data || []
+  const allInvoices = invoicesRes.data || []
+  const allPayments = paymentsRes.data || []
 
   // Map payments per invoice
   const paymentsByInvoice = new Map<string, number>()
