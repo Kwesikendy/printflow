@@ -12,7 +12,8 @@ import { cn, formatCurrency, PRINT_ROOM_LABELS } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Ruler, FileText, CheckCircle2, Plus, Trash2, Upload,
-  ChevronDown, User, Search, Lock, ShieldCheck, Link2, X, ExternalLink
+  ChevronDown, User, Search, Lock, ShieldCheck, Link2, X, ExternalLink,
+  Loader2, AlertTriangle
 } from 'lucide-react'
 import { useSession } from '@/contexts/SessionContext'
 import type { ProductType, PricingRule, StandardSize, JobSource, DimensionUnit, UnitPricingConfig, Role, PrintRoom } from '@/types/database'
@@ -80,6 +81,8 @@ interface LineItemState {
   artworkName: string
   artworkUrl?: string
   artworkSourceType?: 'file' | 'link'
+  uploadStatus?: 'idle' | 'uploading' | 'ready' | 'error'
+  uploadError?: string
   printRoom: PrintRoom | null
 }
 
@@ -99,8 +102,78 @@ function createLineItem(productTypes: ProductType[]): LineItemState {
     artworkName: '',
     artworkUrl: '',
     artworkSourceType: 'file',
+    uploadStatus: 'idle',
+    uploadError: '',
     printRoom: null,
   }
+}
+
+async function uploadArtworkFile(file: File, tenantId: string): Promise<string> {
+  const supabase = createClient()
+
+  // 1. Direct upload straight to storage using signed upload URL (bypasses server payload limits)
+  try {
+    const presignedRes = await fetch('/api/storage/presigned', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name,
+        path: tenantId,
+      }),
+    })
+
+    const rawPresigned = await presignedRes.text()
+    let presignedJson: any = null
+    try {
+      presignedJson = JSON.parse(rawPresigned)
+    } catch {
+      // non-json
+    }
+
+    if (presignedRes.ok && presignedJson?.path && presignedJson?.token) {
+      const { error: storageErr } = await supabase.storage
+        .from('artworks')
+        .uploadToSignedUrl(presignedJson.path, presignedJson.token, file, {
+          contentType: file.type || 'application/octet-stream',
+        })
+
+      if (!storageErr && presignedJson.publicUrl) {
+        return presignedJson.publicUrl
+      }
+      if (storageErr) {
+        console.warn('uploadToSignedUrl returned error:', storageErr)
+      }
+    }
+  } catch (storageErr) {
+    console.warn('Storage signed upload error:', storageErr)
+  }
+
+  // 2. Fallback for smaller files if signed direct upload fails
+  const uploadFormData = new FormData()
+  uploadFormData.append('file', file)
+  uploadFormData.append('path', tenantId)
+
+  const uploadRes = await fetch('/api/storage/upload', {
+    method: 'POST',
+    body: uploadFormData,
+  })
+
+  const rawText = await uploadRes.text()
+  let uploadJson: any = null
+  try {
+    uploadJson = JSON.parse(rawText)
+  } catch {
+    if (uploadRes.status === 413 || rawText.includes('413') || rawText.includes('TOO_LARGE')) {
+      throw new Error(`Artwork "${file.name}" exceeds the server limit. Please switch to the "Cloud Link" option to paste a Google Drive / WeTransfer link.`)
+    }
+    throw new Error(`Upload error (${uploadRes.status}). Please try again or use the Cloud Link option.`)
+  }
+
+  if (!uploadRes.ok || uploadJson?.error) {
+    throw new Error(`Failed to upload ${file.name}: ` + (uploadJson?.error || 'Upload error'))
+  }
+
+  return uploadJson.publicUrl
 }
 
 function CustomerAutocomplete({
@@ -259,6 +332,7 @@ function LineItemCard({
   unitPricingConfig,
   source,
   isAdmin,
+  tenantId,
   onUpdate,
   onRemove,
 }: {
@@ -271,6 +345,7 @@ function LineItemCard({
   unitPricingConfig?: UnitPricingConfig
   source: JobSource
   isAdmin: boolean
+  tenantId: string
   onUpdate: (id: string, updates: Partial<LineItemState>) => void
   onRemove: (id: string) => void
 }) {
@@ -321,10 +396,34 @@ function LineItemCard({
   const area = isFixedPrice ? 1 : calculateArea(finalWidth, finalHeight)
   const lineTotal = calculateLineTotal(area, unitCost, parsedQty)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null
-    if (file) {
-      u({ artworkFile: file, artworkName: file.name, artworkSourceType: 'file' })
+    if (!file) return
+
+    u({
+      artworkFile: file,
+      artworkName: file.name,
+      artworkUrl: '',
+      artworkSourceType: 'file',
+      uploadStatus: 'uploading',
+      uploadError: '',
+    })
+
+    try {
+      const publicUrl = await uploadArtworkFile(file, tenantId)
+      u({
+        artworkUrl: publicUrl,
+        uploadStatus: 'ready',
+        uploadError: '',
+      })
+      toast.success(`Artwork "${file.name}" uploaded and ready!`, { duration: 3000 })
+    } catch (err: any) {
+      console.error('Background upload error:', err)
+      u({
+        uploadStatus: 'error',
+        uploadError: err?.message || 'Upload failed',
+      })
+      toast.error(`Artwork upload failed: ${err?.message || 'Upload error'}`)
     }
   }
 
@@ -561,14 +660,35 @@ function LineItemCard({
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 truncate">{item.artworkName}</p>
-                        <p className="text-xs text-indigo-600 font-medium">
-                          {(item.artworkFile.size / (1024 * 1024)).toFixed(2)} MB
-                        </p>
+                        <div className="flex items-center gap-2 text-xs mt-0.5">
+                          <span className="text-slate-500 font-mono">
+                            {(item.artworkFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                          <span className="text-slate-300">•</span>
+                          {item.uploadStatus === 'uploading' ? (
+                            <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              Uploading in background...
+                            </span>
+                          ) : (item.uploadStatus === 'ready' || (item.artworkUrl && item.artworkUrl.startsWith('http'))) ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 font-semibold">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Ready for instant order
+                            </span>
+                          ) : item.uploadStatus === 'error' ? (
+                            <span className="inline-flex items-center gap-1 text-rose-600 font-medium" title={item.uploadError}>
+                              <AlertTriangle className="w-3 h-3" />
+                              Upload failed (will retry on submit)
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">Selected</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <button
                       type="button"
-                      onClick={() => u({ artworkFile: null, artworkName: '' })}
+                      onClick={() => u({ artworkFile: null, artworkName: '', artworkUrl: '', uploadStatus: 'idle', uploadError: '' })}
                       className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
                       title="Remove file"
                     >
@@ -722,9 +842,12 @@ export function NewJobForm({
 
     startTransition(async () => {
       try {
-        const supabase = createClient()
-        
-        // 1. Upload artworks directly to Cloudflare R2 (bypasses serverless size limits)
+        const stillUploading = items.some(it => it.artworkSourceType !== 'link' && it.artworkFile && it.uploadStatus === 'uploading')
+        if (stillUploading) {
+          toast.info('Finishing background artwork upload, please wait a moment...')
+        }
+
+        // 1. Ensure all artworks have public URLs (instant if pre-uploaded)
         const artworkUrls = await Promise.all(
           items.map(async (it) => {
             // If using external cloud link (Google Drive, WeTransfer, etc.)
@@ -735,73 +858,14 @@ export function NewJobForm({
             if (!it.artworkFile || it.artworkFile.size === 0) {
               return it.artworkUrl?.trim() || null
             }
-            
-            const file = it.artworkFile
 
-            // Direct upload straight to storage using signed upload URL (bypasses server payload limits)
-            try {
-              const presignedRes = await fetch('/api/storage/presigned', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  filename: file.name,
-                  path: tenantId,
-                }),
-              })
-
-              const rawPresigned = await presignedRes.text()
-              let presignedJson: any = null
-              try {
-                presignedJson = JSON.parse(rawPresigned)
-              } catch {
-                // Ignore non-json
-              }
-
-              if (presignedRes.ok && presignedJson?.path && presignedJson?.token) {
-                // Upload file directly to Supabase storage with signed token
-                const { error: storageErr } = await supabase.storage
-                  .from('artworks')
-                  .uploadToSignedUrl(presignedJson.path, presignedJson.token, file, {
-                    contentType: file.type || 'application/octet-stream',
-                  })
-
-                if (!storageErr && presignedJson.publicUrl) {
-                  return presignedJson.publicUrl
-                }
-                if (storageErr) {
-                  console.warn('uploadToSignedUrl returned error:', storageErr)
-                }
-              }
-            } catch (storageErr) {
-              console.warn('Storage signed upload error:', storageErr)
+            // Fast path: if already pre-uploaded in background, return URL immediately!
+            if (it.artworkUrl && it.artworkUrl.startsWith('http')) {
+              return it.artworkUrl.trim()
             }
 
-            // Fallback for smaller files if signed direct upload fails
-            const uploadFormData = new FormData()
-            uploadFormData.append('file', file)
-            uploadFormData.append('path', tenantId)
-
-            const uploadRes = await fetch('/api/storage/upload', {
-              method: 'POST',
-              body: uploadFormData,
-            })
-
-            const rawText = await uploadRes.text()
-            let uploadJson: any = null
-            try {
-              uploadJson = JSON.parse(rawText)
-            } catch {
-              if (uploadRes.status === 413 || rawText.includes('413') || rawText.includes('TOO_LARGE')) {
-                throw new Error(`Artwork "${file.name}" exceeds the server limit. Please switch to the "Cloud Link" option to paste a Google Drive / WeTransfer link.`)
-              }
-              throw new Error(`Upload error (${uploadRes.status}). Please try again or use the Cloud Link option.`)
-            }
-
-            if (!uploadRes.ok || uploadJson?.error) {
-              throw new Error(`Failed to upload ${file.name}: ` + (uploadJson?.error || 'Upload error'))
-            }
-
-            return uploadJson.publicUrl
+            // Fallback: upload now if background upload didn't run or errored
+            return await uploadArtworkFile(it.artworkFile, tenantId)
           })
         )
 
@@ -932,6 +996,7 @@ export function NewJobForm({
                 unitPricingConfig={unitPricingConfig}
                 source={source}
                 isAdmin={isAdmin}
+                tenantId={tenantId}
                 onUpdate={updateItem}
                 onRemove={removeItem}
               />

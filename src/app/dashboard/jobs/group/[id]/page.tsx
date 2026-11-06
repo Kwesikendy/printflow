@@ -267,6 +267,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                           customerPhone={group.customer_phone}
                           currentInvoiceId={invoice.id}
                           currentRemaining={0}
+                          userRole={role}
                         />
                       )}
                     </div>

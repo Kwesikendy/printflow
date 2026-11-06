@@ -325,6 +325,7 @@ export default async function JobDetailPage(props: {
                           customerPhone={job.customer_phone}
                           currentInvoiceId={invoice.id}
                           currentRemaining={0}
+                          userRole={role}
                         />
                       )}
 

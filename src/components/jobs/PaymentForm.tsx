@@ -180,6 +180,7 @@ export function PaymentForm({
           customerPhone={customerPhone}
           currentInvoiceId={invoice.id}
           currentRemaining={remaining}
+          userRole={userRole}
         />
       )}
 

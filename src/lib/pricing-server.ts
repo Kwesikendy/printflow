@@ -5,17 +5,27 @@ import type { UnitPricingConfig } from '@/types/database'
 
 const PRICING_CONFIG_PATH = (tenantId: string) => `${tenantId}/settings/unit_pricing.json`
 
+const pricingCache = new Map<string, { config: UnitPricingConfig; timestamp: number }>()
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
 /**
  * Loads the unit pricing configuration for a tenant from Cloudflare R2 (or Supabase fallback).
  */
 export async function getTenantUnitPricing(tenantId: string): Promise<UnitPricingConfig> {
+  const cached = pricingCache.get(tenantId)
+  if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+    return cached.config
+  }
+
   const path = PRICING_CONFIG_PATH(tenantId)
   
   // Try R2 first
   try {
     const text = await getObjectFromR2(path)
     if (text) {
-      return JSON.parse(text) as UnitPricingConfig
+      const parsed = JSON.parse(text) as UnitPricingConfig
+      pricingCache.set(tenantId, { config: parsed, timestamp: Date.now() })
+      return parsed
     }
   } catch (r2Err) {
     // Continue to Supabase fallback
@@ -49,6 +59,7 @@ export async function saveTenantUnitPricing(
 ): Promise<{ success: boolean; error?: string }> {
   const path = PRICING_CONFIG_PATH(tenantId)
   const jsonStr = JSON.stringify(config, null, 2)
+  pricingCache.set(tenantId, { config, timestamp: Date.now() })
 
   try {
     await uploadToR2({

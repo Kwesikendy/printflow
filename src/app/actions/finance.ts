@@ -475,8 +475,8 @@ export async function settleCustomerBalanceAction({
   try {
     const { user, tenantId, role } = await getAuthContext()
 
-  if (!['front_desk', 'admin', 'accountant'].includes(role)) {
-    return { error: 'Insufficient permissions. Only accounts and front desk staff can settle balances.' }
+  if (!['admin', 'accountant'].includes(role)) {
+    return { error: 'Insufficient permissions. Only finance staff (accountants and admins) can settle arrears balances.' }
   }
 
   const trimmedName = customerName?.trim()

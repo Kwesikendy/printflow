@@ -7,12 +7,15 @@ import { formatCurrency } from '@/lib/utils'
 import { getCustomerArrearsAction, type CustomerArrearsSummary } from '@/app/actions/finance'
 import { SettleCustomerBalanceModal } from './SettleCustomerBalanceModal'
 
+import { useSession } from '@/contexts/SessionContext'
+
 interface CustomerArrearsBannerProps {
   customerName: string
   customerPhone?: string | null
   currentInvoiceId?: string
   currentRemaining?: number
   onSettled?: () => void
+  userRole?: string
 }
 
 export function CustomerArrearsBanner({
@@ -20,8 +23,17 @@ export function CustomerArrearsBanner({
   customerPhone,
   currentInvoiceId,
   currentRemaining = 0,
-  onSettled
+  onSettled,
+  userRole
 }: CustomerArrearsBannerProps) {
+  const { session } = useSession()
+  const role = userRole || session?.profile?.role
+
+  // Only finance staff (admin and accountant) are permitted to access or settle customer arrears
+  if (role !== 'admin' && role !== 'accountant') {
+    return null
+  }
+
   const [arrears, setArrears] = useState<CustomerArrearsSummary | null>(null)
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false)
   const [loading, setLoading] = useState(false)
