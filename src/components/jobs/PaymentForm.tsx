@@ -10,6 +10,7 @@ import type { Invoice, Payment } from '@/types/database'
 import { cn, formatCurrency } from '@/lib/utils'
 import { Banknote, Smartphone, MoreHorizontal, CheckCircle2, Clock, Edit3, X, Edit } from 'lucide-react'
 import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
+import { AdminPaymentCorrectionModal } from '@/components/finance/AdminPaymentCorrectionModal'
 
 const METHODS = [
   { value: 'cash',  label: 'Cash',         icon: Banknote },
@@ -23,6 +24,7 @@ interface PaymentFormProps {
   payments?: Payment[]
   customerName?: string
   customerPhone?: string | null
+  userRole?: string
 }
 
 function EditPaymentModal({ payment }: { payment: Payment }) {
@@ -104,7 +106,8 @@ export function PaymentForm({
   jobId, 
   payments = [], 
   customerName, 
-  customerPhone 
+  customerPhone,
+  userRole 
 }: PaymentFormProps) {
   const [isPending, startTransition] = useTransition()
   const [method, setMethod] = useState<string>('cash')
@@ -203,9 +206,16 @@ export function PaymentForm({
                       <span className="text-xs text-amber-500 font-normal"> · ID: {p.reference}</span>
                     )}
                   </span>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="font-semibold text-amber-700">+{formatCurrency(p.amount)}</span>
                     <EditPaymentModal payment={p} />
+                    {userRole === 'admin' && (
+                      <AdminPaymentCorrectionModal
+                        payment={p}
+                        currentInvoiceNumber={invoice.invoice_number}
+                        userRole={userRole}
+                      />
+                    )}
                   </div>
                 </div>
               )

@@ -31,11 +31,12 @@ interface FinanceDashboardProps {
   payments: any[]
   unpaidInvoices: any[]
   expenditures?: any[]
+  userRole?: string
 }
 
 const COLORS = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981']
 
-export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }: FinanceDashboardProps) {
+export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], userRole }: FinanceDashboardProps) {
   const currentShiftDay = getShiftDateString()
   const [filterMode, setFilterMode] = useState<'day' | 'week' | 'month' | 'all'>('day')
   const [selectedDay, setSelectedDay] = useState<string>(currentShiftDay)
@@ -697,7 +698,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
                           </td>
                           <td className="text-right pr-4 flex items-center justify-end gap-1">
                             <InvoiceFlagButton invoice={inv} />
-                            <EditInvoiceModal invoice={inv} />
+                            <EditInvoiceModal invoice={inv} userRole={userRole} />
                             {balance > 0 && (
                               <RecordPaymentModal
                                 invoice={inv}
@@ -729,6 +730,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [] }
         customerPhone={selectedCustomer?.phone}
         isOpen={isStatementModalOpen}
         onClose={() => setIsStatementModalOpen(false)}
+        userRole={userRole}
       />
 
       {/* Outstanding Balance Contributors Breakdown Modal */}

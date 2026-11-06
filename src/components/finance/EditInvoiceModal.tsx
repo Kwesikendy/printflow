@@ -7,13 +7,19 @@ import { X, Edit, DollarSign, FileText, Loader2, Package } from 'lucide-react'
 import { toast } from 'sonner'
 import { editInvoiceTotalAction, getInvoiceJobsAction, editInvoiceItemsAction } from '@/app/actions/invoices'
 import { motion, AnimatePresence } from 'framer-motion'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 
 interface EditInvoiceModalProps {
   invoice: any
+  userRole?: string
+  className?: string
 }
 
-export function EditInvoiceModal({ invoice }: EditInvoiceModalProps) {
+export function EditInvoiceModal({ invoice, userRole, className }: EditInvoiceModalProps) {
+  if (userRole && userRole !== 'admin') {
+    return null
+  }
+
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [mounted, setMounted] = useState(false)
@@ -86,7 +92,7 @@ export function EditInvoiceModal({ invoice }: EditInvoiceModalProps) {
 
   return (
     <>
-      <Button variant="ghost" size="sm" onClick={() => setIsOpen(true)} className="hover:bg-slate-100 text-slate-500 hover:text-indigo-600 text-xs font-semibold px-2 py-1">
+      <Button variant="ghost" size="sm" onClick={() => setIsOpen(true)} className={cn("hover:bg-slate-100 text-slate-500 hover:text-indigo-600 text-xs font-semibold px-2 py-1", className)}>
         <Edit className="w-3.5 h-3.5 mr-1" /> Edit
       </Button>
 

@@ -9,6 +9,8 @@ import { GroupOrderActions } from '@/components/jobs/GroupOrderActions'
 import { JobActions } from '@/components/jobs/JobActions'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS, isPocketOrFinishingProduct } from '@/lib/utils'
+import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
+import { AdminPaymentCorrectionModal } from '@/components/finance/AdminPaymentCorrectionModal'
 import { FileText, CheckCircle2, ArrowLeft, Flag } from 'lucide-react'
 
 export default async function JobGroupPage(props: { params: Promise<{ id: string }> }) {
@@ -168,9 +170,18 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     </div>
                   )}
                   <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 mb-4 space-y-2">
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-slate-500">Invoice No.</span>
-                      <span className="font-semibold">{invoice.invoice_number}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{invoice.invoice_number}</span>
+                        {role === 'admin' && (
+                          <EditInvoiceModal
+                            invoice={invoice}
+                            userRole={role}
+                            className="h-6 text-[11px] px-2 py-0.5 border border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100"
+                          />
+                        )}
+                      </div>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500 text-sm">Subtotal</span>
@@ -208,6 +219,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                       payments={payments}
                       customerName={group.customer_name}
                       customerPhone={group.customer_phone}
+                      userRole={role}
                     />
                   )}
 
@@ -215,8 +227,38 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     <div className="space-y-4">
                       <div className="flex items-center gap-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4">
                         <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                        <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-800">Fully Paid</p>
+                          <p className="text-xs text-emerald-600">All balances cleared for this group order.</p>
+                        </div>
                       </div>
+
+                      {payments.length > 0 && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-2">
+                          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payments</p>
+                          <div className="space-y-2">
+                            {payments.map((p: any) => (
+                              <div key={p.id} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-100 last:border-0">
+                                <div>
+                                  <span className="font-semibold text-slate-800 capitalize">{p.method}</span>
+                                  {p.reference && <span className="text-slate-500"> · {p.reference}</span>}
+                                  <p className="text-[11px] text-slate-400">{formatDateTime(p.recorded_at)}</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-emerald-600">+{formatCurrency(p.amount)}</span>
+                                  {role === 'admin' && (
+                                    <AdminPaymentCorrectionModal
+                                      payment={p}
+                                      currentInvoiceNumber={invoice.invoice_number}
+                                      userRole={role}
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Customer Arrears (if any prior unpaid orders exist) */}
                       {group.customer_name && (

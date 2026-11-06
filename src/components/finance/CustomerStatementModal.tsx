@@ -14,6 +14,7 @@ import { getCustomerFinancialStatement, type CustomerStatementData } from '@/app
 import { EditInvoiceModal } from './EditInvoiceModal'
 import { RecordPaymentModal } from './RecordPaymentModal'
 import { SettleCustomerBalanceModal } from './SettleCustomerBalanceModal'
+import { AdminPaymentCorrectionModal } from './AdminPaymentCorrectionModal'
 import Link from 'next/link'
 import { startOfMonth, endOfMonth, subMonths, startOfYear } from 'date-fns'
 
@@ -22,13 +23,15 @@ interface CustomerStatementModalProps {
   customerPhone?: string | null
   isOpen: boolean
   onClose: () => void
+  userRole?: string
 }
 
 export function CustomerStatementModal({
   customerName,
   customerPhone,
   isOpen,
-  onClose
+  onClose,
+  userRole
 }: CustomerStatementModalProps) {
   const [statement, setStatement] = useState<CustomerStatementData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -469,7 +472,7 @@ export function CustomerStatementModal({
                                       payUrl={inv.group_id ? `/dashboard/jobs/group/${inv.group_id}` : (inv.job_id ? `/dashboard/jobs/${inv.job_id}` : `/dashboard/jobs`)}
                                     />
                                   )}
-                                  <EditInvoiceModal invoice={inv} />
+                                  <EditInvoiceModal invoice={inv} userRole={userRole} />
                                 </td>
                               </tr>
                             ))}
@@ -500,7 +503,8 @@ export function CustomerStatementModal({
                               <th>Reference / Transaction ID</th>
                               <th>Notes</th>
                               <th>Cashier / Recorded By</th>
-                              <th className="text-right pr-6">Amount Paid</th>
+                              <th className={userRole === 'admin' ? "text-right" : "text-right pr-6"}>Amount Paid</th>
+                              {userRole === 'admin' && <th className="text-right pr-6">Action</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
@@ -515,12 +519,20 @@ export function CustomerStatementModal({
                                 <td className="font-semibold text-slate-800 font-mono text-xs">{p.reference || '—'}</td>
                                 <td className="text-slate-500 text-xs">{p.notes || '—'}</td>
                                 <td className="text-slate-600 font-medium text-xs">{p.profiles?.full_name || 'Staff'}</td>
-                                <td className="text-right pr-6 font-black text-emerald-600">{formatCurrency(p.amount)}</td>
+                                <td className={`text-right font-black text-emerald-600 ${userRole === 'admin' ? '' : 'pr-6'}`}>{formatCurrency(p.amount)}</td>
+                                {userRole === 'admin' && (
+                                  <td className="text-right pr-6">
+                                    <AdminPaymentCorrectionModal
+                                      payment={p as any}
+                                      userRole={userRole}
+                                    />
+                                  </td>
+                                )}
                               </tr>
                             ))}
                             {statement.payments.length === 0 && (
                               <tr>
-                                <td colSpan={6} className="text-center py-12 text-slate-400 font-medium">
+                                <td colSpan={userRole === 'admin' ? 7 : 6} className="text-center py-12 text-slate-400 font-medium">
                                   No payments recorded.
                                 </td>
                               </tr>

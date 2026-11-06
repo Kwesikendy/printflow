@@ -1504,3 +1504,204 @@ export async function editPaymentMethodAction(paymentId: string, method: string,
   
   return { success: true }
 }
+
+async function recalculateInvoiceStatus(serviceSupabase: any, invoiceId: string) {
+  const { data: inv } = await serviceSupabase
+    .from('invoices')
+    .select('id, total, payments(amount)')
+    .eq('id', invoiceId)
+    .single()
+
+  if (!inv) return
+
+  const totalPaid = Math.round(((inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)) * 100) / 100
+  const invTotal = Math.round(Number(inv.total) * 100) / 100
+
+  let newStatus: 'paid' | 'partial' | 'unpaid' = 'unpaid'
+  if (totalPaid >= invTotal - 0.009) {
+    newStatus = 'paid'
+  } else if (totalPaid > 0.009) {
+    newStatus = 'partial'
+  } else {
+    newStatus = 'unpaid'
+  }
+
+  await serviceSupabase
+    .from('invoices')
+    .update({ status: newStatus })
+    .eq('id', invoiceId)
+}
+
+/**
+ * Admin action: Delete a mistakenly entered payment and recalculate invoice status
+ */
+export async function deletePaymentAction(paymentId: string, reason?: string): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const serviceSupabase = createServiceClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profData } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const profile = profData as any
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Only administrators are permitted to delete or void payments.' }
+  }
+
+  const { data: payment, error: fetchErr } = await (serviceSupabase.from('payments') as any)
+    .select('id, invoice_id, job_id, amount')
+    .eq('id', paymentId)
+    .single()
+
+  if (fetchErr || !payment) return { error: 'Payment not found' }
+
+  // Delete payment
+  const { error: delErr } = await (serviceSupabase.from('payments') as any)
+    .delete()
+    .eq('id', paymentId)
+
+  if (delErr) return { error: delErr.message }
+
+  // Recalculate invoice status
+  if (payment.invoice_id) {
+    await recalculateInvoiceStatus(serviceSupabase, payment.invoice_id)
+  }
+
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/jobs')
+  if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
+
+  return { success: true }
+}
+
+/**
+ * Admin action: Edit payment amount, method, or reference and recalculate invoice
+ */
+export async function editPaymentAction(
+  paymentId: string,
+  amount: number,
+  method: string,
+  reference?: string,
+  notes?: string
+): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const serviceSupabase = createServiceClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profData } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const profile = profData as any
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Only administrators are permitted to edit payment amounts.' }
+  }
+
+  if (isNaN(amount) || amount <= 0) {
+    return { error: 'Payment amount must be greater than 0' }
+  }
+
+  const { data: payment, error: fetchErr } = await (serviceSupabase.from('payments') as any)
+    .select('id, invoice_id, job_id')
+    .eq('id', paymentId)
+    .single()
+
+  if (fetchErr || !payment) return { error: 'Payment not found' }
+
+  const roundedAmount = Math.round(Number(amount) * 100) / 100
+  const updateData: any = {
+    amount: roundedAmount,
+    method,
+    reference: reference || null,
+    notes: notes || null,
+  }
+
+  const { error: updateErr } = await (serviceSupabase.from('payments') as any)
+    .update(updateData)
+    .eq('id', paymentId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  // Recalculate invoice status
+  if (payment.invoice_id) {
+    await recalculateInvoiceStatus(serviceSupabase, payment.invoice_id)
+  }
+
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/jobs')
+  if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
+
+  return { success: true }
+}
+
+/**
+ * Admin action: Move a payment mistakenly entered on Invoice A to the correct Invoice B
+ */
+export async function movePaymentToInvoiceAction(
+  paymentId: string,
+  targetInvoiceNumber: string,
+  reason?: string
+): Promise<ActionResponse> {
+  const supabase = await createClient()
+  const serviceSupabase = createServiceClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const { data: profData } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  const profile = profData as any
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Only administrators are permitted to transfer payments.' }
+  }
+
+  const trimmedInvNum = targetInvoiceNumber.trim().toUpperCase()
+  if (!trimmedInvNum) return { error: 'Please enter a target invoice number.' }
+
+  // 1. Fetch current payment
+  const { data: payment, error: fetchErr } = await (serviceSupabase.from('payments') as any)
+    .select('id, invoice_id, job_id, amount')
+    .eq('id', paymentId)
+    .single()
+
+  if (fetchErr || !payment) return { error: 'Payment not found' }
+
+  // 2. Fetch target invoice
+  const { data: targetInv, error: targetErr } = await (serviceSupabase.from('invoices') as any)
+    .select('id, invoice_number, job_id, group_id')
+    .ilike('invoice_number', trimmedInvNum)
+    .maybeSingle()
+
+  if (targetErr || !targetInv) {
+    return { error: `Target invoice "${trimmedInvNum}" was not found.` }
+  }
+
+  if (targetInv.id === payment.invoice_id) {
+    return { error: 'This payment is already on this invoice.' }
+  }
+
+  const oldInvoiceId = payment.invoice_id
+
+  // 3. Move payment
+  const { error: moveErr } = await (serviceSupabase.from('payments') as any)
+    .update({
+      invoice_id: targetInv.id,
+      job_id: targetInv.job_id || null,
+      notes: reason ? `[Reassigned from previous invoice]: ${reason}` : undefined,
+    })
+    .eq('id', paymentId)
+
+  if (moveErr) return { error: moveErr.message }
+
+  // 4. Recalculate statuses for BOTH old and new invoices
+  if (oldInvoiceId) {
+    await recalculateInvoiceStatus(serviceSupabase, oldInvoiceId)
+  }
+  await recalculateInvoiceStatus(serviceSupabase, targetInv.id)
+
+  revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/jobs')
+  if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
+  if (targetInv.job_id) revalidatePath(`/dashboard/jobs/${targetInv.job_id}`)
+
+  return { success: true }
+}
+

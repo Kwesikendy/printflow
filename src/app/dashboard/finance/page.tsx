@@ -109,6 +109,7 @@ export default async function FinancePage() {
         payments={payments as any[]} 
         unpaidInvoices={unpaidInvoices as any[]} 
         expenditures={expenditures}
+        userRole={viewerProfile.role}
       />
     </div>
   )

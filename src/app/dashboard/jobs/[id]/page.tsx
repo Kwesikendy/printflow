@@ -8,6 +8,8 @@ import { PaymentForm } from '@/components/jobs/PaymentForm'
 import { CustomerArrearsBanner } from '@/components/finance/CustomerArrearsBanner'
 import { NoInvoicePanel } from '@/components/jobs/NoInvoicePanel'
 import { EditJobModal } from '@/components/jobs/EditJobModal'
+import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
+import { AdminPaymentCorrectionModal } from '@/components/finance/AdminPaymentCorrectionModal'
 import { Printer, FileText, CheckCircle2, Flag } from 'lucide-react'
 import Link from 'next/link'
 
@@ -230,7 +232,16 @@ export default async function JobDetailPage(props: {
 
                   <div className="flex justify-between items-center mb-6 p-4 bg-slate-50 rounded-lg border border-slate-200">
                     <div>
-                      <p className="text-xs text-slate-500 mb-1">Invoice Number</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs text-slate-500">Invoice Number</p>
+                        {role === 'admin' && (
+                          <EditInvoiceModal
+                            invoice={invoice}
+                            userRole={role}
+                            className="h-6 text-[11px] px-2 py-0.5 border border-indigo-200 bg-indigo-50/70 text-indigo-700 hover:bg-indigo-100"
+                          />
+                        )}
+                      </div>
                       <p className="text-sm font-medium text-slate-900">{invoice.invoice_number}</p>
                     </div>
                     <div className="text-right">
@@ -251,43 +262,60 @@ export default async function JobDetailPage(props: {
                       payments={payments}
                       customerName={job.customer_name}
                       customerPhone={job.customer_phone}
+                      userRole={role}
                     />
                   ) : isFullyPaid ? (
                     <div className="mt-4 space-y-4">
                       {/* PAID banner */}
-                      <div className="flex items-center gap-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-200">
-                          <CheckCircle2 className="h-7 w-7 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-base font-bold text-emerald-800">Payment Confirmed</p>
-                          {payments[0] && (
-                            <p className="text-sm text-emerald-700 mt-0.5">
-                              {formatCurrency(payments[0].amount)} via{' '}
-                              <span className="font-semibold capitalize">
-                                {payments[0].method === 'momo'
-                                  ? 'Mobile Money'
-                                  : payments[0].method === 'other'
-                                  ? payments[0].reference || payments[0].notes || 'Other'
-                                  : 'Cash'}
-                              </span>
-                              {payments[0].reference && payments[0].method !== 'other' && (
-                                <span className="text-emerald-600"> · Ref: {payments[0].reference}</span>
-                              )}
+                      <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-5 space-y-3">
+                        <div className="flex items-center gap-4">
+                          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-500 shadow-lg shadow-emerald-200">
+                            <CheckCircle2 className="h-7 w-7 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-bold text-emerald-800">Payment Confirmed</p>
+                            {payments[0] && (
+                              <p className="text-sm text-emerald-700 mt-0.5">
+                                {formatCurrency(payments[0].amount)} via{' '}
+                                <span className="font-semibold capitalize">
+                                  {payments[0].method === 'momo'
+                                    ? 'Mobile Money'
+                                    : payments[0].method === 'other'
+                                    ? payments[0].reference || payments[0].notes || 'Other'
+                                    : 'Cash'}
+                                </span>
+                                {payments[0].reference && payments[0].method !== 'other' && (
+                                  <span className="text-emerald-600"> · Ref: {payments[0].reference}</span>
+                                )}
+                              </p>
+                            )}
+                            <p className="text-xs text-emerald-600 mt-1">
+                              Recorded by {payments[0]?.profiles?.full_name} · {payments[0] && formatDateTime(payments[0].recorded_at)}
                             </p>
-                          )}
-                          <p className="text-xs text-emerald-600 mt-1">
-                            Recorded by {payments[0]?.profiles?.full_name} · {payments[0] && formatDateTime(payments[0].recorded_at)}
-                          </p>
+                          </div>
+                          <Link
+                            href={`/print/invoice/${invoice.id}`}
+                            target="_blank"
+                            className="btn btn-outline shrink-0 flex items-center gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
+                          >
+                            <FileText className="w-4 h-4" />
+                            Print Receipt
+                          </Link>
                         </div>
-                        <Link
-                          href={`/print/invoice/${invoice.id}`}
-                          target="_blank"
-                          className="btn btn-outline shrink-0 flex items-center gap-2 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
-                        >
-                          <FileText className="w-4 h-4" />
-                          Print Receipt
-                        </Link>
+
+                        {/* Admin payment correction controls on fully paid invoice */}
+                        {role === 'admin' && payments[0] && (
+                          <div className="pt-2.5 border-t border-emerald-200/80 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-emerald-900">
+                              Admin Correction (mistaken entry / move / void):
+                            </span>
+                            <AdminPaymentCorrectionModal
+                              payment={payments[0]}
+                              currentInvoiceNumber={invoice.invoice_number}
+                              userRole={role}
+                            />
+                          </div>
+                        )}
                       </div>
 
                       {/* Customer Arrears (if any prior unpaid orders exist) */}
@@ -312,6 +340,7 @@ export default async function JobDetailPage(props: {
                                 <th>Reference</th>
                                 <th>Recorded By</th>
                                 <th className="text-right">Amount</th>
+                                {role === 'admin' && <th className="text-right pr-4">Action</th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -322,6 +351,15 @@ export default async function JobDetailPage(props: {
                                   <td>{p.reference || '-'}</td>
                                   <td>{p.profiles?.full_name}</td>
                                   <td className="text-right text-green-600 font-medium">{formatCurrency(p.amount)}</td>
+                                  {role === 'admin' && (
+                                    <td className="text-right pr-4">
+                                      <AdminPaymentCorrectionModal
+                                        payment={p}
+                                        currentInvoiceNumber={invoice.invoice_number}
+                                        userRole={role}
+                                      />
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                             </tbody>

@@ -69,8 +69,8 @@ export async function editInvoiceTotalAction(invoiceId: string, newTotal: number
 
   const profile = data as any
 
-  if (!profile || !['admin', 'accountant'].includes(profile.role)) {
-    return { error: 'Insufficient permissions' }
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Only administrators are permitted to edit invoices.' }
   }
 
   // Get current invoice
@@ -181,8 +181,8 @@ export async function editInvoiceItemsAction(invoiceId: string, items: any[], re
 
   const profile = data as any
 
-  if (!profile || !['admin', 'accountant'].includes(profile.role)) {
-    return { error: 'Insufficient permissions' }
+  if (!profile || profile.role !== 'admin') {
+    return { error: 'Only administrators are permitted to edit invoices.' }
   }
 
   // Get current invoice
