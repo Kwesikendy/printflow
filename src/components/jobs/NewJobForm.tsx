@@ -736,22 +736,22 @@ export function NewJobForm({
               return it.artworkUrl?.trim() || null
             }
             
-            const fileExt = it.artworkFile.name.split('.').pop()
-            const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-            const filePath = `${tenantId}/${fileName}`
-            
-            const { error: uploadError } = await supabase.storage.from('artworks').upload(filePath, it.artworkFile)
-            if (uploadError) {
-              if (uploadError.message.includes('maximum allowed size') || (uploadError as any).statusCode === '413') {
-                throw new Error(`Failed to upload "${it.artworkFile.name}": Supabase rejected this file because it exceeds your project's upload limit. You can increase this limit in your Supabase dashboard or use the Cloud Link option.`)
-              }
-              throw new Error(`Failed to upload ${it.artworkFile.name}: ` + uploadError.message)
-            }
-            
-            const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath, { 
-              download: it.artworkFile.name 
+            // Upload file to Cloudflare R2
+            const uploadFormData = new FormData()
+            uploadFormData.append('file', it.artworkFile)
+            uploadFormData.append('path', tenantId)
+
+            const uploadRes = await fetch('/api/storage/upload', {
+              method: 'POST',
+              body: uploadFormData,
             })
-            return publicUrlData.publicUrl
+
+            const uploadJson = await uploadRes.json()
+            if (!uploadRes.ok || uploadJson.error) {
+              throw new Error(`Failed to upload ${it.artworkFile.name}: ` + (uploadJson.error || 'Upload error'))
+            }
+
+            return uploadJson.publicUrl
           })
         )
 

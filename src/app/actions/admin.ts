@@ -6,6 +6,7 @@ import type { ActionResponse } from './jobs'
 import type { Profile, DimensionUnit, JobSource, ProductPricingScheme } from '@/types/database'
 import { getTenantUnitPricing, saveTenantUnitPricing } from '@/lib/pricing-server'
 import { toCmRate, fromCmRate } from '@/lib/pricing'
+import { uploadToR2 } from '@/lib/r2'
 
 export async function updateTenantSettings(formData: FormData): Promise<ActionResponse> {
   const supabase = await createClient()
@@ -32,16 +33,27 @@ export async function updateTenantSettings(formData: FormData): Promise<ActionRe
     const fileName = `tenant_${profile.tenant_id}_logo.${fileExt}`
     const filePath = `logos/${fileName}`
 
-    const { error: uploadError } = await supabase.storage
-      .from('artworks')
-      .upload(filePath, logoFile, { upsert: true })
+    try {
+      const arrayBuffer = await logoFile.arrayBuffer()
+      const { publicUrl } = await uploadToR2({
+        key: filePath,
+        body: Buffer.from(arrayBuffer),
+        contentType: logoFile.type || 'image/png',
+      })
+      logoUrl = publicUrl
+    } catch (r2Err: any) {
+      console.warn('[R2 logo upload failed, trying Supabase]:', r2Err.message)
+      const { error: uploadError } = await supabase.storage
+        .from('artworks')
+        .upload(filePath, logoFile, { upsert: true })
 
-    if (uploadError) {
-      return { error: 'Failed to upload logo: ' + uploadError.message }
+      if (uploadError) {
+        return { error: 'Failed to upload logo: ' + uploadError.message }
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
+      logoUrl = publicUrlData.publicUrl
     }
-
-    const { data: publicUrlData } = supabase.storage.from('artworks').getPublicUrl(filePath)
-    logoUrl = publicUrlData.publicUrl
   }
 
   const updatePayload: any = { name, currency, area_unit: areaUnit }

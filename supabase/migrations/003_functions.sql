@@ -281,4 +281,4 @@ GRANT EXECUTE ON FUNCTION get_next_job_number(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_next_invoice_number(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION record_payment(uuid, numeric, text, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION transition_job_status(uuid, text, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION create_job(text, text, uuid, text, numeric, numeric, integer, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION create_job(text, text, uuid, text, numeric, numeric, integer, numeric, text) TO authenticated;

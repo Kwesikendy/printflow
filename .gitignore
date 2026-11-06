@@ -42,6 +42,7 @@ next-env.d.ts
 
 # backups & credentials
 /backups/
+/scratch/
 *.service-account.json
 google-service-account*.json
 printflow-backup-*.zip

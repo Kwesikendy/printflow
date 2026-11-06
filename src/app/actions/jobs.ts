@@ -8,6 +8,7 @@ import { getTenantUnitPricing } from '@/lib/pricing-server'
 import { isPocketOrFinishingProduct } from '@/lib/utils'
 import { getWorkdayBounds } from '@/lib/workday'
 import { calculateJobConsumption, parseRollDimensions, recommendMaterialForJob } from '@/lib/material-matching'
+import { deleteFromR2 } from '@/lib/r2'
 
 export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
   try {
@@ -967,7 +968,16 @@ export async function transitionJobStatusAction(
           const match = jobArtwork.artwork_url.match(new RegExp(`${jobArtwork.tenant_id}/([^?]+)`))
           if (match) {
             const filePath = `${jobArtwork.tenant_id}/${match[1]}`
-            await serviceSupabase.storage.from('artworks').remove([filePath])
+            try {
+              await deleteFromR2(filePath)
+            } catch (r2Err) {
+              console.warn('[R2 delete warning]:', r2Err)
+            }
+            try {
+              await serviceSupabase.storage.from('artworks').remove([filePath])
+            } catch (sbErr) {
+              // Ignore Supabase storage errors
+            }
           }
           await serviceSupabase.from('jobs').update({ artwork_url: null }).eq('id', jobId)
         }

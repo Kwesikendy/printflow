@@ -2,6 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { listR2Files, deleteFromR2 } from '@/lib/r2'
 
 async function checkAdmin() {
   const supabase = await createClient()
@@ -42,17 +43,39 @@ export async function getStorageStatsAction() {
     }
   }
 
-  let allFiles: any[] = []
-  let offset = 0
-  const limit = 100
-  while (true) {
-    const { data } = await serviceSupabase.storage
-      .from('artworks')
-      .list(tenantId, { limit, offset })
-    if (!data || data.length === 0) break
-    allFiles = allFiles.concat(data)
-    if (data.length < limit) break
-    offset += limit
+  let allFiles: Array<{ name: string; size: number }> = []
+
+  // 1. Fetch from Cloudflare R2
+  try {
+    const r2Files = await listR2Files(tenantId)
+    for (const f of r2Files) {
+      const fileName = f.key.replace(new RegExp(`^${tenantId}/`), '')
+      allFiles.push({ name: fileName, size: f.size })
+    }
+  } catch (r2Err) {
+    console.warn('[StorageStats] R2 list error:', r2Err)
+  }
+
+  // 2. Fetch from Supabase (safe if restricted)
+  try {
+    let offset = 0
+    const limit = 100
+    while (true) {
+      const { data, error } = await serviceSupabase.storage
+        .from('artworks')
+        .list(tenantId, { limit, offset })
+      if (error || !data || data.length === 0) break
+      for (const item of data) {
+        // avoid duplicates if same file exists in both
+        if (!allFiles.some((f) => f.name === item.name)) {
+          allFiles.push({ name: item.name, size: item.metadata?.size || 0 })
+        }
+      }
+      if (data.length < limit) break
+      offset += limit
+    }
+  } catch (sbErr) {
+    console.warn('[StorageStats] Supabase storage list warning:', sbErr)
   }
 
   let totalBytes = 0
@@ -62,7 +85,7 @@ export async function getStorageStatsAction() {
   let cleanableCount = 0
 
   for (const f of allFiles) {
-    const size = f.metadata?.size || 0
+    const size = f.size || 0
     totalBytes += size
     const job = fileToJob.get(f.name)
     if (!job || cleanableStatuses.has(job.status)) {
@@ -112,17 +135,38 @@ export async function cleanCompletedArtworksAction() {
     }
   }
 
-  let allFiles: any[] = []
-  let offset = 0
-  const limit = 100
-  while (true) {
-    const { data } = await serviceSupabase.storage
-      .from('artworks')
-      .list(tenantId, { limit, offset })
-    if (!data || data.length === 0) break
-    allFiles = allFiles.concat(data)
-    if (data.length < limit) break
-    offset += limit
+  let allFiles: Array<{ name: string; size: number }> = []
+
+  // 1. Fetch from Cloudflare R2
+  try {
+    const r2Files = await listR2Files(tenantId)
+    for (const f of r2Files) {
+      const fileName = f.key.replace(new RegExp(`^${tenantId}/`), '')
+      allFiles.push({ name: fileName, size: f.size })
+    }
+  } catch (r2Err) {
+    console.warn('[StorageClean] R2 list error:', r2Err)
+  }
+
+  // 2. Fetch from Supabase (safe if restricted)
+  try {
+    let offset = 0
+    const limit = 100
+    while (true) {
+      const { data, error } = await serviceSupabase.storage
+        .from('artworks')
+        .list(tenantId, { limit, offset })
+      if (error || !data || data.length === 0) break
+      for (const item of data) {
+        if (!allFiles.some((f) => f.name === item.name)) {
+          allFiles.push({ name: item.name, size: item.metadata?.size || 0 })
+        }
+      }
+      if (data.length < limit) break
+      offset += limit
+    }
+  } catch (sbErr) {
+    console.warn('[StorageClean] Supabase list warning:', sbErr)
   }
 
   const pathsToDelete: string[] = []
@@ -130,7 +174,7 @@ export async function cleanCompletedArtworksAction() {
 
   for (const f of allFiles) {
     const job = fileToJob.get(f.name)
-    const size = f.metadata?.size || 0
+    const size = f.size || 0
     if (!job || cleanableStatuses.has(job.status)) {
       pathsToDelete.push(`${tenantId}/${f.name}`)
       bytesFreed += size
@@ -141,10 +185,22 @@ export async function cleanCompletedArtworksAction() {
     return { success: true, message: 'Storage is already clean. No completed artworks to remove.', deletedCount: 0, bytesFreed: 0 }
   }
 
+  // Delete from R2
+  try {
+    await deleteFromR2(pathsToDelete)
+  } catch (r2DelErr) {
+    console.warn('[StorageClean] R2 delete error:', r2DelErr)
+  }
+
+  // Delete from Supabase
   const chunkSize = 50
   for (let i = 0; i < pathsToDelete.length; i += chunkSize) {
     const chunk = pathsToDelete.slice(i, i + chunkSize)
-    await serviceSupabase.storage.from('artworks').remove(chunk)
+    try {
+      await serviceSupabase.storage.from('artworks').remove(chunk)
+    } catch (sbDelErr) {
+      // Ignore Supabase storage errors
+    }
   }
 
   for (let i = 0; i < jobsToUpdate.length; i += chunkSize) {
