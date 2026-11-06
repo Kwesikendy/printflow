@@ -165,7 +165,12 @@ export function PickupQueueList({ initialJobs }: { initialJobs: Job[] }) {
                     </div>
                     <div className="flex justify-between items-center p-2 rounded-lg bg-slate-50">
                       <span className="text-slate-500 font-medium">Completed:</span>
-                      <span className="text-slate-700 font-medium">{formatDateTime(job.updated_at)}</span>
+                      <span className="text-slate-700 font-medium">
+                        {formatDateTime(
+                          (job as any).job_status_events?.find((e: any) => e.to_status === 'completed')?.created_at ||
+                          job.updated_at
+                        )}
+                      </span>
                     </div>
                   </div>
       

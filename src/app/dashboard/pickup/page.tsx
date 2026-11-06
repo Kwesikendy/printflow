@@ -6,18 +6,30 @@ export default async function PickupQueuePage() {
   const supabase = await createClient()
 
   // Fetch all completed jobs waiting for customer pickup
-  const { data: jobs } = await supabase
+  const { data: rawJobs } = await supabase
     .from('jobs')
     .select(`
       *,
-      product_types(name)
+      product_types(name),
+      job_status_events(to_status, created_at)
     `)
     .eq('status', 'completed')
-    .order('updated_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
-  if (!jobs) {
+  if (!rawJobs) {
     return <PageLoader />
   }
+
+  // Sort by actual completed event timestamp so newly completed jobs are at top
+  const jobs = [...(rawJobs as any[])].sort((a: any, b: any) => {
+    const timeA = new Date(
+      a.job_status_events?.find((e: any) => e.to_status === 'completed')?.created_at || a.created_at
+    ).getTime()
+    const timeB = new Date(
+      b.job_status_events?.find((e: any) => e.to_status === 'completed')?.created_at || b.created_at
+    ).getTime()
+    return timeB - timeA
+  })
 
   return (
     <div>

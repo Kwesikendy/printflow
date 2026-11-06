@@ -19,7 +19,7 @@ export default async function JobsPage(props: {
 
   let supaQuery = supabase
     .from('jobs')
-    .select(`*, product_types(name)`, { count: 'exact' })
+    .select(`*, product_types(name), job_status_events(to_status, created_at)`, { count: 'exact' })
     .order('created_at', { ascending: false })
     .range((page - 1) * pageSize, page * pageSize - 1)
 
@@ -52,7 +52,7 @@ export default async function JobsPage(props: {
   if (!query && status === 'all') {
     const { data: unpaidJobs } = await supabase
       .from('jobs')
-      .select(`*, product_types(name)`)
+      .select(`*, product_types(name), job_status_events(to_status, created_at)`)
       .in('status', ['awaiting_payment', 'pending_review'])
       .order('created_at', { ascending: false })
 

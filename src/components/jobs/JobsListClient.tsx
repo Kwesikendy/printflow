@@ -479,7 +479,12 @@ export function JobsListClient({
                         {formatDateTime(job.created_at)}
                       </td>
                       <td className="text-slate-500 text-sm">
-                        {job.status === 'completed' || job.status === 'picked_up' ? formatDateTime(job.updated_at) : '-'}
+                        {job.status === 'completed' || job.status === 'picked_up' ? (
+                          formatDateTime(
+                            job.job_status_events?.find((e: any) => e.to_status === 'completed' || e.to_status === 'picked_up')?.created_at ||
+                            job.updated_at
+                          )
+                        ) : '-'}
                       </td>
                       {role === 'admin' && (
                         <td className="pr-6 text-right">
