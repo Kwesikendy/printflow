@@ -28,6 +28,9 @@ interface AdminPaymentCorrectionModalProps {
   payment: Payment
   currentInvoiceNumber?: string
   userRole?: string
+  onSuccess?: () => void
+  buttonText?: string
+  variant?: 'badge' | 'danger-badge' | 'button'
 }
 
 const METHODS = [
@@ -40,6 +43,9 @@ export function AdminPaymentCorrectionModal({
   payment,
   currentInvoiceNumber,
   userRole,
+  onSuccess,
+  buttonText,
+  variant = 'badge',
 }: AdminPaymentCorrectionModalProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -78,6 +84,7 @@ export function AdminPaymentCorrectionModal({
       } else {
         toast.success('Payment updated and invoice balance recalculated!')
         setIsOpen(false)
+        onSuccess?.()
       }
     })
   }
@@ -96,37 +103,73 @@ export function AdminPaymentCorrectionModal({
       } else {
         toast.success(`Payment moved to invoice ${targetInvoiceNumber.trim().toUpperCase()}!`)
         setIsOpen(false)
+        onSuccess?.()
       }
     })
   }
 
   const handleDelete = () => {
-    if (!confirm(`Are you sure you want to completely delete this payment of ${formatCurrency(payment.amount)}? The invoice balance will immediately revert.`)) {
+    if (!confirm(`Are you sure you want to completely reverse/delete this payment of ${formatCurrency(payment.amount)}? The invoice balance will immediately revert to owing.`)) {
       return
     }
 
     startTransition(async () => {
-      const res = await deletePaymentAction(payment.id, deleteReason || 'Removed by Admin')
+      const res = await deletePaymentAction(payment.id, deleteReason || 'Reversed by Admin')
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('Payment deleted! Invoice balance has been reversed.')
+        toast.success('Payment/Credit successfully reversed! Client arrears have been restored.')
         setIsOpen(false)
+        onSuccess?.()
       }
     })
   }
 
-  return (
-    <>
+  const renderTriggerButton = () => {
+    if (variant === 'danger-badge') {
+      return (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-md transition-colors shadow-2xs cursor-pointer"
+          title="Reverse or correct this credit transaction"
+        >
+          <ShieldAlert className="w-3 h-3 text-rose-600" />
+          {buttonText || 'Reverse / Fix'}
+        </button>
+      )
+    }
+
+    if (variant === 'button') {
+      return (
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-3 py-1.5 rounded-lg transition-colors shadow-xs cursor-pointer"
+          title="Admin payment correction & reversal"
+        >
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+          {buttonText || 'Admin Fix'}
+        </button>
+      )
+    }
+
+    return (
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-colors shadow-2xs"
-        title="Admin Payment Correction"
+        className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-colors shadow-2xs cursor-pointer"
+        title="Admin Payment Correction & Reversal"
       >
         <ShieldAlert className="w-3 h-3 text-amber-600" />
-        Admin Fix
+        {buttonText || 'Admin Fix'}
       </button>
+    )
+  }
+
+  return (
+    <>
+      {renderTriggerButton()}
 
       {mounted && createPortal(
         <AnimatePresence>

@@ -24,6 +24,7 @@ interface CustomerStatementModalProps {
   isOpen: boolean
   onClose: () => void
   userRole?: string
+  onCustomerUpdated?: () => void
 }
 
 export function CustomerStatementModal({
@@ -31,7 +32,8 @@ export function CustomerStatementModal({
   customerPhone,
   isOpen,
   onClose,
-  userRole
+  userRole,
+  onCustomerUpdated
 }: CustomerStatementModalProps) {
   const [statement, setStatement] = useState<CustomerStatementData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -361,12 +363,22 @@ export function CustomerStatementModal({
                               <th>Description</th>
                               <th className="text-right">Debit (+)</th>
                               <th className="text-right">Credit (-)</th>
-                              <th className="text-right pr-6">Balance</th>
+                              <th className={userRole === 'admin' ? "text-right" : "text-right pr-6"}>Balance</th>
+                              {userRole === 'admin' && <th className="text-right pr-6">Action</th>}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {statement.ledger.map((row) => {
                               const isInvoice = row.type === 'invoice'
+                              const paymentId = row.id.replace('pay-', '')
+                              const matchedPayment = statement.payments.find(p => p.id === paymentId) || {
+                                id: paymentId,
+                                amount: row.credit,
+                                method: row.paymentMethod || 'cash',
+                                reference: row.reference,
+                                notes: row.description,
+                              }
+
                               return (
                                 <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
                                   <td className="pl-6 text-slate-600 font-medium whitespace-nowrap">
@@ -398,17 +410,33 @@ export function CustomerStatementModal({
                                   <td className="text-right font-bold text-emerald-600">
                                     {row.credit > 0 ? formatCurrency(row.credit) : '—'}
                                   </td>
-                                  <td className="text-right pr-6 font-black whitespace-nowrap">
+                                  <td className={`text-right font-black whitespace-nowrap ${userRole === 'admin' ? '' : 'pr-6'}`}>
                                     <span className={row.runningBalance > 0 ? 'text-amber-600' : 'text-slate-700'}>
                                       {formatCurrency(row.runningBalance)}
                                     </span>
                                   </td>
+                                  {userRole === 'admin' && (
+                                    <td className="text-right pr-6 whitespace-nowrap">
+                                      {row.type === 'payment' && (
+                                        <AdminPaymentCorrectionModal
+                                          payment={matchedPayment as any}
+                                          userRole={userRole}
+                                          buttonText="Reverse Credit"
+                                          variant="danger-badge"
+                                          onSuccess={() => {
+                                            fetchStatementData()
+                                            onCustomerUpdated?.()
+                                          }}
+                                        />
+                                      )}
+                                    </td>
+                                  )}
                                 </tr>
                               )
                             })}
                             {statement.ledger.length === 0 && (
                               <tr>
-                                <td colSpan={7} className="text-center py-12 text-slate-400 font-medium">
+                                <td colSpan={userRole === 'admin' ? 8 : 7} className="text-center py-12 text-slate-400 font-medium">
                                   No transaction entries for this selected period.
                                 </td>
                               </tr>
@@ -521,10 +549,16 @@ export function CustomerStatementModal({
                                 <td className="text-slate-600 font-medium text-xs">{p.profiles?.full_name || 'Staff'}</td>
                                 <td className={`text-right font-black text-emerald-600 ${userRole === 'admin' ? '' : 'pr-6'}`}>{formatCurrency(p.amount)}</td>
                                 {userRole === 'admin' && (
-                                  <td className="text-right pr-6">
+                                  <td className="text-right pr-6 whitespace-nowrap">
                                     <AdminPaymentCorrectionModal
                                       payment={p as any}
                                       userRole={userRole}
+                                      buttonText="Reverse Credit"
+                                      variant="danger-badge"
+                                      onSuccess={() => {
+                                        fetchStatementData()
+                                        onCustomerUpdated?.()
+                                      }}
                                     />
                                   </td>
                                 )}

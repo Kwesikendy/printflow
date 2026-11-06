@@ -724,7 +724,7 @@ export function NewJobForm({
       try {
         const supabase = createClient()
         
-        // 1. Upload artworks directly from browser to bypass server size limits
+        // 1. Upload artworks directly to Cloudflare R2 (bypasses serverless size limits)
         const artworkUrls = await Promise.all(
           items.map(async (it) => {
             // If using external cloud link (Google Drive, WeTransfer, etc.)
@@ -736,9 +736,48 @@ export function NewJobForm({
               return it.artworkUrl?.trim() || null
             }
             
-            // Upload file to Cloudflare R2
+            const file = it.artworkFile
+
+            // Try Direct Presigned Upload to Cloudflare R2 first
+            try {
+              const presignedRes = await fetch('/api/storage/presigned', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  filename: file.name,
+                  contentType: file.type || 'application/octet-stream',
+                  path: tenantId,
+                }),
+              })
+
+              const rawPresigned = await presignedRes.text()
+              let presignedJson: any = null
+              try {
+                presignedJson = JSON.parse(rawPresigned)
+              } catch {
+                // Ignore non-json
+              }
+
+              if (presignedRes.ok && presignedJson?.uploadUrl && presignedJson?.publicUrl) {
+                const putRes = await fetch(presignedJson.uploadUrl, {
+                  method: 'PUT',
+                  body: file,
+                  headers: {
+                    'Content-Type': file.type || 'application/octet-stream',
+                  },
+                })
+
+                if (putRes.ok) {
+                  return presignedJson.publicUrl
+                }
+              }
+            } catch (presignedErr) {
+              console.warn('Direct R2 presigned upload error, falling back to server route:', presignedErr)
+            }
+
+            // Fallback to server route
             const uploadFormData = new FormData()
-            uploadFormData.append('file', it.artworkFile)
+            uploadFormData.append('file', file)
             uploadFormData.append('path', tenantId)
 
             const uploadRes = await fetch('/api/storage/upload', {
@@ -746,9 +785,19 @@ export function NewJobForm({
               body: uploadFormData,
             })
 
-            const uploadJson = await uploadRes.json()
-            if (!uploadRes.ok || uploadJson.error) {
-              throw new Error(`Failed to upload ${it.artworkFile.name}: ` + (uploadJson.error || 'Upload error'))
+            const rawText = await uploadRes.text()
+            let uploadJson: any = null
+            try {
+              uploadJson = JSON.parse(rawText)
+            } catch {
+              if (uploadRes.status === 413 || rawText.includes('413') || rawText.includes('TOO_LARGE')) {
+                throw new Error(`Artwork "${file.name}" exceeds the server limit. Please switch to the "Cloud Link" option to paste a Google Drive / WeTransfer link.`)
+              }
+              throw new Error(`Upload error (${uploadRes.status}). Please try again or use the Cloud Link option.`)
+            }
+
+            if (!uploadRes.ok || uploadJson?.error) {
+              throw new Error(`Failed to upload ${file.name}: ` + (uploadJson?.error || 'Upload error'))
             }
 
             return uploadJson.publicUrl

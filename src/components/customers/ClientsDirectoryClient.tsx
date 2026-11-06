@@ -35,9 +35,10 @@ import { toast } from 'sonner'
 
 interface ClientsDirectoryClientProps {
   initialData: CustomerDirectoryResult
+  userRole?: string
 }
 
-export function ClientsDirectoryClient({ initialData }: ClientsDirectoryClientProps) {
+export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirectoryClientProps) {
   const [data, setData] = useState<CustomerDirectoryResult>(initialData)
   const [search, setSearch] = useState('')
   const [filterMode, setFilterMode] = useState<'all' | 'owing' | 'settled'>('all')
@@ -311,8 +312,12 @@ export function ClientsDirectoryClient({ initialData }: ClientsDirectoryClientPr
                   >
                     {/* Customer Name & Stats */}
                     <td className="py-4 px-4 sm:px-6">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+                      <div 
+                        onClick={() => handleOpenStatement(c.name, c.phone)}
+                        className="flex items-center gap-3 cursor-pointer group/name"
+                        title="Click to view client statement & manage ledger"
+                      >
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-transform group-hover/name:scale-105 ${
                           c.hasArrears 
                             ? 'bg-amber-100 text-amber-800 border border-amber-200' 
                             : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
@@ -321,7 +326,7 @@ export function ClientsDirectoryClient({ initialData }: ClientsDirectoryClientPr
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
+                            <span className="font-black text-slate-900 group-hover/name:text-indigo-600 transition-colors">
                               {c.name}
                             </span>
                             {c.hasArrears && (
@@ -481,6 +486,8 @@ export function ClientsDirectoryClient({ initialData }: ClientsDirectoryClientPr
           }}
           customerName={statementCustomer.name}
           customerPhone={statementCustomer.phone}
+          userRole={userRole}
+          onCustomerUpdated={reloadData}
         />
       )}
 

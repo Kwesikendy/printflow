@@ -1569,6 +1569,7 @@ export async function deletePaymentAction(paymentId: string, reason?: string): P
 
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/admin/clients')
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
 
   return { success: true }
@@ -1628,6 +1629,7 @@ export async function editPaymentAction(
 
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/admin/clients')
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
 
   return { success: true }
@@ -1699,6 +1701,7 @@ export async function movePaymentToInvoiceAction(
 
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
+  revalidatePath('/dashboard/admin/clients')
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
   if (targetInv.job_id) revalidatePath(`/dashboard/jobs/${targetInv.job_id}`)
 
