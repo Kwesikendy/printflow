@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { PrintQueueList } from '@/components/jobs/PrintQueueList'
 import { PageLoader } from '@/components/ui/EmptyState'
+import { getDeductedJobIds } from '@/lib/job-materials'
 
 export default async function PrintQueuePage() {
   const supabase = await createClient()
@@ -47,16 +48,18 @@ export default async function PrintQueuePage() {
     return <PageLoader />
   }
 
+  const deductedJobIds = await getDeductedJobIds(serviceSupabase, (jobs as any[]).map(j => j.id))
+
   return (
     <div>
       <div className="page-header">
         <h1 className="text-2xl font-bold text-slate-900">Print Queue</h1>
         <p className="text-slate-500 mt-1">
-          Live queue of jobs ready for production — completing a job automatically deducts the confirmed material roll from warehouse inventory.
+          Live queue of jobs ready for production — when you start a job, choose the exact material you are printing on and its size is deducted from inventory.
         </p>
       </div>
 
-      <PrintQueueList initialJobs={jobs} initialMaterials={materials || []} />
+      <PrintQueueList initialJobs={jobs} initialMaterials={materials || []} initialDeductedJobIds={deductedJobIds} />
     </div>
   )
 }

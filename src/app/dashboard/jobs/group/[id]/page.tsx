@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getDeductedJobIds } from '@/lib/job-materials'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
@@ -33,6 +34,18 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
 
   const group = groupData as any
   const jobs: any[] = group.jobs || []
+
+  // Materials + which jobs already have a material deducted (for the "select material" popup)
+  const serviceSupabase = createServiceClient() as any
+  const [{ data: materialsData }, deductedIds] = await Promise.all([
+    serviceSupabase
+      .from('materials')
+      .select('id, name, unit, roll_width, roll_length, qty_rolls')
+      .eq('tenant_id', group.tenant_id)
+      .order('name'),
+    getDeductedJobIds(serviceSupabase, jobs.map((j: any) => j.id)),
+  ])
+  const materialsList = materialsData || []
   const invoice = Array.isArray(group.invoices) ? group.invoices[0] : group.invoices
   const payments: any[] = invoice?.payments || []
 
@@ -115,7 +128,13 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                       <EditJobModal job={job} role={role} />
                     )}
                     {['front_desk', 'admin'].includes(role) && (
-                      <JobActions job={job} role={role} hasPaymentOverride={hasPayment} />
+                      <JobActions
+                        job={job}
+                        role={role}
+                        hasPaymentOverride={hasPayment}
+                        materials={materialsList}
+                        materialDeducted={deductedIds.includes(job.id)}
+                      />
                     )}
                     <Link href={`/dashboard/jobs/${job.id}`} className="text-xs text-indigo-600 hover:underline font-medium ml-1">View detail →</Link>
                   </div>

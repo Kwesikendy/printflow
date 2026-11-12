@@ -7,7 +7,7 @@ import { toCmRate, resolveUnitRate } from '@/lib/pricing'
 import { getTenantUnitPricing } from '@/lib/pricing-server'
 import { isPocketOrFinishingProduct } from '@/lib/utils'
 import { getWorkdayBounds } from '@/lib/workday'
-import { calculateJobConsumption, parseRollDimensions, recommendMaterialForJob } from '@/lib/material-matching'
+import { calculateJobConsumption, parseRollDimensions } from '@/lib/material-matching'
 import { deleteFromR2 } from '@/lib/r2'
 import { invalidateCustomersDirectoryCache } from './customers'
 
@@ -787,14 +787,141 @@ export async function releaseJobGroupAction(groupId: string, notes?: string): Pr
   return { success: true }
 }
 
+interface MaterialDeductionResult {
+  success?: boolean
+  skipped?: boolean
+  error?: string
+  warning?: string
+}
+
+/**
+ * Deducts the area a job consumes from the material the print room explicitly selected.
+ * - Idempotent: a job is only ever deducted once (checked via inventory_logs).
+ * - Uses the service client so printer accounts are never blocked by RLS.
+ */
+async function deductMaterialForJob(jobId: string, materialId: string): Promise<MaterialDeductionResult> {
+  try {
+    const serviceSupabase = createServiceClient() as any
+
+    const { data: job } = await serviceSupabase
+      .from('jobs')
+      .select('id, job_number, tenant_id, width, height, quantity, dimension_unit, product_types(name)')
+      .eq('id', jobId)
+      .single()
+    if (!job) return { error: 'Job not found' }
+
+    const { data: material } = await serviceSupabase
+      .from('materials')
+      .select('id, tenant_id, name, unit, roll_width, roll_length, qty_rolls')
+      .eq('id', materialId)
+      .single()
+    if (!material || material.tenant_id !== job.tenant_id) return { error: 'Selected material not found' }
+
+    // Never deduct twice for the same job
+    const { data: existing } = await serviceSupabase
+      .from('inventory_logs')
+      .select('id')
+      .eq('job_id', jobId)
+      .eq('action', 'job_deduction')
+      .limit(1)
+    if (existing && existing.length > 0) return { skipped: true }
+
+    const consumption = calculateJobConsumption(
+      job.width,
+      job.height,
+      job.quantity,
+      job.dimension_unit,
+      job.product_types?.name
+    )
+    const rollArea = parseRollDimensions(material).effectiveAreaPerRollM2
+    const areaM2 = consumption.totalAreaM2
+    const rollsNeeded = rollArea > 0 ? areaM2 / rollArea : 0
+    if (rollsNeeded <= 0) return { error: 'Could not work out the material quantity for this job' }
+
+    const available = Number(material.qty_rolls || 0)
+    const rollsApplied = Math.min(rollsNeeded, available)
+    const areaApplied = rollsNeeded > 0 ? areaM2 * (rollsApplied / rollsNeeded) : 0
+    const shortfallM2 = Math.max(0, areaM2 - areaApplied)
+
+    const nowIso = new Date().toISOString()
+    const baseNote = `Print Room used ${material.name} for ${job.job_number || 'job'} (${consumption.widthFt}ft × ${consumption.heightFt}ft × ${consumption.quantity} = ${areaM2.toFixed(2)} m²)`
+    const shortfallNote = shortfallM2 > 0.001
+      ? ` — STOCK SHORTFALL: system only had ${available.toFixed(3)} rolls, ${shortfallM2.toFixed(2)} m² could not be deducted. Recount this material.`
+      : ''
+
+    const { error: logErr } = await serviceSupabase.from('inventory_logs').insert({
+      tenant_id: job.tenant_id,
+      material_id: materialId,
+      action: 'job_deduction',
+      job_id: jobId,
+      qty_change_rolls: -rollsApplied,
+      qty_change_area: -areaApplied,
+      created_at: nowIso,
+      notes: baseNote + shortfallNote
+    })
+    if (logErr) return { error: logErr.message }
+
+    await serviceSupabase.from('materials').update({
+      qty_rolls: Math.max(0, available - rollsApplied),
+      updated_at: nowIso
+    }).eq('id', materialId)
+
+    revalidatePath('/dashboard/admin/inventory')
+    return shortfallNote
+      ? { success: true, warning: `${material.name} had less stock than this job needs. Please recount it.` }
+      : { success: true }
+  } catch (err: any) {
+    return { error: err?.message || 'Unexpected error deducting material' }
+  }
+}
+
+export interface StartJobMaterialSelection {
+  jobId: string
+  /** Material the print room will print on, or 'none' for jobs that use no stocked material */
+  materialId: string | 'none'
+}
+
+/**
+ * Starts jobs in the print room AND deducts the material the operator selected, in one step.
+ */
+export async function startJobsWithMaterialAction(selections: StartJobMaterialSelection[]) {
+  const results: Array<{ jobId: string; error?: string; warning?: string }> = []
+
+  // Sequential on purpose: companion pocket/finishing jobs sync off sibling status
+  for (const sel of selections) {
+    if (!sel.materialId) {
+      results.push({ jobId: sel.jobId, error: 'No material selected' })
+      continue
+    }
+
+    const res = await transitionJobStatusAction(sel.jobId, 'in_production')
+    const alreadyStarted = res.error?.includes('in_production -> in_production')
+    if (res.error && !alreadyStarted) {
+      results.push({ jobId: sel.jobId, error: res.error })
+      continue
+    }
+
+    if (sel.materialId === 'none') {
+      results.push({ jobId: sel.jobId })
+      continue
+    }
+
+    const deduction = await deductMaterialForJob(sel.jobId, sel.materialId)
+    results.push({ jobId: sel.jobId, error: deduction.error, warning: deduction.warning })
+  }
+
+  revalidatePath('/dashboard/queue')
+  revalidatePath('/dashboard/jobs')
+  return { results }
+}
+
 export async function transitionJobStatusAction(
   jobId: string, 
   toStatus: JobStatus, 
   notes?: string,
   pickupName?: string,
   pickupPhone?: string,
-  materialIdOverride?: string | null,
-  saveAsDefaultLink?: boolean
+  materialIdOverride?: string | null
 ) {
   const supabase = await createClient()
   
@@ -861,84 +988,13 @@ export async function transitionJobStatusAction(
     console.warn('Non-fatal: could not sync companion pocket/finishing job:', e)
   }
 
-  // If status is completed, automatically deduct material from inventory using service client
-  // so printer role accounts are never blocked by RLS on materials or inventory_logs.
-  if (toStatus === 'completed' && materialIdOverride !== 'none') {
-    try {
-      const serviceSupabase = createServiceClient() as any
-      const { data: jobData } = await serviceSupabase
-        .from('jobs')
-        .select('id, job_number, customer_name, tenant_id, width, height, quantity, dimension_unit, product_type_id, product_types(id, name, material_id)')
-        .eq('id', jobId)
-        .single()
-  
-      const job = jobData as any
-      if (job) {
-        let targetMaterialId: string | null = materialIdOverride || null
-
-        if (!targetMaterialId) {
-          // Fetch all tenant materials and run smart family + smallest-fitting roll width matcher
-          const { data: allMaterials } = await serviceSupabase
-            .from('materials')
-            .select('id, name, unit, roll_width, roll_length, qty_rolls')
-            .eq('tenant_id', job.tenant_id)
-
-          const rec = recommendMaterialForJob(job, allMaterials || [])
-          targetMaterialId = rec.recommendedMaterial?.id || job?.product_types?.material_id || null
-        }
-
-        if (targetMaterialId) {
-          const { data: materialData } = await serviceSupabase
-            .from('materials')
-            .select('id, name, unit, roll_width, roll_length, qty_rolls')
-            .eq('id', targetMaterialId)
-            .single()
-    
-          const material = materialData as any
-          if (material) {
-            const consumption = calculateJobConsumption(
-              job.width,
-              job.height,
-              job.quantity,
-              job.dimension_unit,
-              job.product_types?.name
-            )
-            const parsedRoll = parseRollDimensions(material)
-            const area_m2 = consumption.totalAreaM2
-            const roll_area = parsedRoll.effectiveAreaPerRollM2
-            const rolls_deducted = roll_area > 0 ? (area_m2 / roll_area) : 0
-    
-            if (rolls_deducted > 0) {
-              const nowIso = new Date().toISOString()
-              await serviceSupabase.from('inventory_logs').insert({
-                tenant_id: job.tenant_id,
-                material_id: targetMaterialId,
-                action: 'job_deduction',
-                job_id: jobId,
-                qty_change_rolls: -rolls_deducted,
-                qty_change_area: -area_m2,
-                created_at: nowIso,
-                notes: `Print Room completed ${job.job_number || ''} (${consumption.widthFt}ft × ${consumption.heightFt}ft × ${consumption.quantity} = ${area_m2.toFixed(2)} m² on ${material.name})`
-              })
-      
-              await serviceSupabase.from('materials').update({
-                qty_rolls: Math.max(0, Number(material.qty_rolls || 0) - rolls_deducted),
-                updated_at: nowIso
-              }).eq('id', targetMaterialId)
-
-              if (saveAsDefaultLink && job.product_type_id) {
-                await serviceSupabase
-                  .from('product_types')
-                  .update({ material_id: targetMaterialId })
-                  .eq('id', job.product_type_id)
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to deduct inventory:', err)
-    }
+  // Inventory is only ever deducted from a material the print room explicitly selected.
+  // The system never guesses a material (name-matching caused stock discrepancies).
+  // This path is the fallback for jobs that were already in production before the
+  // "select material on Start" workflow, and have no deduction recorded yet.
+  if (toStatus === 'completed' && materialIdOverride && materialIdOverride !== 'none') {
+    const deduction = await deductMaterialForJob(jobId, materialIdOverride)
+    if (deduction.error) console.error('Failed to deduct inventory:', deduction.error)
   }
 
   // If status is picked_up and we have pickup details, update the job record

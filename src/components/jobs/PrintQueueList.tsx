@@ -6,8 +6,8 @@ import { Card, CardContent } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { transitionJobStatusAction } from '@/app/actions/jobs'
-import { Printer, Play, CheckCircle2, Layers, ExternalLink, Boxes } from 'lucide-react'
+import { transitionJobStatusAction, startJobsWithMaterialAction } from '@/app/actions/jobs'
+import { Printer, Play, CheckCircle2, Layers, ExternalLink } from 'lucide-react'
 import type { Job } from '@/types/database'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -15,13 +15,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn, PRINT_ROOM_LABELS, formatDateTime, isPocketOrFinishingProduct } from '@/lib/utils'
 import {
   type MaterialLike,
-  recommendMaterialForJob,
+  calculateJobConsumption,
   parseRollDimensions,
 } from '@/lib/material-matching'
 import {
-  CompleteJobMaterialModal,
-  type JobCompletionSelection,
-} from '@/components/jobs/CompleteJobMaterialModal'
+  SelectJobMaterialModal,
+  type JobMaterialSelection,
+} from '@/components/jobs/SelectJobMaterialModal'
 
 interface QueueGroup {
   key: string
@@ -39,18 +39,24 @@ interface QueueGroup {
 export function PrintQueueList({
   initialJobs,
   initialMaterials = [],
+  initialDeductedJobIds = [],
 }: {
   initialJobs: Job[]
   initialMaterials?: MaterialLike[]
+  initialDeductedJobIds?: string[]
 }) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
   const [materials, setMaterials] = useState<MaterialLike[]>(initialMaterials)
   const { subscribeToJobs } = useRealtime()
 
-  // Roll confirmation modal state
+  // Material selection popup state
   const [modalOpen, setModalOpen] = useState(false)
-  const [jobsPendingCompletion, setJobsPendingCompletion] = useState<Job[]>([])
-  const [isCompletingModal, setIsCompletingModal] = useState(false)
+  const [modalMode, setModalMode] = useState<'start' | 'complete'>('start')
+  const [jobsPendingSelection, setJobsPendingSelection] = useState<Job[]>([])
+  // Jobs in the same action that need no material pick (extra services / already deducted)
+  const [pendingDirectIds, setPendingDirectIds] = useState<string[]>([])
+  const [isSubmittingModal, setIsSubmittingModal] = useState(false)
+  const [deductedJobIds, setDeductedJobIds] = useState<Set<string>>(new Set(initialDeductedJobIds))
 
   useEffect(() => {
     const unsubscribe = subscribeToJobs((payload) => {
@@ -85,131 +91,191 @@ export function PrintQueueList({
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null)
   const [loadingGroupKey, setLoadingGroupKey] = useState<string | null>(null)
 
-  const handleStart = async (jobId: string, jobNumber: string) => {
-    const target = jobs.find(j => j.id === jobId)
-    const isTargetExtra = isPocketOrFinishingProduct(target?.product_types?.name)
-    const companionExtraJobs = target?.group_id && !isTargetExtra
-      ? jobs.filter(j => j.group_id === target.group_id && isPocketOrFinishingProduct(j.product_types?.name))
-      : []
+  const isExtra = (job?: Job) => isPocketOrFinishingProduct(job?.product_types?.name)
 
-    // Optimistically update UI
-    setJobs(prev => prev.map(j => (j.id === jobId || companionExtraJobs.some(c => c.id === j.id)) ? { ...j, status: 'in_production' } : j))
-    setLoadingJobId(jobId)
-    
-    const res = await transitionJobStatusAction(jobId, 'in_production')
-    setLoadingJobId(null)
-    
-    if (res.error) {
-      // Revert optimistic update on failure
-      setJobs(prev => prev.map(j => (j.id === jobId || companionExtraJobs.some(c => c.id === j.id)) ? { ...j, status: 'paid_released' } : j))
-      
-      if (res.error.includes('in_production -> in_production')) {
-        toast.info(`Job ${jobNumber} is already in production.`)
-      } else {
-        toast.error(`Could not start job: ${res.error}`)
-      }
-    } else {
-      toast.success(`Started job ${jobNumber}`)
-    }
-  }
-
-  // Open roll confirmation modal for a single job
-  const handleComplete = (jobId: string) => {
-    const job = jobs.find(j => j.id === jobId)
-    if (!job) return
-    setJobsPendingCompletion([job])
+  const openSelection = (mode: 'start' | 'complete', needPick: Job[], direct: Job[] = []) => {
+    setModalMode(mode)
+    setJobsPendingSelection(needPick)
+    setPendingDirectIds(direct.map(j => j.id))
     setModalOpen(true)
   }
 
+  // Start button: always asks the print room which material they are printing on
+  const handleStart = async (jobId: string, jobNumber: string) => {
+    const target = jobs.find(j => j.id === jobId)
+    if (!target) return
+
+    // Pocket / finishing services use no stocked material - start them straight away
+    if (isExtra(target) || materials.length === 0) {
+      setLoadingJobId(jobId)
+      const res = await transitionJobStatusAction(jobId, 'in_production')
+      setLoadingJobId(null)
+      if (res.error && !res.error.includes('in_production -> in_production')) {
+        toast.error(`Could not start job: ${res.error}`)
+      } else {
+        setJobs(prev => prev.map(j => (j.id === jobId ? { ...j, status: 'in_production' } : j)))
+        toast.success(`Started job ${jobNumber}`)
+      }
+      return
+    }
+
+    openSelection('start', [target])
+  }
+
+  // Start All: pick a material for each printable job; extra services start alongside
   const handleStartGroup = async (group: QueueGroup) => {
     const toStart = group.jobs.filter(j => j.status === 'paid_released')
     if (toStart.length === 0) return
 
-    setLoadingGroupKey(group.key)
-    setJobs(prev => prev.map(j => toStart.some(ts => ts.id === j.id) ? { ...j, status: 'in_production' } : j))
+    const printable = toStart.filter(j => !isExtra(j))
+    const extras = toStart.filter(j => isExtra(j))
 
-    const results = await Promise.all(
-      toStart.map(j => transitionJobStatusAction(j.id, 'in_production'))
-    )
-    setLoadingGroupKey(null)
-
-    const failed = results.filter(r => r.error)
-    if (failed.length > 0) {
-      toast.error(`Failed to start some jobs: ${failed[0].error}`)
-    } else {
-      toast.success(`Started all ${toStart.length} jobs for ${group.customerName}`)
+    if (printable.length === 0 || materials.length === 0) {
+      setLoadingGroupKey(group.key)
+      const results = await Promise.all(toStart.map(j => transitionJobStatusAction(j.id, 'in_production')))
+      setLoadingGroupKey(null)
+      const failed = results.filter(r => r.error && !r.error.includes('in_production -> in_production'))
+      if (failed.length > 0) {
+        toast.error(`Failed to start some jobs: ${failed[0].error}`)
+      } else {
+        setJobs(prev => prev.map(j => (toStart.some(ts => ts.id === j.id) ? { ...j, status: 'in_production' } : j)))
+        toast.success(`Started all ${toStart.length} jobs for ${group.customerName}`)
+      }
+      return
     }
+
+    openSelection('start', printable, extras)
   }
 
-  // Open roll confirmation modal for all in-production jobs in a group
+  // Complete: only asks for a material if none was recorded when the job was started
+  const handleComplete = (jobId: string) => {
+    const job = jobs.find(j => j.id === jobId)
+    if (!job) return
+    if (isExtra(job) || deductedJobIds.has(job.id) || materials.length === 0) {
+      void completeDirectly([job])
+      return
+    }
+    openSelection('complete', [job])
+  }
+
   const handleCompleteGroup = (group: QueueGroup) => {
     const toComplete = group.jobs.filter(j => j.status === 'in_production')
     if (toComplete.length === 0) return
-    setJobsPendingCompletion(toComplete)
-    setModalOpen(true)
+    const needPick = toComplete.filter(j => !isExtra(j) && !deductedJobIds.has(j.id) && materials.length > 0)
+    const direct = toComplete.filter(j => !needPick.some(n => n.id === j.id))
+    if (needPick.length === 0) {
+      void completeDirectly(direct)
+      return
+    }
+    openSelection('complete', needPick, direct)
   }
 
-  // Execute completion & inventory deduction after printer confirms roll(s)
-  const handleConfirmModalComplete = async (selections: JobCompletionSelection[]) => {
-    if (selections.length === 0) return
-    setIsCompletingModal(true)
+  const completeDirectly = async (toComplete: Job[]) => {
+    const ids = new Set(toComplete.map(j => j.id))
     const originalJobs = [...jobs]
-    const completingIds = new Set(selections.map(s => s.jobId))
-
-    // Optimistically remove from queue
-    setJobs(prev => prev.filter(j => !completingIds.has(j.id)))
-
-    const results = await Promise.all(
-      selections.map(sel =>
-        transitionJobStatusAction(
-          sel.jobId,
-          'completed',
-          undefined,
-          undefined,
-          undefined,
-          sel.materialId,
-          sel.saveAsDefaultLink
-        )
-      )
-    )
-
-    setIsCompletingModal(false)
-    setModalOpen(false)
-
+    setJobs(prev => prev.filter(j => !ids.has(j.id)))
+    const results = await Promise.all(toComplete.map(j => transitionJobStatusAction(j.id, 'completed')))
     const failed = results.filter(r => r.error)
     if (failed.length > 0) {
       setJobs(originalJobs)
       toast.error(`Failed to complete job(s): ${failed[0].error}`)
     } else {
-      // Update local materials stock preview so subsequent completions reflect new balances
-      setMaterials(prevMats => {
-        const nextMats = [...prevMats]
-        for (const sel of selections) {
-          if (sel.materialId && sel.materialId !== 'none') {
-            const jobObj = originalJobs.find(j => j.id === sel.jobId)
-            const matIdx = nextMats.findIndex(m => m.id === sel.materialId)
-            if (jobObj && matIdx !== -1) {
-              const rec = recommendMaterialForJob(jobObj as any, nextMats, sel.materialId)
-              const parsed = parseRollDimensions(nextMats[matIdx])
-              const deductedRolls =
-                parsed.effectiveAreaPerRollM2 > 0
-                  ? rec.consumption.totalAreaM2 / parsed.effectiveAreaPerRollM2
-                  : 0
-              nextMats[matIdx] = {
-                ...nextMats[matIdx],
-                qty_rolls: Math.max(0, Number(nextMats[matIdx].qty_rolls || 0) - deductedRolls),
-              }
-            }
-          }
-        }
-        return nextMats
-      })
+      toast.success(toComplete.length === 1 ? `Completed job ${toComplete[0].job_number}` : `Completed ${toComplete.length} jobs`)
+    }
+  }
 
-      if (selections.length === 1) {
-        toast.success(`Completed job ${selections[0].jobNumber} & updated inventory`)
-      } else {
-        toast.success(`Completed ${selections.length} jobs & updated inventory`)
+  // Reflect the deduction locally so the next selection shows the new stock balance
+  const applyLocalDeductions = (selections: JobMaterialSelection[]) => {
+    setMaterials(prevMats => {
+      const next = [...prevMats]
+      for (const sel of selections) {
+        if (sel.materialId === 'none') continue
+        const job = jobs.find(j => j.id === sel.jobId)
+        const idx = next.findIndex(m => m.id === sel.materialId)
+        if (!job || idx === -1) continue
+        const consumption = calculateJobConsumption(
+          job.width,
+          job.height,
+          job.quantity,
+          job.dimension_unit,
+          job.product_types?.name
+        )
+        const rollArea = parseRollDimensions(next[idx]).effectiveAreaPerRollM2
+        const rolls = rollArea > 0 ? consumption.totalAreaM2 / rollArea : 0
+        next[idx] = { ...next[idx], qty_rolls: Math.max(0, Number(next[idx].qty_rolls || 0) - rolls) }
       }
+      return next
+    })
+    setDeductedJobIds(prev => {
+      const next = new Set(prev)
+      selections.forEach(s => s.materialId !== 'none' && next.add(s.jobId))
+      return next
+    })
+  }
+
+  const handleConfirmSelection = async (selections: JobMaterialSelection[]) => {
+    if (selections.length === 0) return
+    setIsSubmittingModal(true)
+
+    if (modalMode === 'start') {
+      const { results } = await startJobsWithMaterialAction(
+        selections.map(s => ({ jobId: s.jobId, materialId: s.materialId }))
+      )
+      const extraResults = await Promise.all(
+        pendingDirectIds.map(id => transitionJobStatusAction(id, 'in_production'))
+      )
+      setIsSubmittingModal(false)
+
+      const failed = results.find(r => r.error)
+      const extraFailed = extraResults.find(r => r.error && !r.error.includes('in_production -> in_production'))
+      const startedIds = new Set([
+        ...results.filter(r => !r.error).map(r => r.jobId),
+        ...pendingDirectIds,
+      ])
+
+      setJobs(prev => prev.map(j => (startedIds.has(j.id) ? { ...j, status: 'in_production' } : j)))
+      applyLocalDeductions(selections.filter(s => results.find(r => r.jobId === s.jobId && !r.error)))
+
+      if (failed || extraFailed) {
+        toast.error(`Could not start some jobs: ${failed?.error || extraFailed?.error}`)
+      } else {
+        setModalOpen(false)
+        const warning = results.find(r => r.warning)?.warning
+        if (warning) toast.warning(warning)
+        toast.success(
+          selections.length === 1
+            ? `Started ${selections[0].jobNumber} & deducted material`
+            : `Started ${selections.length} jobs & deducted material`
+        )
+      }
+      return
+    }
+
+    // Complete (fallback for jobs started before material selection existed)
+    const completingIds = new Set([...selections.map(s => s.jobId), ...pendingDirectIds])
+    const originalJobs = [...jobs]
+    setJobs(prev => prev.filter(j => !completingIds.has(j.id)))
+
+    const results = await Promise.all([
+      ...selections.map(sel =>
+        transitionJobStatusAction(sel.jobId, 'completed', undefined, undefined, undefined, sel.materialId)
+      ),
+      ...pendingDirectIds.map(id => transitionJobStatusAction(id, 'completed')),
+    ])
+
+    setIsSubmittingModal(false)
+    const failed = results.filter(r => r.error)
+    if (failed.length > 0) {
+      setJobs(originalJobs)
+      toast.error(`Failed to complete job(s): ${failed[0].error}`)
+    } else {
+      applyLocalDeductions(selections)
+      setModalOpen(false)
+      toast.success(
+        completingIds.size === 1
+          ? `Completed job ${selections[0].jobNumber} & updated inventory`
+          : `Completed ${completingIds.size} jobs & updated inventory`
+      )
     }
   }
 
@@ -392,8 +458,13 @@ export function PrintQueueList({
                   {/* ITEMS LIST */}
                   <div className="mt-4 space-y-3">
                     {group.jobs.map((job, idx) => {
-                      const rec = recommendMaterialForJob(job as any, materials)
-                      const matchedMat = rec.recommendedMaterial
+                      const consumption = calculateJobConsumption(
+                        job.width,
+                        job.height,
+                        job.quantity,
+                        job.dimension_unit,
+                        job.product_types?.name
+                      )
 
                       return (
                         <div
@@ -425,13 +496,9 @@ export function PrintQueueList({
                               )}
                               <StatusBadge status={job.status} />
 
-                              {matchedMat && (
-                                <span
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 text-[11px] font-semibold font-mono tabular-nums"
-                                  title={rec.reason}
-                                >
-                                  <Boxes className="w-3 h-3 text-indigo-600" />
-                                  Roll: {matchedMat.name} ({matchedMat.parsed.widthSummary}) • -{rec.consumption.totalAreaM2.toFixed(2)} m²
+                              {job.status === 'in_production' && deductedJobIds.has(job.id) && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                                  Material recorded
                                 </span>
                               )}
                             </div>
@@ -442,7 +509,7 @@ export function PrintQueueList({
                                 <span className="font-semibold text-slate-900 font-mono tabular-nums">
                                   {job.width} × {job.height} {job.dimension_unit || 'cm'}{' '}
                                   <span className="text-slate-400 font-normal">
-                                    ({rec.consumption.widthFt}ft × {rec.consumption.heightFt}ft)
+                                    ({consumption.widthFt}ft × {consumption.heightFt}ft)
                                   </span>
                                 </span>
                               </div>
@@ -453,7 +520,7 @@ export function PrintQueueList({
                               <div>
                                 <span className="text-slate-400 block font-medium">Media Area (m²)</span>
                                 <span className="font-semibold text-slate-900 font-mono tabular-nums">
-                                  {rec.consumption.totalAreaM2.toFixed(2)} m²
+                                  {consumption.totalAreaM2.toFixed(2)} m²
                                 </span>
                               </div>
                               {job.print_room && (
@@ -516,13 +583,14 @@ export function PrintQueueList({
         })}
       </AnimatePresence>
 
-      <CompleteJobMaterialModal
+      <SelectJobMaterialModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        jobsToComplete={jobsPendingCompletion}
+        mode={modalMode}
+        jobs={jobsPendingSelection}
         materials={materials}
-        isSubmitting={isCompletingModal}
-        onConfirm={handleConfirmModalComplete}
+        isSubmitting={isSubmittingModal}
+        onConfirm={handleConfirmSelection}
       />
     </div>
   )

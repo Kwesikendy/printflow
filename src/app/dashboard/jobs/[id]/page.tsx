@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { getDeductedJobIds } from '@/lib/job-materials'
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -55,6 +56,8 @@ export default async function JobDetailPage(props: {
     .select('id, name, unit, roll_width, roll_length, qty_rolls')
     .eq('tenant_id', job.tenant_id)
     .order('name')
+
+  const deductedIds = await getDeductedJobIds(serviceSupabase, [job.id])
 
   let invoice = Array.isArray(job.invoices) ? job.invoices[0] : job.invoices
 
@@ -119,7 +122,7 @@ export default async function JobDetailPage(props: {
           {role === 'admin' && (
             <EditJobModal job={job} role={role} />
           )}
-          <JobActions job={job} role={role} materials={materialsData || []} />
+          <JobActions job={job} role={role} materials={materialsData || []} materialDeducted={deductedIds.length > 0} />
         </div>
       </div>
 
