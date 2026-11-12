@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { PageLoader } from '@/components/ui/EmptyState'
-import { FileText, Users, Package, Clock, Contact2 } from 'lucide-react'
+import { FileText, Users, Package, Clock, Contact2, Flag } from 'lucide-react'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
@@ -70,6 +70,12 @@ export default async function AdminOverviewPage() {
             <Button variant="outline" className="bg-white hover:bg-slate-50 border-slate-200 text-indigo-700 font-bold">
               <Contact2 className="w-4 h-4 mr-2" />
               Clients & Arrears
+            </Button>
+          </Link>
+          <Link href="/print/flagged-invoices" target="_blank">
+            <Button variant="outline" className="bg-white hover:bg-rose-50 border-rose-200 text-rose-700 font-bold">
+              <Flag className="w-4 h-4 mr-2" />
+              Flagged Report
             </Button>
           </Link>
           <Link href="/dashboard/staff-activity">
