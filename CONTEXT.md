@@ -192,6 +192,7 @@ PrintFlow defines 6 system roles in `types/database.ts`:
 - `src/app/print/job-card/[id]/page.tsx`: 80mm thermal receipt ticket for standalone jobs (auto-redirects to group card if grouped).
 - `src/app/print/invoice/[id]/page.tsx`: A4 branded customer invoice with QR tracking, bank details, breakdown, discounts, and payment terms.
 - `src/app/print/finance-report/page.tsx`: Printable shift financial report (total revenue, cash, momo, unpaid balance, expenditures).
+- `src/app/print/flagged-invoices/page.tsx`: Printable audit report for disputed & flagged invoices (reason, auditor, gross value, excluded arrears).
 - `src/app/print/customer-statement/page.tsx`: Comprehensive customer account statement for client billing and debt recovery.
 - `src/app/print/payroll/[runId]/page.tsx`: Printable monthly master payroll sheet.
 - `src/app/print/payslip/[runId]/[employeeId]/page.tsx`: Individual employee payslip print template.

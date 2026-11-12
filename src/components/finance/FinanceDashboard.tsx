@@ -401,22 +401,43 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
           </button>
         </div>
 
-        {/* Print Filtered Report Button */}
-        <Link 
-          href={`/print/finance-report?mode=${filterMode}&day=${selectedDay}`} 
-          target="_blank"
-        >
-          <Button variant="outline" size="sm" className="bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 font-semibold">
-            <Printer className="w-3.5 h-3.5 mr-1.5" />
-            Print Report ({dateLabel})
-          </Button>
-        </Link>
+        {/* Print Filtered Report Buttons */}
+        <div className="flex items-center gap-2">
+          <Link 
+            href={`/print/flagged-invoices?mode=${filterMode}&day=${selectedDay}`} 
+            target="_blank"
+          >
+            <Button variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 font-semibold shadow-2xs">
+              <Flag className="w-3.5 h-3.5 mr-1.5 text-rose-600" />
+              Flagged Report
+            </Button>
+          </Link>
+          <Link 
+            href={`/print/finance-report?mode=${filterMode}&day=${selectedDay}`} 
+            target="_blank"
+          >
+            <Button variant="outline" size="sm" className="bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 font-semibold">
+              <Printer className="w-3.5 h-3.5 mr-1.5" />
+              Print Report ({dateLabel})
+            </Button>
+          </Link>
+        </div>
       </motion.div>
 
       {flaggedInvoiceCount > 0 && !showFlagged && (
-        <motion.div variants={itemVariants} className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-          <Flag className="w-4 h-4 mt-0.5 shrink-0" />
-          <p><strong>{flaggedInvoiceCount} invoice{flaggedInvoiceCount === 1 ? '' : 's'}</strong> marked for review are excluded from this dashboard and printed reports. Use “Showing flagged” to review or restore them.</p>
+        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <div className="flex items-start gap-3">
+            <Flag className="w-4 h-4 mt-0.5 shrink-0 text-rose-600" />
+            <p><strong>{flaggedInvoiceCount} invoice{flaggedInvoiceCount === 1 ? '' : 's'}</strong> marked for review are excluded from this dashboard and printed reports. Use “Showing flagged” to review or restore them.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href={`/print/flagged-invoices?mode=${filterMode}&day=${selectedDay}`} target="_blank">
+              <Button variant="outline" size="sm" className="bg-white hover:bg-rose-100 text-rose-700 border-rose-300 font-semibold text-xs shadow-2xs">
+                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                Print Flagged Report
+              </Button>
+            </Link>
+          </div>
         </motion.div>
       )}
 

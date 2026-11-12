@@ -224,10 +224,20 @@ export function FinanceReportPrint({
           </button>
         </div>
 
-        <Button onClick={handlePrint} variant="primary" className="shadow-md">
-          <Printer className="w-4 h-4 mr-2" />
-          Print Document
-        </Button>
+        <div className="flex items-center gap-2">
+          <a
+            href={`/print/flagged-invoices?mode=${filterMode}&day=${selectedShiftDate}`}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-white border border-rose-200 text-rose-700 hover:bg-rose-50 flex items-center gap-1.5"
+            title="View Flagged & Disputed Invoices Audit Report"
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-600 inline-block" />
+            Flagged Report
+          </a>
+          <Button onClick={handlePrint} variant="primary" className="shadow-md">
+            <Printer className="w-4 h-4 mr-2" />
+            Print Document
+          </Button>
+        </div>
       </div>
 
       {/* Header */}

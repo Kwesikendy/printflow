@@ -2,9 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { FinanceDashboard } from '@/components/finance/FinanceDashboard'
 import { PageLoader } from '@/components/ui/EmptyState'
 import Link from 'next/link'
-import { Printer, Users, Receipt, Contact2 } from 'lucide-react'
+import { Printer, Users, Receipt, Contact2, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-
 import { redirect } from 'next/navigation'
 
 export default async function FinancePage() {
@@ -23,8 +22,6 @@ export default async function FinancePage() {
   }
 
   // Fetch all payments and unpaid invoices for the tenant.
-  // In a real app with large data, we would do the aggregation in SQL or use date filters.
-  
   const [{ data: payments }, { data: unpaidInvoices }, expendituresResult] = await Promise.all([
     supabase
       .from('payments')
@@ -94,6 +91,12 @@ export default async function FinancePage() {
             <Button variant="outline" className="bg-white hover:bg-slate-50 border-slate-200">
               <Receipt className="w-4 h-4 mr-2" />
               Expenditure
+            </Button>
+          </Link>
+          <Link href="/print/flagged-invoices" target="_blank">
+            <Button variant="outline" className="bg-white hover:bg-rose-50 border-rose-200 text-rose-700 font-bold">
+              <Flag className="w-4 h-4 mr-2" />
+              Flagged Report
             </Button>
           </Link>
           <Link href="/print/finance-report" target="_blank">

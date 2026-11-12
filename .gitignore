@@ -46,3 +46,6 @@ next-env.d.ts
 *.service-account.json
 google-service-account*.json
 printflow-backup-*.zip
+
+# local CSV data exports
+*.csv
