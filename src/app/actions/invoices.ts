@@ -2,6 +2,7 @@
 
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { invalidateCustomersDirectoryCache } from './customers'
 
 export async function setInvoiceFlagAction(invoiceId: string, flagged: boolean, reason?: string) {
   const supabase = await createClient()
@@ -49,7 +50,9 @@ export async function setInvoiceFlagAction(invoiceId: string, flagged: boolean, 
     return { error: error.message }
   }
 
+  invalidateCustomersDirectoryCache()
   revalidatePath('/dashboard/finance')
+  revalidatePath('/dashboard/admin/clients')
   revalidatePath('/dashboard/finance/expenditures')
   revalidatePath('/print/finance-report')
   return { success: true }
@@ -127,8 +130,10 @@ export async function editInvoiceTotalAction(invoiceId: string, newTotal: number
     console.error('Error logging invoice edit:', logError)
   }
 
+  invalidateCustomersDirectoryCache()
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/admin')
+  revalidatePath('/dashboard/admin/clients')
   revalidatePath('/dashboard/jobs')
   if (invoice.group_id) revalidatePath(`/dashboard/jobs/group/${invoice.group_id}`)
   if (invoice.job_id) revalidatePath(`/dashboard/jobs/${invoice.job_id}`)
@@ -252,8 +257,10 @@ export async function editInvoiceItemsAction(invoiceId: string, items: any[], re
     reason: reason
   })
 
+  invalidateCustomersDirectoryCache()
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/admin')
+  revalidatePath('/dashboard/admin/clients')
   revalidatePath('/dashboard/jobs')
   if (invoice.group_id) revalidatePath(`/dashboard/jobs/group/${invoice.group_id}`)
   if (invoice.job_id) revalidatePath(`/dashboard/jobs/${invoice.job_id}`)

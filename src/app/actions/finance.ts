@@ -4,6 +4,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { type PaymentMethod } from '@/types/database'
 import { releaseJobGroupAction } from './jobs'
+import { invalidateCustomersDirectoryCache } from './customers'
 
 export interface CustomerTransactionSummary {
   name: string
@@ -34,6 +35,9 @@ export interface CustomerStatementData {
   customerName: string
   customerPhone: string | null
   source: string
+  isConsolidated?: boolean
+  subAccountsCount?: number
+  subAccountNames?: string[]
   summary: {
     totalBilled: number
     totalPaid: number
@@ -283,6 +287,7 @@ export async function getCustomerFinancialStatement(
     customerPhone?: string | null
     fromDate?: string
     toDate?: string
+    consolidated?: boolean
   }
 ): Promise<CustomerStatementData | null> {
   const { tenantId } = await getAuthContext()
@@ -291,32 +296,49 @@ export async function getCustomerFinancialStatement(
 
   if (!trimmedName) return null
 
-  // 1. Fetch matching jobs
-  const { data: jobs, error: jobsErr } = await serviceSupabase
-    .from('jobs')
-    .select(`
-      *,
-      product_types ( name ),
-      profiles ( full_name )
-    `)
-    .eq('tenant_id', tenantId)
-    .ilike('customer_name', `%${trimmedName}%`)
-    .order('created_at', { ascending: false })
+  const isConsolidated = Boolean(options?.consolidated)
 
-  if (jobsErr) {
-    console.error('Error fetching jobs for customer statement:', jobsErr)
+  // 1. Fetch matching jobs, groups, and check for sub-accounts in parallel
+  const [jobsRes, groupsRes, subAccountsRes] = await Promise.all([
+    serviceSupabase
+      .from('jobs')
+      .select(`
+        *,
+        product_types ( name ),
+        profiles ( full_name )
+      `)
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', isConsolidated ? `%${trimmedName}%` : trimmedName)
+      .order('created_at', { ascending: false }),
+    serviceSupabase
+      .from('job_groups')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', isConsolidated ? `%${trimmedName}%` : trimmedName),
+    serviceSupabase
+      .from('jobs')
+      .select('customer_name')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', `%${trimmedName}%`)
+      .limit(200)
+  ])
+
+  if (jobsRes.error) {
+    console.error('Error fetching jobs for customer statement:', jobsRes.error)
     return null
   }
 
-  // 2. Fetch matching job groups
-  const { data: groups } = await serviceSupabase
-    .from('job_groups')
-    .select('*')
-    .eq('tenant_id', tenantId)
-    .ilike('customer_name', `%${trimmedName}%`)
+  // Detect distinct sub-accounts
+  const distinctSubNames = new Set<string>()
+  ;(subAccountsRes.data || []).forEach((j: any) => {
+    const n = (j.customer_name || '').trim()
+    if (n && n.toLowerCase() !== trimmedName.toLowerCase()) {
+      distinctSubNames.add(n)
+    }
+  })
 
-  const rawJobs = (jobs as any[]) || []
-  const rawGroups = (groups as any[]) || []
+  const rawJobs = (jobsRes.data as any[]) || []
+  const rawGroups = (groupsRes.data as any[]) || []
 
   const jobIds = rawJobs.map((j: any) => j.id)
   const groupIds = Array.from(new Set([
@@ -324,65 +346,71 @@ export async function getCustomerFinancialStatement(
     ...rawGroups.map((g: any) => g.id)
   ]))
 
-  // 3. Fetch Invoices in safe chunks
+  // 2. Fetch Invoices in safe chunks in PARALLEL for ultra-fast performance
   let invoices: any[] = []
   const seenInvIds = new Set<string>()
 
   if (jobIds.length > 0 || groupIds.length > 0) {
-    for (const c of chunkArray(jobIds, 40)) {
-      const { data: invData, error: invErr } = await serviceSupabase
-        .from('invoices')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .in('job_id', c)
+    const [jobInvsChunks, grpInvsChunks] = await Promise.all([
+      Promise.all(chunkArray(jobIds, 50).map(c =>
+        serviceSupabase
+          .from('invoices')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .in('job_id', c)
+      )),
+      Promise.all(chunkArray(groupIds, 50).map(c =>
+        serviceSupabase
+          .from('invoices')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .in('group_id', c)
+      ))
+    ])
 
-      if (invErr) console.error('Invoices by job error:', invErr)
-      ;(invData || []).forEach((inv: any) => {
+    jobInvsChunks.forEach((res: any) => {
+      ;(res.data || []).forEach((inv: any) => {
         if (!seenInvIds.has(inv.id)) {
           seenInvIds.add(inv.id)
           invoices.push(inv)
         }
       })
-    }
+    })
 
-    for (const c of chunkArray(groupIds, 40)) {
-      const { data: invData, error: invErr } = await serviceSupabase
-        .from('invoices')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .in('group_id', c)
-
-      if (invErr) console.error('Invoices by group error:', invErr)
-      ;(invData || []).forEach((inv: any) => {
+    grpInvsChunks.forEach((res: any) => {
+      ;(res.data || []).forEach((inv: any) => {
         if (!seenInvIds.has(inv.id)) {
           seenInvIds.add(inv.id)
           invoices.push(inv)
         }
       })
-    }
+    })
 
     invoices.sort((a, b) => new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime())
   }
 
   const invoiceIds = invoices.map(i => i.id)
 
-  // 4. Fetch Payments in safe chunks
+  // 3. Fetch Payments in safe chunks in PARALLEL
   let payments: any[] = []
   if (invoiceIds.length > 0) {
-    for (const c of chunkArray(invoiceIds, 40)) {
-      const { data: payData, error: payErr } = await serviceSupabase
-        .from('payments')
-        .select(`
-          *,
-          profiles ( full_name )
-        `)
-        .eq('tenant_id', tenantId)
-        .in('invoice_id', c)
-        .order('recorded_at', { ascending: false })
+    const payChunks = await Promise.all(
+      chunkArray(invoiceIds, 50).map(c =>
+        serviceSupabase
+          .from('payments')
+          .select(`
+            *,
+            profiles ( full_name )
+          `)
+          .eq('tenant_id', tenantId)
+          .in('invoice_id', c)
+          .order('recorded_at', { ascending: false })
+      )
+    )
 
-      if (payErr) console.error('Payments error:', payErr)
-      payments.push(...(payData || []))
-    }
+    payChunks.forEach((res: any) => {
+      payments.push(...(res.data || []))
+    })
   }
 
   // Calculate invoice paid totals
@@ -506,6 +534,9 @@ export async function getCustomerFinancialStatement(
     customerName: primaryJob?.customer_name || primaryGroup?.customer_name || trimmedName,
     customerPhone: options?.customerPhone || primaryJob?.customer_phone || primaryGroup?.customer_phone || null,
     source: primaryJob?.source || primaryGroup?.source || 'walk_in',
+    isConsolidated,
+    subAccountsCount: distinctSubNames.size,
+    subAccountNames: Array.from(distinctSubNames),
     summary: {
       totalBilled: Math.round(totalBilled * 100) / 100,
       totalPaid: Math.round(totalPaid * 100) / 100,
@@ -536,7 +567,8 @@ export async function settleCustomerBalanceAction({
   method,
   reference,
   notes,
-  releaseToPrintRoom = true
+  releaseToPrintRoom = true,
+  exactMatch = true
 }: {
   customerName: string
   customerPhone?: string | null
@@ -545,6 +577,7 @@ export async function settleCustomerBalanceAction({
   reference?: string
   notes?: string
   releaseToPrintRoom?: boolean
+  exactMatch?: boolean
 }): Promise<{
   success?: boolean
   error?: string
@@ -572,26 +605,26 @@ export async function settleCustomerBalanceAction({
   const supabase = await createClient()
 
   // 1. Fetch all matching jobs for customer in this tenant
-  const { data: jobs, error: jobsErr } = await serviceSupabase
-    .from('jobs')
-    .select('id, group_id, status')
-    .eq('tenant_id', tenantId)
-    .ilike('customer_name', `%${trimmedName}%`)
+  const [jobsRes, groupsRes] = await Promise.all([
+    serviceSupabase
+      .from('jobs')
+      .select('id, group_id, status')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', exactMatch ? trimmedName : `%${trimmedName}%`),
+    serviceSupabase
+      .from('job_groups')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .ilike('customer_name', exactMatch ? trimmedName : `%${trimmedName}%`)
+  ])
 
-  if (jobsErr) {
-    console.error('Error fetching jobs for customer balance settlement:', jobsErr)
+  if (jobsRes.error) {
+    console.error('Error fetching jobs for customer balance settlement:', jobsRes.error)
     return { error: 'Database error fetching customer orders.' }
   }
 
-  // 2. Fetch all matching job groups
-  const { data: groups } = await serviceSupabase
-    .from('job_groups')
-    .select('id')
-    .eq('tenant_id', tenantId)
-    .ilike('customer_name', `%${trimmedName}%`)
-
-  const rawJobs = jobs || []
-  const rawGroups = groups || []
+  const rawJobs = jobsRes.data || []
+  const rawGroups = groupsRes.data || []
 
   const jobIds = rawJobs.map((j: any) => j.id)
   const groupIds = Array.from(new Set([
@@ -603,31 +636,49 @@ export async function settleCustomerBalanceAction({
     return { error: 'No orders or invoices found for this customer.' }
   }
 
-  // 3. Fetch all invoices for this customer (do NOT filter by status != 'paid' in SQL,
-  // because an invoice's status column can be out of sync with its actual total - sum(payments))
-  let invQuery = serviceSupabase
-    .from('invoices')
-    .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
-    .eq('tenant_id', tenantId)
+  // 2. Fetch all invoices for this customer in safe parallel chunks
+  const [jobInvsChunks, grpInvsChunks] = await Promise.all([
+    Promise.all(chunkArray(jobIds, 50).map(c =>
+      serviceSupabase
+        .from('invoices')
+        .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
+        .eq('tenant_id', tenantId)
+        .in('job_id', c)
+    )),
+    Promise.all(chunkArray(groupIds, 50).map(c =>
+      serviceSupabase
+        .from('invoices')
+        .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
+        .eq('tenant_id', tenantId)
+        .in('group_id', c)
+    ))
+  ])
 
-  if (jobIds.length > 0 && groupIds.length > 0) {
-    invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
-  } else if (jobIds.length > 0) {
-    invQuery = invQuery.in('job_id', jobIds)
-  } else {
-    invQuery = invQuery.in('group_id', groupIds)
-  }
+  const seenCandidateIds = new Set<string>()
+  const allCustomerInvoices: any[] = []
 
-  const { data: allCustomerInvoices, error: invErr } = await invQuery.order('issued_at', { ascending: true })
+  jobInvsChunks.forEach((res: any) => {
+    ;(res.data || []).forEach((inv: any) => {
+      if (!seenCandidateIds.has(inv.id)) {
+        seenCandidateIds.add(inv.id)
+        allCustomerInvoices.push(inv)
+      }
+    })
+  })
+  grpInvsChunks.forEach((res: any) => {
+    ;(res.data || []).forEach((inv: any) => {
+      if (!seenCandidateIds.has(inv.id)) {
+        seenCandidateIds.add(inv.id)
+        allCustomerInvoices.push(inv)
+      }
+    })
+  })
 
-  if (invErr) {
-    console.error('Error fetching customer invoices:', invErr)
-    return { error: 'Failed to fetch customer invoices.' }
-  }
+  allCustomerInvoices.sort((a, b) => new Date(a.issued_at).getTime() - new Date(b.issued_at).getTime())
 
   // Filter out flagged invoices and invoices whose jobs are all cancelled
   const cancelledJobIds = new Set(rawJobs.filter((j: any) => j.status === 'cancelled').map((j: any) => j.id))
-  const candidateInvoices: any[] = ((allCustomerInvoices as any[]) || []).filter((inv: any) => {
+  const candidateInvoices: any[] = allCustomerInvoices.filter((inv: any) => {
     if (inv.is_flagged) return false
     if (inv.job_id && cancelledJobIds.has(inv.job_id)) return false
     if (inv.group_id) {
@@ -642,16 +693,22 @@ export async function settleCustomerBalanceAction({
     return { error: 'This customer has zero outstanding unpaid invoices.' }
   }
 
-  // 4. Fetch all payments for these invoices to calculate exact balance_due per invoice
-  const { data: payData } = await serviceSupabase
-    .from('payments')
-    .select('invoice_id, amount')
-    .eq('tenant_id', tenantId)
-    .in('invoice_id', invoiceIds)
+  // 3. Fetch all payments for these invoices in parallel chunks
+  const payChunks = await Promise.all(
+    chunkArray(invoiceIds, 50).map(c =>
+      serviceSupabase
+        .from('payments')
+        .select('invoice_id, amount')
+        .eq('tenant_id', tenantId)
+        .in('invoice_id', c)
+    )
+  )
 
   const paidPerInvoice = new Map<string, number>()
-  ;(payData || []).forEach((p: any) => {
-    paidPerInvoice.set(p.invoice_id, (paidPerInvoice.get(p.invoice_id) || 0) + Number(p.amount))
+  payChunks.forEach((res: any) => {
+    ;(res.data || []).forEach((p: any) => {
+      paidPerInvoice.set(p.invoice_id, (paidPerInvoice.get(p.invoice_id) || 0) + Number(p.amount))
+    })
   })
 
   // Auto-heal any invoice whose status is 'unpaid'/'partial' even though balance_due <= 0
@@ -837,6 +894,8 @@ export async function settleCustomerBalanceAction({
     settledCount++
   }
 
+  invalidateCustomersDirectoryCache(tenantId)
+  revalidatePath('/dashboard/admin/clients')
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
   revalidatePath('/dashboard/queue')
@@ -881,36 +940,39 @@ export interface CustomerArrearsSummary {
  */
 export async function getCustomerArrearsAction(
   customerName: string,
-  currentInvoiceId?: string
+  currentInvoiceId?: string,
+  options?: { exactMatch?: boolean }
 ): Promise<CustomerArrearsSummary | null> {
   const trimmed = customerName?.trim()
   if (!trimmed) return null
+
+  const exact = options?.exactMatch ?? true
 
   try {
     const { tenantId } = await getAuthContext()
     const serviceSupabase = createServiceClient()
 
-    // 1. Fetch matching jobs
-    const { data: jobs, error: jobsErr } = await serviceSupabase
-      .from('jobs')
-      .select('id, group_id, customer_phone, status')
-      .eq('tenant_id', tenantId)
-      .ilike('customer_name', `%${trimmed}%`)
+    // 1. Fetch matching jobs and groups in parallel
+    const [jobsRes, groupsRes] = await Promise.all([
+      serviceSupabase
+        .from('jobs')
+        .select('id, group_id, customer_phone, status')
+        .eq('tenant_id', tenantId)
+        .ilike('customer_name', exact ? trimmed : `%${trimmed}%`),
+      serviceSupabase
+        .from('job_groups')
+        .select('id, customer_phone')
+        .eq('tenant_id', tenantId)
+        .ilike('customer_name', exact ? trimmed : `%${trimmed}%`)
+    ])
 
-    if (jobsErr) {
-      console.error('Error fetching jobs for customer arrears:', jobsErr)
+    if (jobsRes.error) {
+      console.error('Error fetching jobs for customer arrears:', jobsRes.error)
       return null
     }
 
-    // 2. Fetch matching job groups
-    const { data: groups } = await serviceSupabase
-      .from('job_groups')
-      .select('id, customer_phone')
-      .eq('tenant_id', tenantId)
-      .ilike('customer_name', `%${trimmed}%`)
-
-    const rawJobs = (jobs as any[]) || []
-    const rawGroups = (groups as any[]) || []
+    const rawJobs = (jobsRes.data as any[]) || []
+    const rawGroups = (groupsRes.data as any[]) || []
 
     const jobIds = rawJobs.map((j: any) => j.id)
     const groupIds = Array.from(new Set([
@@ -930,28 +992,48 @@ export async function getCustomerArrearsAction(
       }
     }
 
-    // 3. Fetch all invoices for this customer and compute balance_due from actual payments
-    let invQuery = serviceSupabase
-      .from('invoices')
-      .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
-      .eq('tenant_id', tenantId)
+    // 2. Fetch all invoices in safe parallel chunks
+    const [jobInvsChunks, grpInvsChunks] = await Promise.all([
+      Promise.all(chunkArray(jobIds, 50).map(c =>
+        serviceSupabase
+          .from('invoices')
+          .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
+          .eq('tenant_id', tenantId)
+          .in('job_id', c)
+      )),
+      Promise.all(chunkArray(groupIds, 50).map(c =>
+        serviceSupabase
+          .from('invoices')
+          .select('id, invoice_number, total, status, is_flagged, issued_at, job_id, group_id')
+          .eq('tenant_id', tenantId)
+          .in('group_id', c)
+      ))
+    ])
 
-    if (jobIds.length > 0 && groupIds.length > 0) {
-      invQuery = invQuery.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
-    } else if (jobIds.length > 0) {
-      invQuery = invQuery.in('job_id', jobIds)
-    } else {
-      invQuery = invQuery.in('group_id', groupIds)
-    }
+    const seenIds = new Set<string>()
+    const allInvoices: any[] = []
 
-    const { data: invData, error: invErr } = await invQuery.order('issued_at', { ascending: true })
-    if (invErr) {
-      console.error('Error fetching unpaid invoices for customer arrears:', invErr)
-      return null
-    }
+    jobInvsChunks.forEach((res: any) => {
+      ;(res.data || []).forEach((inv: any) => {
+        if (!seenIds.has(inv.id)) {
+          seenIds.add(inv.id)
+          allInvoices.push(inv)
+        }
+      })
+    })
+    grpInvsChunks.forEach((res: any) => {
+      ;(res.data || []).forEach((inv: any) => {
+        if (!seenIds.has(inv.id)) {
+          seenIds.add(inv.id)
+          allInvoices.push(inv)
+        }
+      })
+    })
+
+    allInvoices.sort((a, b) => new Date(a.issued_at).getTime() - new Date(b.issued_at).getTime())
 
     const cancelledJobIds = new Set(rawJobs.filter((j: any) => j.status === 'cancelled').map((j: any) => j.id))
-    const invoices = (invData || []).filter((inv: any) => {
+    const invoices = allInvoices.filter((inv: any) => {
       if (inv.is_flagged) return false
       if (inv.job_id && cancelledJobIds.has(inv.job_id)) return false
       if (inv.group_id) {
@@ -975,16 +1057,22 @@ export async function getCustomerArrearsAction(
 
     const invoiceIds = invoices.map((i: any) => i.id)
 
-    // 4. Fetch payments
-    const { data: payData } = await serviceSupabase
-      .from('payments')
-      .select('invoice_id, amount')
-      .eq('tenant_id', tenantId)
-      .in('invoice_id', invoiceIds)
+    // 3. Fetch payments in parallel chunks
+    const payChunks = await Promise.all(
+      chunkArray(invoiceIds, 50).map(c =>
+        serviceSupabase
+          .from('payments')
+          .select('invoice_id, amount')
+          .eq('tenant_id', tenantId)
+          .in('invoice_id', c)
+      )
+    )
 
     const paidMap = new Map<string, number>()
-    ;(payData || []).forEach((p: any) => {
-      paidMap.set(p.invoice_id, (paidMap.get(p.invoice_id) || 0) + Number(p.amount))
+    payChunks.forEach((res: any) => {
+      ;(res.data || []).forEach((p: any) => {
+        paidMap.set(p.invoice_id, (paidMap.get(p.invoice_id) || 0) + Number(p.amount))
+      })
     })
 
     // 5. Calculate balance_due per invoice

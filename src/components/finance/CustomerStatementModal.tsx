@@ -39,6 +39,7 @@ export function CustomerStatementModal({
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'ledger' | 'invoices' | 'payments' | 'jobs'>('ledger')
   const [dateFilter, setDateFilter] = useState<'all' | 'this_month' | 'last_month' | 'this_year'>('all')
+  const [isConsolidated, setIsConsolidated] = useState(false)
   const [isSettleModalOpen, setIsSettleModalOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -65,7 +66,8 @@ export function CustomerStatementModal({
         const data = await getCustomerFinancialStatement(customerName, {
           customerPhone,
           fromDate,
-          toDate
+          toDate,
+          consolidated: isConsolidated
         })
         setStatement(data)
       } catch (err) {
@@ -76,22 +78,23 @@ export function CustomerStatementModal({
     })
   }
 
-  // Load statement data whenever customerName or dateFilter changes
+  // Load statement data whenever customerName, dateFilter, or isConsolidated changes
   useEffect(() => {
     if (!isOpen || !customerName) {
       setStatement(null)
+      setIsConsolidated(false)
       return
     }
 
     fetchStatementData()
-  }, [isOpen, customerName, customerPhone, dateFilter])
+  }, [isOpen, customerName, customerPhone, dateFilter, isConsolidated])
 
   if (!isOpen || !customerName) return null
 
   const hasOutstanding = (statement?.summary?.balance ?? 0) > 0.05
   const printUrl = `/print/customer-statement?customer=${encodeURIComponent(customerName)}${
     customerPhone ? `&phone=${encodeURIComponent(customerPhone)}` : ''
-  }${dateFilter !== 'all' ? `&period=${dateFilter}` : ''}`
+  }${dateFilter !== 'all' ? `&period=${dateFilter}` : ''}${isConsolidated ? '&consolidated=1' : ''}`
 
   return (
     <AnimatePresence>
@@ -216,6 +219,46 @@ export function CustomerStatementModal({
               )}
             </div>
           </div>
+
+          {/* Sub-Accounts / Consolidated Mode Banner */}
+          {((statement?.subAccountsCount && statement.subAccountsCount > 0) || isConsolidated) && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50/80 border-b border-indigo-100 text-xs text-indigo-950">
+              <div className="flex items-center gap-2">
+                <span className="font-bold inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-700">
+                  {isConsolidated ? '🏢 Consolidated Agency View' : '👤 Exact Account View'}
+                </span>
+                <span className="text-slate-600">
+                  {isConsolidated
+                    ? `Aggregating ${statement?.summary?.jobsCount || 0} orders across all branches & contacts under this client.`
+                    : `Showing only orders billed strictly to "${customerName}". (${statement?.subAccountsCount} sub-branches detected).`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsConsolidated(false)}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    !isConsolidated
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white text-indigo-700 hover:bg-indigo-100/50 border border-indigo-200'
+                  }`}
+                >
+                  This Account Only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsConsolidated(true)}
+                  className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                    isConsolidated
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'bg-white text-indigo-700 hover:bg-indigo-100/50 border border-indigo-200'
+                  }`}
+                >
+                  Consolidated ({statement?.subAccountsCount ? `${statement.subAccountsCount + 1} Branches` : 'All Branches'})
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Body Content */}
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">

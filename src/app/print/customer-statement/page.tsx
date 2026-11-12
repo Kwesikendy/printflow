@@ -13,6 +13,7 @@ interface PageProps {
     customer?: string
     phone?: string
     period?: string
+    consolidated?: string
   }>
 }
 
@@ -21,6 +22,7 @@ export default async function PrintCustomerStatementPage(props: PageProps) {
   const customerName = searchParams.customer?.trim()
   const customerPhone = searchParams.phone?.trim()
   const period = searchParams.period?.trim() || 'all'
+  const isConsolidated = searchParams.consolidated === '1'
 
   if (!customerName) {
     return <div className="p-8 text-center text-slate-500">Please provide a customer name to print their statement.</div>
@@ -68,7 +70,8 @@ export default async function PrintCustomerStatementPage(props: PageProps) {
   const statement = await getCustomerFinancialStatement(customerName, {
     customerPhone,
     fromDate,
-    toDate
+    toDate,
+    consolidated: isConsolidated
   })
 
   if (!statement) {

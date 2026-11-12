@@ -9,6 +9,7 @@ import { isPocketOrFinishingProduct } from '@/lib/utils'
 import { getWorkdayBounds } from '@/lib/workday'
 import { calculateJobConsumption, parseRollDimensions, recommendMaterialForJob } from '@/lib/material-matching'
 import { deleteFromR2 } from '@/lib/r2'
+import { invalidateCustomersDirectoryCache } from './customers'
 
 export async function ensureWorkdaySequenceReset(supabase: any, tenantId: string) {
   try {
@@ -1570,6 +1571,7 @@ export async function deletePaymentAction(paymentId: string, reason?: string): P
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
   revalidatePath('/dashboard/admin/clients')
+  invalidateCustomersDirectoryCache()
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
 
   return { success: true }
@@ -1630,6 +1632,7 @@ export async function editPaymentAction(
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
   revalidatePath('/dashboard/admin/clients')
+  invalidateCustomersDirectoryCache()
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
 
   return { success: true }
@@ -1702,6 +1705,7 @@ export async function movePaymentToInvoiceAction(
   revalidatePath('/dashboard/finance')
   revalidatePath('/dashboard/jobs')
   revalidatePath('/dashboard/admin/clients')
+  invalidateCustomersDirectoryCache()
   if (payment.job_id) revalidatePath(`/dashboard/jobs/${payment.job_id}`)
   if (targetInv.job_id) revalidatePath(`/dashboard/jobs/${targetInv.job_id}`)
 

@@ -411,6 +411,7 @@ export async function createClientOrLegacyDebtAction(input: AddClientInput): Pro
         notes: `Historical debt record created by ${role}: ${notesText}`
       })
 
+      invalidateCustomersDirectoryCache(tenantId)
       revalidatePath('/dashboard/admin')
       revalidatePath('/dashboard/admin/clients')
       revalidatePath('/dashboard/finance')
@@ -428,6 +429,7 @@ export async function createClientOrLegacyDebtAction(input: AddClientInput): Pro
       }
     }
 
+    invalidateCustomersDirectoryCache(tenantId)
     revalidatePath('/dashboard/admin')
     revalidatePath('/dashboard/admin/clients')
     revalidatePath('/dashboard/finance')
@@ -445,6 +447,56 @@ export async function createClientOrLegacyDebtAction(input: AddClientInput): Pro
   }
 }
 
+// In-memory cache for compiled customer directory to make navigation and filtering instantaneous
+interface CachedDirectory {
+  compiledList: CustomerWithBalance[]
+  summary: {
+    totalClients: number
+    clientsOwing: number
+    totalArrears: number
+    clientsSettled: number
+  }
+  timestamp: number
+}
+
+const directoryCache = new Map<string, CachedDirectory>()
+const DIRECTORY_CACHE_TTL = 45 * 1000 // 45 seconds TTL
+
+export async function invalidateCustomersDirectoryCache(tenantId?: string) {
+  if (tenantId) {
+    directoryCache.delete(tenantId)
+  } else {
+    directoryCache.clear()
+  }
+}
+
+/**
+ * Paginates through PostgREST 1,000-row limits to guarantee 100% data completeness
+ */
+async function fetchAllRows(
+  serviceSupabase: any,
+  table: string,
+  selectFields: string,
+  tenantId: string
+): Promise<any[]> {
+  let allRows: any[] = []
+  let page = 0
+  const pageSize = 1000
+  while (true) {
+    const { data, error } = await serviceSupabase
+      .from(table)
+      .select(selectFields)
+      .eq('tenant_id', tenantId)
+      .range(page * pageSize, (page + 1) * pageSize - 1)
+
+    if (error || !data || data.length === 0) break
+    allRows.push(...data)
+    if (data.length < pageSize) break
+    page++
+  }
+  return allRows
+}
+
 /**
  * Fetches the entire clients directory with aggregated balances, invoices, and debt metrics.
  * Powers the Clients & Arrears page for Admin & Accountant.
@@ -452,224 +504,233 @@ export async function createClientOrLegacyDebtAction(input: AddClientInput): Pro
 export async function getCustomersDirectoryAction(options?: {
   query?: string
   filter?: 'all' | 'owing' | 'settled'
+  forceRefresh?: boolean
 }): Promise<CustomerDirectoryResult> {
   const { tenantId } = await getAuthContext()
   const serviceSupabase = createServiceClient() as any
   const q = options?.query?.trim().toLowerCase() || ''
   const filter = options?.filter || 'all'
 
-  // Run all 5 queries in parallel for high performance
-  const [
-    custRes,
-    jobsRes,
-    groupsRes,
-    invoicesRes,
-    paymentsRes
-  ] = await Promise.all([
-    serviceSupabase
-      .from('customers')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false }),
-    serviceSupabase
-      .from('jobs')
-      .select('id, group_id, customer_name, customer_phone, source, status, line_total, created_at')
-      .eq('tenant_id', tenantId),
-    serviceSupabase
-      .from('job_groups')
-      .select('id, customer_name, customer_phone, source, created_at')
-      .eq('tenant_id', tenantId),
-    serviceSupabase
-      .from('invoices')
-      .select('id, job_id, group_id, invoice_number, total, status, is_flagged, issued_at')
-      .eq('tenant_id', tenantId),
-    serviceSupabase
-      .from('payments')
-      .select('id, invoice_id, amount')
-      .eq('tenant_id', tenantId)
-  ])
+  let masterList: CustomerWithBalance[] = []
+  let masterSummary: { totalClients: number; clientsOwing: number; totalArrears: number; clientsSettled: number }
 
-  const registeredCustomers = custRes.data || []
-  const allJobs = jobsRes.data || []
-  const allGroups = groupsRes.data || []
-  const allInvoices = invoicesRes.data || []
-  const allPayments = paymentsRes.data || []
+  const cached = directoryCache.get(tenantId)
+  if (!options?.forceRefresh && cached && Date.now() - cached.timestamp < DIRECTORY_CACHE_TTL) {
+    masterList = cached.compiledList
+    masterSummary = cached.summary
+  } else {
+    // Run all pagination queries in parallel for maximum speed and complete data
+    const [
+      custRes,
+      allJobs,
+      allGroups,
+      allInvoices,
+      allPayments
+    ] = await Promise.all([
+      serviceSupabase
+        .from('customers')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false }),
+      fetchAllRows(serviceSupabase, 'jobs', 'id, group_id, customer_name, customer_phone, source, status, line_total, created_at', tenantId),
+      fetchAllRows(serviceSupabase, 'job_groups', 'id, customer_name, customer_phone, source, created_at', tenantId),
+      fetchAllRows(serviceSupabase, 'invoices', 'id, job_id, group_id, invoice_number, total, status, is_flagged, issued_at', tenantId),
+      fetchAllRows(serviceSupabase, 'payments', 'id, invoice_id, amount', tenantId)
+    ])
 
-  // Map payments per invoice
-  const paymentsByInvoice = new Map<string, number>()
-  ;(allPayments || []).forEach((p: any) => {
-    paymentsByInvoice.set(p.invoice_id, (paymentsByInvoice.get(p.invoice_id) || 0) + Number(p.amount))
-  })
+    const registeredCustomers = custRes.data || []
 
-  // Map invoices by job_id and group_id
-  const invoicesByJobId = new Map<string, any[]>()
-  const invoicesByGroupId = new Map<string, any[]>()
-  ;(allInvoices || []).forEach((inv: any) => {
-    if (inv.job_id) {
-      if (!invoicesByJobId.has(inv.job_id)) invoicesByJobId.set(inv.job_id, [])
-      invoicesByJobId.get(inv.job_id)!.push(inv)
-    }
-    if (inv.group_id) {
-      if (!invoicesByGroupId.has(inv.group_id)) invoicesByGroupId.set(inv.group_id, [])
-      invoicesByGroupId.get(inv.group_id)!.push(inv)
-    }
-  })
-
-  // Aggregate master customer directory
-  const customerMap = new Map<string, {
-    id: string
-    name: string
-    phone: string | null
-    email: string | null
-    source: 'walk_in' | 'marketing'
-    jobIds: Set<string>
-    groupIds: Set<string>
-    lastDate: string | null
-    created_at: string
-  }>()
-
-  // First seed from customers table
-  ;(registeredCustomers || []).forEach((c: any) => {
-    const trimmed = (c.name || '').trim()
-    if (!trimmed) return
-    const key = trimmed.toLowerCase()
-    customerMap.set(key, {
-      id: c.id,
-      name: trimmed,
-      phone: c.phone || null,
-      email: c.email || null,
-      source: 'walk_in',
-      jobIds: new Set(),
-      groupIds: new Set(),
-      lastDate: c.created_at || null,
-      created_at: c.created_at || new Date().toISOString()
+    // Map payments per invoice
+    const paymentsByInvoice = new Map<string, number>()
+    ;(allPayments || []).forEach((p: any) => {
+      paymentsByInvoice.set(p.invoice_id, (paymentsByInvoice.get(p.invoice_id) || 0) + Number(p.amount))
     })
-  })
 
-  // Incorporate jobs
-  ;(allJobs || []).forEach((j: any) => {
-    const trimmed = (j.customer_name || '').trim()
-    if (!trimmed) return
-    const key = trimmed.toLowerCase()
+    // Map invoices by job_id and group_id
+    const invoicesByJobId = new Map<string, any[]>()
+    const invoicesByGroupId = new Map<string, any[]>()
+    ;(allInvoices || []).forEach((inv: any) => {
+      if (inv.job_id) {
+        if (!invoicesByJobId.has(inv.job_id)) invoicesByJobId.set(inv.job_id, [])
+        invoicesByJobId.get(inv.job_id)!.push(inv)
+      }
+      if (inv.group_id) {
+        if (!invoicesByGroupId.has(inv.group_id)) invoicesByGroupId.set(inv.group_id, [])
+        invoicesByGroupId.get(inv.group_id)!.push(inv)
+      }
+    })
 
-    if (!customerMap.has(key)) {
+    // Aggregate master customer directory
+    const customerMap = new Map<string, {
+      id: string
+      name: string
+      phone: string | null
+      email: string | null
+      source: 'walk_in' | 'marketing'
+      jobIds: Set<string>
+      groupIds: Set<string>
+      lastDate: string | null
+      created_at: string
+    }>()
+
+    // First seed from customers table
+    ;(registeredCustomers || []).forEach((c: any) => {
+      const trimmed = (c.name || '').trim()
+      if (!trimmed) return
+      const key = trimmed.toLowerCase()
       customerMap.set(key, {
-        id: 'job-cust-' + j.id,
+        id: c.id,
         name: trimmed,
-        phone: j.customer_phone || null,
-        email: null,
-        source: (j.source as any) || 'walk_in',
+        phone: c.phone || null,
+        email: c.email || null,
+        source: 'walk_in',
         jobIds: new Set(),
         groupIds: new Set(),
-        lastDate: j.created_at || null,
-        created_at: j.created_at || new Date().toISOString()
-      })
-    }
-
-    const entry = customerMap.get(key)!
-    if (j.id) entry.jobIds.add(j.id)
-    if (j.group_id) entry.groupIds.add(j.group_id)
-    if (!entry.phone && j.customer_phone) entry.phone = j.customer_phone
-    if (j.source === 'marketing') entry.source = 'marketing'
-    if (j.created_at && (!entry.lastDate || new Date(j.created_at) > new Date(entry.lastDate))) {
-      entry.lastDate = j.created_at
-    }
-  })
-
-  // Incorporate groups
-  ;(allGroups || []).forEach((g: any) => {
-    const trimmed = (g.customer_name || '').trim()
-    if (!trimmed) return
-    const key = trimmed.toLowerCase()
-
-    if (!customerMap.has(key)) {
-      customerMap.set(key, {
-        id: 'grp-cust-' + g.id,
-        name: trimmed,
-        phone: g.customer_phone || null,
-        email: null,
-        source: (g.source as any) || 'walk_in',
-        jobIds: new Set(),
-        groupIds: new Set(),
-        lastDate: g.created_at || null,
-        created_at: g.created_at || new Date().toISOString()
-      })
-    }
-
-    const entry = customerMap.get(key)!
-    if (g.id) entry.groupIds.add(g.id)
-    if (!entry.phone && g.customer_phone) entry.phone = g.customer_phone
-    if (g.source === 'marketing') entry.source = 'marketing'
-    if (g.created_at && (!entry.lastDate || new Date(g.created_at) > new Date(entry.lastDate))) {
-      entry.lastDate = g.created_at
-    }
-  })
-
-  // Calculate balances for each customer
-  const compiledList: CustomerWithBalance[] = []
-  let totalArrearsSum = 0
-  let owingCount = 0
-  let settledCount = 0
-
-  customerMap.forEach(entry => {
-    // Find unique invoices associated with this customer
-    const invoiceIdsSeen = new Set<string>()
-    let totalInvoiced = 0
-    let totalPaid = 0
-
-    entry.jobIds.forEach(jId => {
-      const invs = invoicesByJobId.get(jId) || []
-      invs.forEach(inv => {
-        if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
-          invoiceIdsSeen.add(inv.id)
-          totalInvoiced += Number(inv.total || 0)
-          totalPaid += paymentsByInvoice.get(inv.id) || 0
-        }
+        lastDate: c.created_at || null,
+        created_at: c.created_at || new Date().toISOString()
       })
     })
 
-    entry.groupIds.forEach(gId => {
-      const invs = invoicesByGroupId.get(gId) || []
-      invs.forEach(inv => {
-        if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
-          invoiceIdsSeen.add(inv.id)
-          totalInvoiced += Number(inv.total || 0)
-          totalPaid += paymentsByInvoice.get(inv.id) || 0
-        }
+    // Incorporate jobs
+    ;(allJobs || []).forEach((j: any) => {
+      const trimmed = (j.customer_name || '').trim()
+      if (!trimmed) return
+      const key = trimmed.toLowerCase()
+
+      if (!customerMap.has(key)) {
+        customerMap.set(key, {
+          id: 'job-cust-' + j.id,
+          name: trimmed,
+          phone: j.customer_phone || null,
+          email: null,
+          source: (j.source as any) || 'walk_in',
+          jobIds: new Set(),
+          groupIds: new Set(),
+          lastDate: j.created_at || null,
+          created_at: j.created_at || new Date().toISOString()
+        })
+      }
+
+      const entry = customerMap.get(key)!
+      if (j.id) entry.jobIds.add(j.id)
+      if (j.group_id) entry.groupIds.add(j.group_id)
+      if (!entry.phone && j.customer_phone) entry.phone = j.customer_phone
+      if (j.source === 'marketing') entry.source = 'marketing'
+      if (j.created_at && (!entry.lastDate || new Date(j.created_at) > new Date(entry.lastDate))) {
+        entry.lastDate = j.created_at
+      }
+    })
+
+    // Incorporate groups
+    ;(allGroups || []).forEach((g: any) => {
+      const trimmed = (g.customer_name || '').trim()
+      if (!trimmed) return
+      const key = trimmed.toLowerCase()
+
+      if (!customerMap.has(key)) {
+        customerMap.set(key, {
+          id: 'grp-cust-' + g.id,
+          name: trimmed,
+          phone: g.customer_phone || null,
+          email: null,
+          source: (g.source as any) || 'walk_in',
+          jobIds: new Set(),
+          groupIds: new Set(),
+          lastDate: g.created_at || null,
+          created_at: g.created_at || new Date().toISOString()
+        })
+      }
+
+      const entry = customerMap.get(key)!
+      if (g.id) entry.groupIds.add(g.id)
+      if (!entry.phone && g.customer_phone) entry.phone = g.customer_phone
+      if (g.source === 'marketing') entry.source = 'marketing'
+      if (g.created_at && (!entry.lastDate || new Date(g.created_at) > new Date(entry.lastDate))) {
+        entry.lastDate = g.created_at
+      }
+    })
+
+    // Calculate balances for each customer
+    const compiledList: CustomerWithBalance[] = []
+    let totalArrearsSum = 0
+    let owingCount = 0
+    let settledCount = 0
+
+    customerMap.forEach(entry => {
+      // Find unique invoices associated with this customer
+      const invoiceIdsSeen = new Set<string>()
+      let totalInvoiced = 0
+      let totalPaid = 0
+
+      entry.jobIds.forEach(jId => {
+        const invs = invoicesByJobId.get(jId) || []
+        invs.forEach(inv => {
+          if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
+            invoiceIdsSeen.add(inv.id)
+            totalInvoiced += Number(inv.total || 0)
+            totalPaid += paymentsByInvoice.get(inv.id) || 0
+          }
+        })
+      })
+
+      entry.groupIds.forEach(gId => {
+        const invs = invoicesByGroupId.get(gId) || []
+        invs.forEach(inv => {
+          if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
+            invoiceIdsSeen.add(inv.id)
+            totalInvoiced += Number(inv.total || 0)
+            totalPaid += paymentsByInvoice.get(inv.id) || 0
+          }
+        })
+      })
+
+      const balance = Math.max(0, Math.round((totalInvoiced - totalPaid) * 100) / 100)
+      const hasArrears = balance > 0.05
+
+      if (hasArrears) {
+        totalArrearsSum += balance
+        owingCount++
+      } else {
+        settledCount++
+      }
+
+      compiledList.push({
+        id: entry.id,
+        name: entry.name,
+        phone: entry.phone,
+        email: entry.email,
+        source: entry.source,
+        totalJobs: entry.jobIds.size,
+        totalInvoiced: Math.round(totalInvoiced * 100) / 100,
+        totalPaid: Math.round(totalPaid * 100) / 100,
+        balance,
+        lastTransactionDate: entry.lastDate,
+        created_at: entry.created_at,
+        hasArrears
       })
     })
 
-    const balance = Math.max(0, Math.round((totalInvoiced - totalPaid) * 100) / 100)
-    const hasArrears = balance > 0.05
-
-    if (hasArrears) {
-      totalArrearsSum += balance
-      owingCount++
-    } else {
-      settledCount++
+    masterList = compiledList
+    masterSummary = {
+      totalClients: compiledList.length,
+      clientsOwing: owingCount,
+      totalArrears: Math.round(totalArrearsSum * 100) / 100,
+      clientsSettled: settledCount
     }
 
-    compiledList.push({
-      id: entry.id,
-      name: entry.name,
-      phone: entry.phone,
-      email: entry.email,
-      source: entry.source,
-      totalJobs: entry.jobIds.size,
-      totalInvoiced: Math.round(totalInvoiced * 100) / 100,
-      totalPaid: Math.round(totalPaid * 100) / 100,
-      balance,
-      lastTransactionDate: entry.lastDate,
-      created_at: entry.created_at,
-      hasArrears
+    // Save to cache
+    directoryCache.set(tenantId, {
+      compiledList: masterList,
+      summary: masterSummary,
+      timestamp: Date.now()
     })
-  })
+  }
 
   // Filter and search
-  let filtered = compiledList
+  let filtered = [...masterList]
 
   if (q) {
-    filtered = filtered.filter(c => 
+    filtered = filtered.filter((c: CustomerWithBalance) => 
       c.name.toLowerCase().includes(q) || 
       (c.phone && c.phone.includes(q)) ||
       (c.email && c.email.toLowerCase().includes(q))
@@ -677,13 +738,13 @@ export async function getCustomersDirectoryAction(options?: {
   }
 
   if (filter === 'owing') {
-    filtered = filtered.filter(c => c.hasArrears)
+    filtered = filtered.filter((c: CustomerWithBalance) => c.hasArrears)
   } else if (filter === 'settled') {
-    filtered = filtered.filter(c => !c.hasArrears)
+    filtered = filtered.filter((c: CustomerWithBalance) => !c.hasArrears)
   }
 
   // Sort: owing clients with highest balance first, then by recent transaction
-  filtered.sort((a, b) => {
+  filtered.sort((a: CustomerWithBalance, b: CustomerWithBalance) => {
     if (a.balance !== b.balance) {
       return b.balance - a.balance
     }
@@ -694,11 +755,6 @@ export async function getCustomersDirectoryAction(options?: {
 
   return {
     customers: filtered,
-    summary: {
-      totalClients: compiledList.length,
-      clientsOwing: owingCount,
-      totalArrears: Math.round(totalArrearsSum * 100) / 100,
-      clientsSettled: settledCount
-    }
+    summary: masterSummary
   }
 }

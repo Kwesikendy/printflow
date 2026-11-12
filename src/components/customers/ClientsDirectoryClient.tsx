@@ -62,7 +62,7 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
   const reloadData = () => {
     startTransition(async () => {
       try {
-        const refreshed = await getCustomersDirectoryAction()
+        const refreshed = await getCustomersDirectoryAction({ forceRefresh: true })
         setData(refreshed)
       } catch (err) {
         console.error('Failed to refresh customers directory:', err)
