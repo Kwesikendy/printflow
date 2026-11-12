@@ -157,20 +157,26 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
       .reduce((sum, p) => sum + Number(p.amount), 0)
   }, [payments, shiftBounds])
 
+  // Invoices eligible for financial balance and debtor calculations (ALWAYS excluding flagged invoices)
+  const validUnflaggedInvoices = useMemo(
+    () => invoiceCandidates.filter(inv => !inv.is_flagged),
+    [invoiceCandidates]
+  )
+
   // Correctly compute outstanding balance (total minus payments made)
   const outstandingTotal = useMemo(() => {
-    return filteredInvoices.reduce((sum, inv) => {
+    return validUnflaggedInvoices.reduce((sum, inv) => {
       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
       const balance = Math.max(0, Number(inv.total) - paid)
       return sum + balance
     }, 0)
-  }, [filteredInvoices])
+  }, [validUnflaggedInvoices])
 
   // Clients contributing to the outstanding balance
   const outstandingContributors: OutstandingDebtor[] = useMemo(() => {
     const customerMap = new Map<string, OutstandingDebtor>()
 
-    filteredInvoices.forEach(inv => {
+    validUnflaggedInvoices.forEach(inv => {
       const paid = (inv.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
       const balance = Math.max(0, Number(inv.total) - paid)
       if (balance <= 0) return

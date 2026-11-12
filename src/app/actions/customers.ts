@@ -620,7 +620,7 @@ export async function getCustomersDirectoryAction(options?: {
     entry.jobIds.forEach(jId => {
       const invs = invoicesByJobId.get(jId) || []
       invs.forEach(inv => {
-        if (!invoiceIdsSeen.has(inv.id)) {
+        if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
           invoiceIdsSeen.add(inv.id)
           totalInvoiced += Number(inv.total || 0)
           totalPaid += paymentsByInvoice.get(inv.id) || 0
@@ -631,7 +631,7 @@ export async function getCustomersDirectoryAction(options?: {
     entry.groupIds.forEach(gId => {
       const invs = invoicesByGroupId.get(gId) || []
       invs.forEach(inv => {
-        if (!invoiceIdsSeen.has(inv.id)) {
+        if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
           invoiceIdsSeen.add(inv.id)
           totalInvoiced += Number(inv.total || 0)
           totalPaid += paymentsByInvoice.get(inv.id) || 0

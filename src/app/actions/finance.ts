@@ -41,13 +41,27 @@ export interface CustomerStatementData {
     jobsCount: number
     invoicesCount: number
     paymentsCount: number
+    flaggedInvoicesCount?: number
+    flaggedInvoicesTotal?: number
     firstTransactionDate: string | null
     lastTransactionDate: string | null
   }
   ledger: StatementLedgerItem[]
   invoices: any[]
+  flaggedInvoices?: any[]
   payments: any[]
   jobs: any[]
+}
+
+/**
+ * Splits array into chunks to prevent PostgREST URL header overflow on large queries
+ */
+function chunkArray<T>(arr: T[], size = 40): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size))
+  }
+  return chunks
 }
 
 /**
@@ -162,38 +176,58 @@ export async function searchTransactionCustomers(query: string): Promise<Custome
   const allJobIds = Array.from(new Set(customersList.flatMap(c => c.jobIds)))
   const allGroupIds = Array.from(new Set(customersList.flatMap(c => c.groupIds)))
 
-  // Fetch invoices for these jobs/groups
+  // Fetch invoices for these jobs/groups in safe chunks
   let invoices: any[] = []
-  if (allJobIds.length > 0 || allGroupIds.length > 0) {
-    let invQuery = serviceSupabase
-      .from('invoices')
-      .select('id, job_id, group_id, total, status')
-      .eq('tenant_id', tenantId)
+  const seenInvIds = new Set<string>()
 
-    if (allJobIds.length > 0 && allGroupIds.length > 0) {
-      invQuery = invQuery.or(`job_id.in.(${allJobIds.join(',')}),group_id.in.(${allGroupIds.join(',')})`)
-    } else if (allJobIds.length > 0) {
-      invQuery = invQuery.in('job_id', allJobIds)
-    } else {
-      invQuery = invQuery.in('group_id', allGroupIds)
+  if (allJobIds.length > 0 || allGroupIds.length > 0) {
+    for (const c of chunkArray(allJobIds, 40)) {
+      const { data: invData } = await serviceSupabase
+        .from('invoices')
+        .select('id, job_id, group_id, total, status, is_flagged')
+        .eq('tenant_id', tenantId)
+        .in('job_id', c)
+
+      ;(invData || []).forEach((inv: any) => {
+        if (!seenInvIds.has(inv.id)) {
+          seenInvIds.add(inv.id)
+          invoices.push(inv)
+        }
+      })
     }
 
-    const { data: invData } = await invQuery
-    invoices = invData || []
+    for (const c of chunkArray(allGroupIds, 40)) {
+      const { data: invData } = await serviceSupabase
+        .from('invoices')
+        .select('id, job_id, group_id, total, status, is_flagged')
+        .eq('tenant_id', tenantId)
+        .in('group_id', c)
+
+      ;(invData || []).forEach((inv: any) => {
+        if (!seenInvIds.has(inv.id)) {
+          seenInvIds.add(inv.id)
+          invoices.push(inv)
+        }
+      })
+    }
   }
 
-  const invoiceIds = invoices.map(i => i.id)
+  // Filter out flagged invoices so payments and totals never include flagged invoices
+  const validInvoices = invoices.filter((inv: any) => !inv.is_flagged)
+  const invoiceIds = validInvoices.map(i => i.id)
 
-  // Fetch payments for these invoices
+  // Fetch payments for these valid invoices in safe chunks
   let payments: any[] = []
   if (invoiceIds.length > 0) {
-    const { data: payData } = await serviceSupabase
-      .from('payments')
-      .select('id, invoice_id, amount')
-      .eq('tenant_id', tenantId)
-      .in('invoice_id', invoiceIds)
+    for (const c of chunkArray(invoiceIds, 40)) {
+      const { data: payData } = await serviceSupabase
+        .from('payments')
+        .select('id, invoice_id, amount')
+        .eq('tenant_id', tenantId)
+        .in('invoice_id', c)
 
-    payments = payData || []
+      payments.push(...(payData || []))
+    }
   }
 
   // Payment totals per invoice
@@ -202,9 +236,9 @@ export async function searchTransactionCustomers(query: string): Promise<Custome
     paidPerInvoice.set(p.invoice_id, (paidPerInvoice.get(p.invoice_id) || 0) + Number(p.amount))
   })
 
-  // Build summary for each customer
+  // Build summary for each customer using ONLY valid (non-flagged) invoices
   const results: CustomerTransactionSummary[] = customersList.map(c => {
-    const customerInvoices = invoices.filter(inv => 
+    const customerInvoices = validInvoices.filter(inv => 
       (inv.job_id && c.jobIds.includes(inv.job_id)) ||
       (inv.group_id && c.groupIds.includes(inv.group_id))
     )
@@ -290,44 +324,65 @@ export async function getCustomerFinancialStatement(
     ...rawGroups.map((g: any) => g.id)
   ]))
 
-  // 3. Fetch Invoices
+  // 3. Fetch Invoices in safe chunks
   let invoices: any[] = []
-  if (jobIds.length > 0 || groupIds.length > 0) {
-    let q = serviceSupabase
-      .from('invoices')
-      .select('*')
-      .eq('tenant_id', tenantId)
+  const seenInvIds = new Set<string>()
 
-    if (jobIds.length > 0 && groupIds.length > 0) {
-      q = q.or(`job_id.in.(${jobIds.join(',')}),group_id.in.(${groupIds.join(',')})`)
-    } else if (jobIds.length > 0) {
-      q = q.in('job_id', jobIds)
-    } else {
-      q = q.in('group_id', groupIds)
+  if (jobIds.length > 0 || groupIds.length > 0) {
+    for (const c of chunkArray(jobIds, 40)) {
+      const { data: invData, error: invErr } = await serviceSupabase
+        .from('invoices')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .in('job_id', c)
+
+      if (invErr) console.error('Invoices by job error:', invErr)
+      ;(invData || []).forEach((inv: any) => {
+        if (!seenInvIds.has(inv.id)) {
+          seenInvIds.add(inv.id)
+          invoices.push(inv)
+        }
+      })
     }
 
-    const { data: invData, error: invErr } = await q.order('issued_at', { ascending: false })
-    if (invErr) console.error('Invoices error:', invErr)
-    invoices = invData || []
+    for (const c of chunkArray(groupIds, 40)) {
+      const { data: invData, error: invErr } = await serviceSupabase
+        .from('invoices')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .in('group_id', c)
+
+      if (invErr) console.error('Invoices by group error:', invErr)
+      ;(invData || []).forEach((inv: any) => {
+        if (!seenInvIds.has(inv.id)) {
+          seenInvIds.add(inv.id)
+          invoices.push(inv)
+        }
+      })
+    }
+
+    invoices.sort((a, b) => new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime())
   }
 
   const invoiceIds = invoices.map(i => i.id)
 
-  // 4. Fetch Payments
+  // 4. Fetch Payments in safe chunks
   let payments: any[] = []
   if (invoiceIds.length > 0) {
-    const { data: payData, error: payErr } = await serviceSupabase
-      .from('payments')
-      .select(`
-        *,
-        profiles ( full_name )
-      `)
-      .eq('tenant_id', tenantId)
-      .in('invoice_id', invoiceIds)
-      .order('recorded_at', { ascending: false })
+    for (const c of chunkArray(invoiceIds, 40)) {
+      const { data: payData, error: payErr } = await serviceSupabase
+        .from('payments')
+        .select(`
+          *,
+          profiles ( full_name )
+        `)
+        .eq('tenant_id', tenantId)
+        .in('invoice_id', c)
+        .order('recorded_at', { ascending: false })
 
-    if (payErr) console.error('Payments error:', payErr)
-    payments = payData || []
+      if (payErr) console.error('Payments error:', payErr)
+      payments.push(...(payData || []))
+    }
   }
 
   // Calculate invoice paid totals
@@ -336,8 +391,13 @@ export async function getCustomerFinancialStatement(
     invoicePaidMap.set(p.invoice_id, (invoicePaidMap.get(p.invoice_id) || 0) + Number(p.amount))
   })
 
-  // Enrich invoices with amount paid, remaining balance, and accurate status
-  const enrichedInvoices = invoices.map(inv => {
+  // Separate valid (billable) invoices from flagged (disputed/incorrect) invoices
+  const validInvoices = invoices.filter((i: any) => !i.is_flagged)
+  const flaggedInvoices = invoices.filter((i: any) => i.is_flagged)
+  const flaggedInvoiceIds = new Set(flaggedInvoices.map((i: any) => i.id))
+
+  // Enrich valid invoices with amount paid, remaining balance, and accurate status
+  const enrichedValidInvoices = validInvoices.map(inv => {
     const paid = Math.round((invoicePaidMap.get(inv.id) || 0) * 100) / 100
     const total = Number(inv.total)
     const balance = Math.max(0, Math.round((total - paid) * 100) / 100)
@@ -351,10 +411,26 @@ export async function getCustomerFinancialStatement(
     }
   })
 
-  // 5. Build Unified Chronological Ledger
+  // Enrich flagged invoices for transparency
+  const enrichedFlaggedInvoices = flaggedInvoices.map(inv => {
+    const paid = Math.round((invoicePaidMap.get(inv.id) || 0) * 100) / 100
+    const total = Number(inv.total)
+    const balance = Math.max(0, Math.round((total - paid) * 100) / 100)
+    return {
+      ...inv,
+      total,
+      amount_paid: paid,
+      balance_due: balance
+    }
+  })
+
+  // Exclude payments tied directly to flagged invoices from client's regular statement ledger
+  const validPayments = payments.filter(p => !p.invoice_id || !flaggedInvoiceIds.has(p.invoice_id))
+
+  // 5. Build Unified Chronological Ledger using ONLY valid (non-flagged) invoices and valid payments
   const rawLedger: StatementLedgerItem[] = []
 
-  enrichedInvoices.forEach(inv => {
+  enrichedValidInvoices.forEach(inv => {
     rawLedger.push({
       id: `inv-${inv.id}`,
       date: inv.issued_at,
@@ -368,8 +444,8 @@ export async function getCustomerFinancialStatement(
     })
   })
 
-  payments.forEach(p => {
-    const matchedInv = enrichedInvoices.find(i => i.id === p.invoice_id)
+  validPayments.forEach(p => {
+    const matchedInv = enrichedValidInvoices.find(i => i.id === p.invoice_id)
     rawLedger.push({
       id: `pay-${p.id}`,
       date: p.recorded_at,
@@ -395,8 +471,8 @@ export async function getCustomerFinancialStatement(
 
   // Optional date filtering
   let filteredLedger = rawLedger
-  let filteredInvoices = enrichedInvoices
-  let filteredPayments = payments
+  let filteredInvoices = enrichedValidInvoices
+  let filteredPayments = validPayments
   let filteredJobs = rawJobs
 
   if (options?.fromDate) {
@@ -421,6 +497,7 @@ export async function getCustomerFinancialStatement(
   const totalBilled = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total), 0)
   const totalPaid = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
   const balance = Math.round((totalBilled - totalPaid) * 100) / 100
+  const flaggedTotal = Math.round(enrichedFlaggedInvoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0) * 100) / 100
 
   const primaryJob = rawJobs[0]
   const primaryGroup = rawGroups[0]
@@ -436,11 +513,14 @@ export async function getCustomerFinancialStatement(
       jobsCount: filteredJobs.length,
       invoicesCount: filteredInvoices.length,
       paymentsCount: filteredPayments.length,
+      flaggedInvoicesCount: enrichedFlaggedInvoices.length,
+      flaggedInvoicesTotal: flaggedTotal,
       firstTransactionDate: rawLedger[0]?.date || null,
       lastTransactionDate: rawLedger[rawLedger.length - 1]?.date || null
     },
     ledger: displayLedger,
     invoices: filteredInvoices,
+    flaggedInvoices: enrichedFlaggedInvoices,
     payments: filteredPayments,
     jobs: filteredJobs
   }

@@ -120,7 +120,7 @@ export function CustomerStatementPrint({
       </div>
 
       {/* Financial Position Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-6">
         <div className="border border-slate-200 p-4 rounded-xl text-center bg-white">
           <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Billed (Invoices)</p>
           <p className="text-xl font-black text-slate-900 mt-1">{formatCurrency(summary.totalBilled)}</p>
@@ -144,6 +144,14 @@ export function CustomerStatementPrint({
           </p>
         </div>
       </div>
+
+      {Boolean(summary.flaggedInvoicesCount && summary.flaggedInvoicesCount > 0) && (
+        <div className="mb-6 p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800">
+          <p>
+            <strong>Note on Disputed Records:</strong> {summary.flaggedInvoicesCount} flagged/disputed invoice{summary.flaggedInvoicesCount === 1 ? '' : 's'} totaling <strong>{formatCurrency(summary.flaggedInvoicesTotal || 0)}</strong> {summary.flaggedInvoicesCount === 1 ? 'is' : 'are'} excluded from this account statement.
+          </p>
+        </div>
+      )}
 
       {/* Chronological Statement Ledger */}
       <div className="mb-8">

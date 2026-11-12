@@ -309,6 +309,15 @@ export function CustomerStatementModal({
                   </div>
                 </div>
 
+                {Boolean(statement.summary.flaggedInvoicesCount && statement.summary.flaggedInvoicesCount > 0) && (
+                  <div className="flex items-center gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <p>
+                      <strong>Disputed Records Isolated:</strong> {statement.summary.flaggedInvoicesCount} flagged invoice{statement.summary.flaggedInvoicesCount === 1 ? '' : 's'} totaling <strong>{formatCurrency(statement.summary.flaggedInvoicesTotal || 0)}</strong> {statement.summary.flaggedInvoicesCount === 1 ? 'is' : 'are'} excluded from this client&apos;s total bill and ledger.
+                    </p>
+                  </div>
+                )}
+
                 {/* Tab Navigation */}
                 <div className="border-b border-slate-200">
                   <nav className="flex space-x-6">
