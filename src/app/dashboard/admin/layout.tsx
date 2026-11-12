@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BriefcaseBusiness, LayoutDashboard, Package, Users, Settings, CloudUpload, Contact2 } from 'lucide-react'
@@ -19,6 +20,11 @@ const adminTabs = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { session } = useSession()
+  const [optimisticTab, setOptimisticTab] = useState<string | null>(null)
+
+  useEffect(() => {
+    setOptimisticTab(null)
+  }, [pathname])
 
   if (pathname.startsWith('/dashboard/admin/inventory')) {
     const isInventoryAllowed = session && (
@@ -61,11 +67,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative hide-scrollbar">
         {visibleTabs.map(tab => {
-          const isActive = pathname === tab.href
+          const isActive = (optimisticTab || pathname) === tab.href
           return (
             <Link
               key={tab.name}
               href={tab.href}
+              prefetch={true}
+              onClick={() => setOptimisticTab(tab.href)}
               className={`relative flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 text-sm font-semibold rounded-lg transition-colors z-10 whitespace-nowrap shrink-0 ${
                 isActive 
                   ? 'text-slate-900' 
@@ -76,7 +84,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <motion.div
                   layoutId="admin-tab-indicator"
                   className="absolute inset-0 bg-white rounded-lg shadow-sm border border-slate-200/60 -z-10"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
                 />
               )}
               <tab.icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : ''}`} />

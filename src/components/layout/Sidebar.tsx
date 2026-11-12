@@ -77,6 +77,7 @@ export function Sidebar({ mobileOpen, setMobileOpenAction }: { mobileOpen: boole
             <Link
               key={item.name}
               href={item.href}
+              prefetch={true}
               onClick={() => setMobileOpenAction(false)}
               className={cn(
                 "relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200",
