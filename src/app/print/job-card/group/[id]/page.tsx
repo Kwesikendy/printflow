@@ -21,7 +21,7 @@ export async function generateMetadata(props: {
   if (!group) return { title: 'Job Card' }
 
   return {
-    title: `JOB CARD — ${group.customer_name}`,
+    title: `JOB CARD - ${group.customer_name}`,
   }
 }
 
@@ -100,7 +100,7 @@ export default async function GroupJobCardPrintPage(props: {
   // Use first printable job number for reference; show all job numbers in card
   const firstJob = displayJobs[0] || jobs[0]
 
-  const pageTitle = `JOB CARD — ${group.customer_name}`
+  const pageTitle = `JOB CARD - ${group.customer_name}`
 
   return (
     <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
@@ -133,7 +133,7 @@ export default async function GroupJobCardPrintPage(props: {
         }
       `}} />
 
-      {/* Receipt card — compact 80mm thermal width */}
+      {/* Receipt card - compact 80mm thermal width */}
       <div className="ticket-container w-[340px] font-extrabold text-black text-[15px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0">
 
         {/* Logo + Shop Header */}
@@ -191,7 +191,7 @@ export default async function GroupJobCardPrintPage(props: {
 
         <div className="border-t border-dashed border-gray-400 my-2" />
 
-        {/* Jobs Table — all jobs in this card */}
+        {/* Jobs Table - all jobs in this card */}
         <table className="w-full text-[15px] mb-1 text-black font-extrabold">
           <thead>
             <tr className="border-b-2 border-black">
@@ -226,7 +226,7 @@ export default async function GroupJobCardPrintPage(props: {
         </div>
       </div>
 
-      {/* Print button — hidden during print */}
+      {/* Print button - hidden during print */}
       <div className="no-print print:hidden fixed bottom-6 right-6">
         <PrintButton />
       </div>

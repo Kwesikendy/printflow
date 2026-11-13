@@ -61,7 +61,7 @@ function EditPaymentModal({ payment }: { payment: Payment }) {
         <AnimatePresence>
           {isOpen && (
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsOpen(false)} />
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-slate-900/60" onClick={() => setIsOpen(false)} />
               <motion.div initial={{ opacity: 0, scale: 0.95, y: 15 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 15 }} className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl flex flex-col">
                 <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
                   <h3 className="font-bold text-slate-900">Edit Payment Method</h3>

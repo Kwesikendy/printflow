@@ -105,7 +105,7 @@ export function CustomerStatementModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
+          className="fixed inset-0 bg-slate-950/60 transition-opacity"
         />
 
         {/* Modal Window */}
@@ -117,15 +117,15 @@ export function CustomerStatementModal({
           className="relative bg-white w-full max-w-5xl rounded-3xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col max-h-[92vh] z-10"
         >
           {/* Header */}
-          <div className="p-6 sm:p-8 border-b border-slate-100 bg-linear-to-r from-slate-50 via-white to-indigo-50/30">
+          <div className="p-6 sm:p-8 border-b border-slate-200/80 bg-white">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="flex items-start sm:items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-lg shadow-indigo-600/20 shrink-0">
+                <div className="w-14 h-14 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-black text-2xl font-heading shadow-xs shrink-0">
                   {customerName.charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight font-heading">
                       {customerName}
                     </h1>
                     {hasOutstanding ? (
@@ -161,9 +161,9 @@ export function CustomerStatementModal({
               <div className="flex items-center gap-2 self-stretch sm:self-auto justify-end">
                 {hasOutstanding && (
                   <Button
-                    variant="primary"
+                    variant="success"
                     onClick={() => setIsSettleModalOpen(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 cursor-pointer font-bold text-xs sm:text-sm py-2 px-3.5 transition-all active:scale-[0.98]"
+                    className="shadow-sm cursor-pointer font-bold text-xs sm:text-sm py-2 px-3.5"
                   >
                     <CheckCircle2 className="w-4 h-4 mr-1.5" />
                     Pay Balance ({formatCurrency(statement?.summary.balance ?? 0)})
@@ -222,9 +222,9 @@ export function CustomerStatementModal({
 
           {/* Sub-Accounts / Consolidated Mode Banner */}
           {((statement?.subAccountsCount && statement.subAccountsCount > 0) || isConsolidated) && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50/80 border-b border-indigo-100 text-xs text-indigo-950">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-6 py-2.5 bg-slate-100 border-b border-slate-200 text-xs text-slate-800">
               <div className="flex items-center gap-2">
-                <span className="font-bold inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-700">
+                <span className="font-bold inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-800">
                   {isConsolidated ? '🏢 Consolidated Agency View' : '👤 Exact Account View'}
                 </span>
                 <span className="text-slate-600">
@@ -239,8 +239,8 @@ export function CustomerStatementModal({
                   onClick={() => setIsConsolidated(false)}
                   className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                     !isConsolidated
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-white text-indigo-700 hover:bg-indigo-100/50 border border-indigo-200'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
                   This Account Only
@@ -250,8 +250,8 @@ export function CustomerStatementModal({
                   onClick={() => setIsConsolidated(true)}
                   className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                     isConsolidated
-                      ? 'bg-indigo-600 text-white shadow-xs'
-                      : 'bg-white text-indigo-700 hover:bg-indigo-100/50 border border-indigo-200'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
                   }`}
                 >
                   Consolidated ({statement?.subAccountsCount ? `${statement.subAccountsCount + 1} Branches` : 'All Branches'})
@@ -264,58 +264,48 @@ export function CustomerStatementModal({
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
             {loading ? (
               <div className="py-20 text-center flex flex-col items-center justify-center gap-3 text-slate-400">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-slate-700" />
                 <p className="text-sm font-semibold text-slate-600">Generating customer financial statement...</p>
               </div>
             ) : statement ? (
               <>
                 {/* Metric Summary Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div className="bg-slate-50/80 border border-slate-200/80 p-4 sm:p-5 rounded-2xl">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Invoiced</span>
-                      <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                        <FileText className="w-4 h-4" />
-                      </div>
+                  <div className="bg-white border border-slate-200/90 p-4 sm:p-5 rounded-2xl shadow-xs">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      <FileText className="w-4 h-4 text-slate-500" />
+                      <span>Total Invoiced</span>
                     </div>
-                    <div className="text-2xl font-black text-slate-900 tracking-tight">
+                    <div className="text-2xl font-black text-slate-900 tracking-tight font-heading">
                       {formatCurrency(statement.summary.totalBilled)}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">{statement.summary.invoicesCount} invoices issued</p>
                   </div>
 
-                  <div className="bg-emerald-50/50 border border-emerald-100 p-4 sm:p-5 rounded-2xl">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Payments Received</span>
-                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg">
-                        <Receipt className="w-4 h-4" />
-                      </div>
+                  <div className="bg-white border border-slate-200/90 p-4 sm:p-5 rounded-2xl shadow-xs">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">
+                      <Receipt className="w-4 h-4 text-emerald-600" />
+                      <span>Payments Received</span>
                     </div>
-                    <div className="text-2xl font-black text-emerald-700 tracking-tight">
+                    <div className="text-2xl font-black text-emerald-700 tracking-tight font-heading">
                       {formatCurrency(statement.summary.totalPaid)}
                     </div>
-                    <p className="text-xs text-emerald-600/80 mt-1">{statement.summary.paymentsCount} payments logged</p>
+                    <p className="text-xs text-emerald-600 mt-1">{statement.summary.paymentsCount} payments logged</p>
                   </div>
 
                   <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col justify-between ${
                     hasOutstanding 
                       ? 'bg-amber-50/60 border-amber-200/80 shadow-2xs' 
-                      : 'bg-slate-50/80 border-slate-200/80'
+                      : 'bg-white border-slate-200/90 shadow-xs'
                   }`}>
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`text-xs font-bold uppercase tracking-wider ${
-                          hasOutstanding ? 'text-amber-700' : 'text-slate-400'
-                        }`}>
+                      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider mb-2">
+                        <TrendingUp className={`w-4 h-4 ${hasOutstanding ? 'text-amber-700' : 'text-slate-500'}`} />
+                        <span className={hasOutstanding ? 'text-amber-700' : 'text-slate-500'}>
                           Net Balance Due
                         </span>
-                        <div className={`p-1.5 rounded-lg ${
-                          hasOutstanding ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'
-                        }`}>
-                          <TrendingUp className="w-4 h-4" />
-                        </div>
                       </div>
-                      <div className={`text-2xl font-black tracking-tight ${
+                      <div className={`text-2xl font-black tracking-tight font-heading ${
                         hasOutstanding ? 'text-amber-700' : 'text-slate-900'
                       }`}>
                         {formatCurrency(statement.summary.balance)}
@@ -329,7 +319,7 @@ export function CustomerStatementModal({
                       <button
                         type="button"
                         onClick={() => setIsSettleModalOpen(true)}
-                        className="mt-3.5 w-full py-2 px-3 rounded-xl font-black text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer hover:shadow-lg active:scale-[0.98]"
+                        className="mt-3.5 w-full py-2 px-3 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                         title="Pay all unsettled invoices at a go"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -338,14 +328,12 @@ export function CustomerStatementModal({
                     )}
                   </div>
 
-                  <div className="bg-slate-50/80 border border-slate-200/80 p-4 sm:p-5 rounded-2xl">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Orders</span>
-                      <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
-                        <Package className="w-4 h-4" />
-                      </div>
+                  <div className="bg-white border border-slate-200/90 p-4 sm:p-5 rounded-2xl shadow-xs">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      <Package className="w-4 h-4 text-slate-500" />
+                      <span>Total Orders</span>
                     </div>
-                    <div className="text-2xl font-black text-slate-900 tracking-tight">
+                    <div className="text-2xl font-black text-slate-900 tracking-tight font-heading">
                       {statement.summary.jobsCount}
                     </div>
                     <p className="text-xs text-slate-400 mt-1">Production jobs recorded</p>
@@ -361,39 +349,37 @@ export function CustomerStatementModal({
                   </div>
                 )}
 
-                {/* Tab Navigation */}
-                <div className="border-b border-slate-200">
-                  <nav className="flex space-x-6">
-                    {[
-                      { id: 'ledger', label: 'Statement of Account (Ledger)', icon: Receipt, count: statement.ledger.length },
-                      { id: 'invoices', label: 'Invoices', icon: FileText, count: statement.invoices.length },
-                      { id: 'payments', label: 'Payments Received', icon: CreditCard, count: statement.payments.length },
-                      { id: 'jobs', label: 'Job Orders', icon: Package, count: statement.jobs.length }
-                    ].map((tab) => {
-                      const Icon = tab.icon
-                      const isActive = activeTab === tab.id
-                      return (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setActiveTab(tab.id as any)}
-                          className={`py-3 px-1 border-b-2 font-bold text-sm flex items-center gap-2 transition-all cursor-pointer ${
-                            isActive
-                              ? 'border-indigo-600 text-indigo-600'
-                              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
-                          }`}
-                        >
-                          <Icon className="w-4 h-4" />
-                          <span>{tab.label}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                            isActive ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {tab.count}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </nav>
+                {/* Tactile Soft-UI Tab Track Navigation */}
+                <div className="p-1.5 rounded-2xl neu-track flex space-x-1 overflow-x-auto hide-scrollbar">
+                  {[
+                    { id: 'ledger', label: 'Statement of Account (Ledger)', icon: Receipt, count: statement.ledger.length },
+                    { id: 'invoices', label: 'Invoices', icon: FileText, count: statement.invoices.length },
+                    { id: 'payments', label: 'Payments Received', icon: CreditCard, count: statement.payments.length },
+                    { id: 'jobs', label: 'Job Orders', icon: Package, count: statement.jobs.length }
+                  ].map((tab) => {
+                    const Icon = tab.icon
+                    const isActive = activeTab === tab.id
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`py-2 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                          isActive
+                            ? 'bg-white text-slate-900 shadow-xs border border-white/80'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
+                        }`}
+                      >
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-sky-700' : 'text-slate-400'}`} />
+                        <span>{tab.label}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                          isActive ? 'bg-slate-100 text-slate-800' : 'bg-slate-200/60 text-slate-600'
+                        }`}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    )
+                  })}
                 </div>
 
                 {/* Tab 1: Statement Ledger */}
@@ -457,10 +443,10 @@ export function CustomerStatementModal({
                                     )}
                                   </td>
                                   <td className="text-right font-bold text-slate-800">
-                                    {row.debit > 0 ? formatCurrency(row.debit) : '—'}
+                                    {row.debit > 0 ? formatCurrency(row.debit) : '-'}
                                   </td>
                                   <td className="text-right font-bold text-emerald-600">
-                                    {row.credit > 0 ? formatCurrency(row.credit) : '—'}
+                                    {row.credit > 0 ? formatCurrency(row.credit) : '-'}
                                   </td>
                                   <td className={`text-right font-black whitespace-nowrap ${userRole === 'admin' ? '' : 'pr-6'}`}>
                                     <span className={row.runningBalance > 0 ? 'text-amber-600' : 'text-slate-700'}>
@@ -520,7 +506,7 @@ export function CustomerStatementModal({
                           <tbody className="divide-y divide-slate-100">
                             {statement.invoices.map((inv) => (
                               <tr key={inv.id} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="pl-6 font-bold text-indigo-600">
+                                <td className="pl-6 font-bold text-sky-700">
                                   <Link href={`/print/invoice/${inv.id}`} target="_blank" className="hover:underline flex items-center gap-1.5">
                                     <span>{inv.invoice_number}</span>
                                     <ExternalLink className="w-3 h-3 text-slate-400" />
@@ -596,8 +582,8 @@ export function CustomerStatementModal({
                                     {PAYMENT_METHOD_LABELS[p.method as keyof typeof PAYMENT_METHOD_LABELS] || p.method}
                                   </span>
                                 </td>
-                                <td className="font-semibold text-slate-800 font-mono text-xs">{p.reference || '—'}</td>
-                                <td className="text-slate-500 text-xs">{p.notes || '—'}</td>
+                                <td className="font-semibold text-slate-800 font-mono text-xs">{p.reference || '-'}</td>
+                                <td className="text-slate-500 text-xs">{p.notes || '-'}</td>
                                 <td className="text-slate-600 font-medium text-xs">{p.profiles?.full_name || 'Staff'}</td>
                                 <td className={`text-right font-black text-emerald-600 ${userRole === 'admin' ? '' : 'pr-6'}`}>{formatCurrency(p.amount)}</td>
                                 {userRole === 'admin' && (
@@ -650,7 +636,7 @@ export function CustomerStatementModal({
                           <tbody className="divide-y divide-slate-100">
                             {statement.jobs.map((j) => (
                               <tr key={j.id} className="hover:bg-slate-50/60 transition-colors">
-                                <td className="pl-6 font-bold text-indigo-600">
+                                <td className="pl-6 font-bold text-sky-700">
                                   <Link href={`/dashboard/jobs/${j.id}`} className="hover:underline flex items-center gap-1.5">
                                     <span>{j.job_number}</span>
                                     <ExternalLink className="w-3 h-3 text-slate-400" />

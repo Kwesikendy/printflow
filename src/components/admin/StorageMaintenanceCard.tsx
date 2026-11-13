@@ -126,7 +126,7 @@ export function StorageMaintenanceCard() {
           <div className="w-full bg-slate-200 rounded-full h-3 overflow-hidden flex">
             <div
               className={`h-full transition-all duration-500 ${
-                isOverQuota ? 'bg-rose-500' : 'bg-gradient-to-r from-indigo-500 to-indigo-600'
+                isOverQuota ? 'bg-rose-500' : 'bg-sky-600'
               }`}
               style={{ width: `${Math.min(100, usedPercentage)}%` }}
             />

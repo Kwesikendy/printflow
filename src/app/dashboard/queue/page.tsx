@@ -55,7 +55,7 @@ export default async function PrintQueuePage() {
       <div className="page-header">
         <h1 className="text-2xl font-bold text-slate-900">Print Queue</h1>
         <p className="text-slate-500 mt-1">
-          Live queue of jobs ready for production — when you start a job, choose the exact material you are printing on and its size is deducted from inventory.
+          Live queue of jobs ready for production - when you start a job, choose the exact material you are printing on and its size is deducted from inventory.
         </p>
       </div>
 

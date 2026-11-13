@@ -22,7 +22,7 @@ export function NoInvoicePanel({ jobId, role }: { jobId: string, role?: string }
       if (res.error) {
         toast.error(res.error)
       } else {
-        toast.success('Invoice generated — you can now record payment.')
+        toast.success('Invoice generated - you can now record payment.')
       }
     })
   }

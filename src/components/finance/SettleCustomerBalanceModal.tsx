@@ -179,7 +179,7 @@ export function SettleCustomerBalanceModal({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-950/70"
           onClick={onClose}
         />
 
@@ -192,13 +192,13 @@ export function SettleCustomerBalanceModal({
           className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh] z-10 my-auto"
         >
           {/* Header */}
-          <div className="px-6 py-5 border-b border-slate-100 bg-linear-to-r from-emerald-50/60 via-white to-slate-50 flex items-center justify-between">
+          <div className="px-6 py-5 border-b border-slate-200 bg-white flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shadow-emerald-600/20 shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2 font-heading">
                   <span>Settle Customer Balance</span>
                   <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">
                     Bulk Clearance
@@ -222,7 +222,7 @@ export function SettleCustomerBalanceModal({
           {/* Form Content */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
             {/* Summary Highlights */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-linear-to-br from-amber-50/80 via-white to-emerald-50/50 border border-amber-200/80 shadow-2xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs">
               <div>
                 <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
                   Total Outstanding Balance

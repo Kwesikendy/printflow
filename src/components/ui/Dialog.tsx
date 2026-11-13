@@ -1,7 +1,6 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 
@@ -29,7 +28,8 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60"
           onClick={() => onOpenChange(false)}
         >
           {children}
@@ -43,12 +43,12 @@ export function DialogContent({ children, className }: { children: ReactNode; cl
   return (
     <motion.div
       key="dialog-content"
-      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      initial={{ opacity: 0, scale: 0.96, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95, y: 10 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      exit={{ opacity: 0, scale: 0.96, y: 8 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
-        'relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6',
+        'relative bg-white rounded-2xl shadow-xl border border-slate-200/90 w-full max-w-md p-6',
         className
       )}
       onClick={(e) => e.stopPropagation()}
@@ -63,7 +63,7 @@ export function DialogHeader({ children, className }: { children: ReactNode; cla
 }
 
 export function DialogTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h2 className={cn("text-lg font-bold text-slate-900", className)}>{children}</h2>
+  return <h2 className={cn("text-lg font-bold text-slate-900 tracking-tight font-heading", className)}>{children}</h2>
 }
 
 export function DialogDescription({ children, className }: { children: ReactNode; className?: string }) {

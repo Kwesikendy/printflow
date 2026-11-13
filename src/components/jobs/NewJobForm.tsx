@@ -929,7 +929,7 @@ export function NewJobForm({
       <div className="lg:col-span-2 space-y-6">
         <form id="new-job-form" onSubmit={handleSubmit} className="space-y-6">
 
-          {/* Customer Details — elevated z-index so autocomplete floats above job items */}
+          {/* Customer Details - elevated z-index so autocomplete floats above job items */}
           <div className="relative" style={{ zIndex: 1000 }}>
           <Card className="overflow-visible">
             <CardContent className="p-4 sm:p-8 overflow-visible">
@@ -1015,10 +1015,10 @@ export function NewJobForm({
         </form>
       </div>
 
-      {/* RIGHT COLUMN — SUMMARY */}
+      {/* RIGHT COLUMN - SUMMARY */}
       <div className="lg:col-span-1 relative">
         <div className="sticky top-24">
-          <Card className="border-indigo-100 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5 bg-white/95 backdrop-blur-xl">
+          <Card className="border-indigo-100 shadow-xl shadow-indigo-900/5 ring-1 ring-slate-900/5 bg-white/95">
             <CardContent className="p-8">
               <h3 className="text-xs font-bold tracking-widest text-slate-400 uppercase mb-6 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

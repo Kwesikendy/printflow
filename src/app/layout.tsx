@@ -1,17 +1,18 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Space_Grotesk } from 'next/font/google'
 import './globals.css'
 import { SessionProvider } from '@/contexts/SessionContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { Toaster } from 'sonner'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' })
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export const metadata: Metadata = {
-  title: `${process.env.NEXT_PUBLIC_APP_NAME || 'PrintDpi'} — Print Shop Management`,
+  title: `${process.env.NEXT_PUBLIC_APP_NAME || 'PrintDpi'} - Print Shop Management`,
   description: 'Multi-tenant SaaS for graphic printing shops. Manage jobs, payments, and production in real time.',
   icons: {
     icon: [
@@ -31,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body className="font-sans antialiased bg-slate-50 text-slate-900">
         <SessionProvider>
           <AppShell>
@@ -43,7 +44,7 @@ export default function RootLayout({
             toastOptions={{
               style: {
                 background: '#ffffff',
-                border: '1px solid #e2e8f0',
+                border: '1px solid #cbd5e1',
                 color: '#0f172a',
                 boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                 borderRadius: '12px',
@@ -56,4 +57,3 @@ export default function RootLayout({
     </html>
   )
 }
-

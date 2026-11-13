@@ -190,7 +190,7 @@ export function AddClientModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
+          className="fixed inset-0 bg-slate-950/60"
         />
 
         {/* Modal Window */}
@@ -202,17 +202,15 @@ export function AddClientModal({
           className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-10 my-8"
         >
           {/* Header */}
-          <div className="p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-indigo-500/10 via-amber-500/5 to-transparent">
+          <div className="p-5 sm:p-6 border-b border-slate-200 bg-white">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20 shrink-0">
-                  <UserPlus className="w-5 h-5" />
-                </div>
+                <UserPlus className="w-5 h-5 text-slate-700 shrink-0 mt-1" />
                 <div>
-                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 mb-1">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-800 mb-1">
                     Customer Directory & Legacy Arrears
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-heading">
                     Add Client / Historical Debt
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -516,7 +514,7 @@ export function AddClientModal({
 
                   {/* Realtime Debt Balance Preview */}
                   {numDebt > 0 && (
-                    <div className="p-3.5 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                       <div>
                         <span className="font-black text-amber-900 block">
                           Recorded Debt: {formatCurrency(numDebt)}

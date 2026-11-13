@@ -61,7 +61,7 @@ export default async function TrackInvoicePage(props: {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 font-sans text-gray-900">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-premium-card overflow-hidden mt-8">
         
-        <div className="bg-gradient-to-r from-[#ec008c] to-[#9e005d] p-6 text-white text-center">
+        <div className="bg-slate-900 p-6 text-white text-center">
           <h1 className="text-2xl font-bold tracking-wider uppercase mb-1">Quality Check</h1>
           <p className="opacity-90 text-sm">Invoice #{invoice.invoice_number}</p>
         </div>

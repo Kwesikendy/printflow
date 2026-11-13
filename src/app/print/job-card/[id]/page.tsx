@@ -21,7 +21,7 @@ export async function generateMetadata(props: {
   if (!job) return { title: 'Job Card' }
 
   return {
-    title: `JOB CARD — ${job.job_number} — ${job.customer_name}`,
+    title: `JOB CARD - ${job.job_number} - ${job.customer_name}`,
   }
 }
 
@@ -87,7 +87,7 @@ export default async function JobCardPrintPage(props: {
     other: 'Other',
   }
 
-  const pageTitle = `JOB CARD — ${job.job_number} — ${job.customer_name}`
+  const pageTitle = `JOB CARD - ${job.job_number} - ${job.customer_name}`
 
   return (
     <div className="bg-white flex items-start justify-center py-6 font-mono print:min-h-0 print:h-auto print:py-0 print:px-0 print:m-0 print:block">
@@ -120,7 +120,7 @@ export default async function JobCardPrintPage(props: {
         }
       `}} />
 
-      {/* Receipt card — compact for 80mm thermal roll printers */}
+      {/* Receipt card - compact for 80mm thermal roll printers */}
       <div className="ticket-container w-[340px] font-extrabold text-black text-[15px] leading-snug print:w-[80mm] print:max-w-full print:mx-auto print:p-0 print:pb-0">
 
         {/* Logo + Shop Header */}
@@ -213,7 +213,7 @@ export default async function JobCardPrintPage(props: {
         </div>
       </div>
 
-      {/* Print button — completely hidden during print */}
+      {/* Print button - completely hidden during print */}
       <div className="no-print print:hidden fixed bottom-6 right-6">
         <PrintButton />
       </div>

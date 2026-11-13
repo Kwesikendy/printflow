@@ -34,7 +34,7 @@ interface FinanceDashboardProps {
   userRole?: string
 }
 
-const COLORS = ['#6366f1', '#14b8a6', '#f59e0b', '#ec4899', '#8b5cf6', '#10b981']
+const COLORS = ['#0f172a', '#0284c7', '#16a34a', '#d97706', '#475569', '#0891b2']
 
 export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], userRole }: FinanceDashboardProps) {
   const currentShiftDay = getShiftDateString()
@@ -294,9 +294,9 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
         />
       </motion.div>
 
-      {/* Date Filter Bar */}
-      <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-between gap-4 bg-white p-3 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Shift & Date Filter Bar */}
+      <motion.div variants={itemVariants} className="flex flex-wrap items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+        <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 ml-2 mr-1">
             <Filter className="w-3.5 h-3.5" /> Shift Filter:
           </span>
@@ -306,7 +306,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={setCurrentShift}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               filterMode === 'day' && selectedDay === currentShiftDay
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -318,7 +318,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={setPreviousShift}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               filterMode === 'day' && selectedDay === getPreviousShiftDateString(currentShiftDay)
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -326,7 +326,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
           </button>
 
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1" title="Select Shift Date (starts at 5:00 PM)">
-            <Calendar className="w-3.5 h-3.5 text-indigo-500" />
+            <Calendar className="w-3.5 h-3.5 text-slate-500" />
             <input 
               type="date"
               value={filterMode === 'day' ? selectedDay : ''}
@@ -343,7 +343,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={() => setFilterMode('week')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               filterMode === 'week'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -355,7 +355,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={() => setFilterMode('month')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               filterMode === 'month'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -367,7 +367,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={() => setFilterMode('all')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
               filterMode === 'all'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-slate-900 text-white shadow-xs'
                 : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200'
             }`}
           >
@@ -378,7 +378,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             type="button"
             onClick={() => setShowFlagged(value => !value)}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              showFlagged ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+              showFlagged ? 'bg-rose-700 text-white shadow-xs' : 'bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200'
             }`}
           >
             <Flag className="w-3.5 h-3.5" />
@@ -390,7 +390,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             onClick={() => setIsBreakdownModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200 shadow-2xs cursor-pointer"
           >
-            <Users className="w-3.5 h-3.5 text-amber-600" />
+            <Users className="w-3.5 h-3.5 text-amber-700" />
             Debtors Breakdown ({outstandingContributors.length})
           </button>
 
@@ -400,9 +400,9 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
               setAddClientInitialName('')
               setIsAddClientModalOpen(true)
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-slate-900 text-white hover:bg-slate-800 border border-slate-900 shadow-2xs cursor-pointer"
           >
-            <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+            <UserPlus className="w-3.5 h-3.5" />
             Add Client / Debt
           </button>
         </div>
@@ -413,8 +413,8 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             href={`/print/flagged-invoices?mode=${filterMode}&day=${selectedDay}`} 
             target="_blank"
           >
-            <Button variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 font-semibold shadow-2xs">
-              <Flag className="w-3.5 h-3.5 mr-1.5 text-rose-600" />
+            <Button variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-800 border-rose-200 font-semibold shadow-2xs">
+              <Flag className="w-3.5 h-3.5 mr-1.5 text-rose-700" />
               Flagged Report
             </Button>
           </Link>
@@ -422,7 +422,7 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
             href={`/print/finance-report?mode=${filterMode}&day=${selectedDay}`} 
             target="_blank"
           >
-            <Button variant="outline" size="sm" className="bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 font-semibold">
+            <Button variant="outline" size="sm" className="bg-slate-50 hover:bg-slate-100 text-slate-800 border-slate-200 font-semibold">
               <Printer className="w-3.5 h-3.5 mr-1.5" />
               Print Report ({dateLabel})
             </Button>
@@ -447,62 +447,47 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
         </motion.div>
       )}
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      {/* Metrics Row (Crisp Hierarchy, Inline Icons, Solid Typographic Contrast) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
         <motion.div variants={itemVariants}>
-          <Card className="relative overflow-hidden group h-full">
-            <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-              <TrendingUp className="w-24 h-24 text-indigo-900" />
-            </div>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm border border-indigo-100/50">
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Revenue ({dateLabel})</p>
+          <Card className="h-full bg-white border border-slate-200/90 shadow-xs">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <TrendingUp className="w-4 h-4 text-slate-600" />
+                <span>Revenue ({dateLabel})</span>
               </div>
-              <p className="mt-3 text-3xl font-black text-slate-900 tracking-tight">{formatCurrency(totalRevenue)}</p>
+              <p className="mt-2 text-3xl font-black text-slate-900 tracking-tight font-heading">{formatCurrency(totalRevenue)}</p>
               <p className="text-xs text-slate-400 mt-2">{filteredPayments.length} payments recorded</p>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="relative overflow-hidden group h-full border-rose-100">
-            <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-              <Receipt className="w-24 h-24 text-rose-900" />
-            </div>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg shadow-sm border border-rose-100/50">
-                    <Receipt className="w-5 h-5" />
-                  </div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Spend ({dateLabel})</p>
+          <Card className="h-full bg-white border border-slate-200/90 shadow-xs">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <Receipt className="w-4 h-4 text-slate-600" />
+                  <span>Spend ({dateLabel})</span>
                 </div>
-                <Link href="/dashboard/finance/expenditures" className="text-[11px] font-bold text-rose-600 hover:text-rose-800 flex items-center gap-0.5">
+                <Link href="/dashboard/finance/expenditures" className="text-xs font-bold text-rose-700 hover:text-rose-900 flex items-center gap-0.5">
                   Details <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
-              <p className="mt-3 text-3xl font-black text-rose-700 tracking-tight">{formatCurrency(totalExpenditure)}</p>
+              <p className="mt-2 text-3xl font-black text-rose-700 tracking-tight font-heading">{formatCurrency(totalExpenditure)}</p>
               <p className="text-xs text-slate-400 mt-2">{filteredExpenditures.length} expenses recorded</p>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="relative overflow-hidden group h-full">
-            <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-              <Calendar className="w-24 h-24 text-emerald-900" />
-            </div>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className={`p-2 rounded-lg shadow-sm border ${netCashFlow >= 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100/50' : 'bg-rose-50 text-rose-600 border-rose-100/50'}`}>
-                  <Calendar className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Net Position ({dateLabel})</p>
+          <Card className="h-full bg-white border border-slate-200/90 shadow-xs">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center gap-2 mb-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <Calendar className="w-4 h-4 text-slate-600" />
+                <span>Net Position ({dateLabel})</span>
               </div>
-              <p className={`mt-3 text-3xl font-black tracking-tight ${netCashFlow >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              <p className={`mt-2 text-3xl font-black tracking-tight font-heading ${netCashFlow >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                 {formatCurrency(netCashFlow)}
               </p>
               <p className="text-xs text-slate-400 mt-2">Revenue minus expenditure</p>
@@ -513,24 +498,19 @@ export function FinanceDashboard({ payments, unpaidInvoices, expenditures = [], 
         <motion.div variants={itemVariants}>
           <Card 
             onClick={() => setIsBreakdownModalOpen(true)}
-            className="relative overflow-hidden group h-full cursor-pointer hover:border-amber-300 hover:shadow-md transition-all border border-slate-200"
+            className="h-full cursor-pointer hover:border-slate-300 transition-colors bg-white border border-slate-200/90 shadow-xs"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-5 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-              <AlertCircle className="w-24 h-24 text-amber-900" />
-            </div>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-amber-50 text-amber-600 rounded-lg shadow-sm border border-amber-100/50">
-                    <AlertCircle className="w-5 h-5" />
-                  </div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Outstanding Balance</p>
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <AlertCircle className="w-4 h-4 text-amber-700" />
+                  <span>Outstanding Balance</span>
                 </div>
-                <span className="text-[11px] font-bold text-indigo-600 group-hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100/50">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
                   Breakdown <ArrowUpRight className="w-3 h-3" />
                 </span>
               </div>
-              <p className="mt-3 text-3xl font-black text-amber-500 tracking-tight">{formatCurrency(outstandingTotal)}</p>
+              <p className="mt-2 text-3xl font-black text-amber-700 tracking-tight font-heading">{formatCurrency(outstandingTotal)}</p>
               <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-slate-100 text-xs">
                 <span className="text-slate-500 font-medium">
                   {outstandingContributors.length} {outstandingContributors.length === 1 ? 'client owes' : 'clients owe'} in period

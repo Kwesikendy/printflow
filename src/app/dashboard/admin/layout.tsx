@@ -49,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const getPageTitle = () => {
     if (isAdmin) return 'Admin Panel'
     if (pathname.startsWith('/dashboard/admin/clients')) return 'Clients & Arrears'
-    return 'HR workspace'
+    return 'HR Workspace'
   }
 
   const getPageSubtitle = () => {
@@ -61,11 +61,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div>
       <div className="page-header">
-        <h1 className="text-2xl font-bold text-slate-900">{getPageTitle()}</h1>
-        <p className="text-slate-500 mt-1">{getPageSubtitle()}</p>
+        <h1 className="text-2xl font-black text-slate-900 tracking-tight font-heading">{getPageTitle()}</h1>
+        <p className="text-slate-500 text-sm mt-1">{getPageSubtitle()}</p>
       </div>
 
-      <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex space-x-1 bg-slate-900/5 p-1 rounded-xl shadow-inner border border-slate-900/5 relative hide-scrollbar">
+      {/* Tactile Soft-UI Debossed Segmented Tab Track */}
+      <div className="mb-8 flex overflow-x-auto w-full max-w-full md:inline-flex p-1.5 rounded-2xl neu-track relative hide-scrollbar gap-1">
         {visibleTabs.map(tab => {
           const isActive = (optimisticTab || pathname) === tab.href
           return (
@@ -74,20 +75,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href={tab.href}
               prefetch={true}
               onClick={() => setOptimisticTab(tab.href)}
-              className={`relative flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 sm:py-2 text-sm font-semibold rounded-lg transition-colors z-10 whitespace-nowrap shrink-0 ${
+              className={`relative flex items-center justify-center gap-2 px-4 sm:px-5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all duration-150 z-10 whitespace-nowrap shrink-0 ${
                 isActive 
-                  ? 'text-slate-900' 
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'text-slate-900 bg-white shadow-xs border border-white/80 font-bold' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/40'
               }`}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="admin-tab-indicator"
-                  className="absolute inset-0 bg-white rounded-lg shadow-sm border border-slate-200/60 -z-10"
-                  transition={{ type: "spring", stiffness: 450, damping: 32 }}
-                />
-              )}
-              <tab.icon className={`w-4 h-4 ${isActive ? 'text-indigo-600' : ''}`} />
+              <tab.icon className={`w-4 h-4 ${isActive ? 'text-sky-700' : 'text-slate-400'}`} />
               {tab.name}
             </Link>
           )

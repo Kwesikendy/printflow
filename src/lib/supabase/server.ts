@@ -25,7 +25,7 @@ export async function createClient(): Promise<ReturnType<typeof createServerClie
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Server Component — cookie setting will be handled by middleware
+            // Server Component - cookie setting will be handled by middleware
           }
         },
       },
@@ -33,7 +33,7 @@ export async function createClient(): Promise<ReturnType<typeof createServerClie
   )
 }
 
-// Service role client — bypasses RLS entirely.
+// Service role client - bypasses RLS entirely.
 // Uses the plain supabase-js client (NOT the SSR cookie client) so the service
 // role JWT is sent directly without any user-session interference.
 export function createServiceClient(): ReturnType<typeof createSupabaseJsClient<Database>> {

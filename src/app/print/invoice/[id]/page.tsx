@@ -99,7 +99,7 @@ export default async function InvoicePrintPage(props: {
 
       {invoice.is_flagged && (
         <div className="mb-4 rounded-xl border-2 border-dashed border-rose-500 bg-rose-50 p-3 text-center text-xs font-bold uppercase tracking-wider text-rose-700 print:border-rose-400">
-          ⚠️ Flagged Invoice for Review — Reason: {invoice.flag_reason || 'Incorrect entry'}
+          ⚠️ Flagged Invoice for Review - Reason: {invoice.flag_reason || 'Incorrect entry'}
         </div>
       )}
 

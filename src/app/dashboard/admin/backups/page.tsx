@@ -220,10 +220,10 @@ export default function BackupsPage() {
       </div>
 
       {/* Main Action Section: Trigger Backup */}
-      <div className="bg-linear-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 sm:p-8 shadow-md">
+      <div className="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 shadow-md border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-medium text-indigo-200 backdrop-blur-xs">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-xs font-medium text-slate-200">
               <FolderArchive className="w-3.5 h-3.5" />
               Automated Snapshot Engine
             </div>

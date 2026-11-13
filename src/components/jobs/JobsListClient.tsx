@@ -203,21 +203,11 @@ export function JobsListClient({
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between relative z-20">
         {/* Floating Modern Search Bar */}
         <div className="relative w-full max-w-2xl" ref={dropdownRef}>
-          <motion.div 
-          animate={{
-            boxShadow: isFocused 
-              ? '0 10px 25px -5px rgba(99, 102, 241, 0.15), 0 8px 10px -6px rgba(99, 102, 241, 0.1)' 
-              : '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)'
-          }}
-          className="relative bg-white/80 backdrop-blur-xl border border-slate-200/80 rounded-2xl overflow-visible transition-colors"
-        >
+          <div className="relative bg-white border border-slate-200/90 rounded-2xl overflow-visible shadow-xs">
           <div className="flex items-center px-4 py-3">
-            <motion.div 
-              animate={{ color: isFocused ? '#4f46e5' : '#94a3b8', scale: isFocused ? 1.05 : 1 }}
-              className="mr-3"
-            >
-              <Search className={`w-5 h-5 ${isPending ? 'animate-pulse text-indigo-500' : ''}`} />
-            </motion.div>
+            <div className="mr-3 text-slate-400">
+              <Search className={`w-5 h-5 ${isPending ? 'animate-pulse text-slate-600' : ''}`} />
+            </div>
             <form onSubmit={handleSubmit} className="flex-1 flex">
               <input
                 type="text"
@@ -245,14 +235,14 @@ export function JobsListClient({
                   {suggestions.map((s, idx) => (
                     <button
                       key={idx}
-                      className="w-full text-left px-4 py-2 hover:bg-indigo-50 flex items-center gap-3 transition-colors"
+                      className="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-3 transition-colors"
                       onMouseDown={(e) => {
                         // Use onMouseDown instead of onClick so it fires before onBlur
                         e.preventDefault()
                         handleSearch(s.customer_name)
                       }}
                     >
-                      <div className="bg-indigo-100 p-1.5 rounded-full text-indigo-600">
+                      <div className="bg-slate-100 p-1.5 rounded-full text-slate-600">
                         <User className="w-4 h-4" />
                       </div>
                       <span className="font-medium text-slate-700">{s.customer_name}</span>
@@ -262,7 +252,7 @@ export function JobsListClient({
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
 
       {/* Filter / Actions */}
@@ -271,7 +261,7 @@ export function JobsListClient({
           variant="outline"
           onClick={handleStartNewDay}
           loading={isResetting}
-          className="bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 shadow-sm"
+          className="text-xs sm:text-sm"
         >
           Start New Day
         </Button>
@@ -279,7 +269,7 @@ export function JobsListClient({
         <Button 
           variant={showTodayOnly ? "primary" : "outline"}
           onClick={() => setShowTodayOnly(!showTodayOnly)}
-          className={`flex items-center gap-2 transition-all ${showTodayOnly ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md' : 'bg-white/80 backdrop-blur-xl border-slate-200/80 hover:bg-slate-50 text-slate-700'}`}
+          className={`flex items-center gap-2 transition-all text-xs sm:text-sm ${showTodayOnly ? 'bg-slate-900 text-white shadow-xs' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'}`}
         >
           <Calendar className="w-4 h-4" />
           {showTodayOnly ? "Showing Today's Shift" : "Show Today's Shift Only"}
@@ -298,10 +288,10 @@ export function JobsListClient({
               type="button"
               onClick={() => handleSelectStatus(f.id)}
               className={cn(
-                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shadow-xs border",
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shadow-xs border cursor-pointer",
                 isActive
-                  ? "bg-indigo-600 text-white border-indigo-600 shadow-indigo-100 shadow-md"
-                  : "bg-white/80 hover:bg-white text-slate-600 hover:text-slate-900 border-slate-200/80"
+                  ? "bg-slate-900 text-white border-slate-900 shadow-xs font-bold"
+                  : "bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 border-slate-200/90"
               )}
             >
               <span>{f.label}</span>
@@ -318,11 +308,11 @@ export function JobsListClient({
         })}
       </div>
 
-      {/* Jobs List Container */}
-      <div className="bg-white/60 backdrop-blur-2xl rounded-2xl shadow-premium-card border border-white/80 overflow-hidden relative z-10">
+      {/* Jobs List Container (Flat solid, no glassmorphism blur) */}
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/90 overflow-hidden relative z-10">
         <div className="table-container" style={{ opacity: isPending ? 0.7 : 1, transition: 'opacity 0.2s' }}>
           <table className="table-standard w-full">
-            <thead className="bg-slate-50/50 backdrop-blur-md border-b border-slate-200/50 sticky top-0 z-10">
+            <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
               <tr>
                 <th className="pl-6">Job No.</th>
                 <th>Customer</th>

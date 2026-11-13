@@ -100,7 +100,7 @@ export function StaffActivityDashboard({ initialReport }: { initialReport: Staff
   return (
     <div className="space-y-8">
       {/* 5:00 PM SHIFT BAR & DATE SELECTOR */}
-      <div className="p-5 rounded-2xl bg-white/80 backdrop-blur-xl border border-indigo-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="p-5 rounded-2xl bg-white/80 border border-indigo-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />

@@ -35,9 +35,9 @@ import {
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils'
 
 function formatDateStamp(dateStr?: string) {
-  if (!dateStr) return '—'
+  if (!dateStr) return '-'
   const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return '—'
+  if (isNaN(d.getTime())) return '-'
   return d.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
@@ -46,9 +46,9 @@ function formatDateStamp(dateStr?: string) {
 }
 
 function formatTimeStamp(dateStr?: string) {
-  if (!dateStr) return '—'
+  if (!dateStr) return '-'
   const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return '—'
+  if (isNaN(d.getTime())) return '-'
   return d.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
@@ -652,7 +652,7 @@ export function InventoryManager({
         totalVal.toFixed(2),
         `"${formatDateStamp(m.created_at)}"`,
         `"${formatTimeStamp(m.created_at)}"`,
-        `"${m.updated_at ? `${formatDateStamp(m.updated_at)} ${formatTimeStamp(m.updated_at)}` : '—'}"`
+        `"${m.updated_at ? `${formatDateStamp(m.updated_at)} ${formatTimeStamp(m.updated_at)}` : '-'}"`
       ]
     })
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n')
@@ -742,12 +742,9 @@ export function InventoryManager({
       {/* Top Executive KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* KPI 1: Total Valuation */}
-        <div className="bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 shadow-sm border border-indigo-800/40 relative overflow-hidden">
-          <div className="absolute -right-3 -bottom-3 opacity-10">
-            <Boxes className="w-24 h-24 text-white" />
-          </div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-200/90 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-xs border border-slate-800 relative">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" />
             Stock Asset Valuation
           </p>
           <h2 className="text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight">
@@ -1545,12 +1542,12 @@ export function InventoryManager({
                                 {log.qty_change_area > 0 ? `+${log.qty_change_area.toFixed(1)}` : log.qty_change_area.toFixed(1)} m²
                               </span>
                             ) : (
-                              <span className="text-slate-400">—</span>
+                              <span className="text-slate-400">-</span>
                             )}
                           </td>
                           <td className="py-3.5 px-4 text-slate-600 max-w-xs">
                             <div className="truncate">
-                              {log.notes || '—'}
+                              {log.notes || '-'}
                               {log.jobs && (
                                 <span className="ml-1 text-indigo-600 font-semibold">
                                   ({log.jobs.job_number} - {log.jobs.customer_name})
@@ -1664,8 +1661,8 @@ export function InventoryManager({
                           >
                             <option value="">
                               {rec.recommendedMaterial
-                                ? `— Smart Auto-Fit (${rec.familyLabel}: ${familyWidths.join(', ')}) —`
-                                : '— No Material Linked (Manual Selection in Print Room) —'}
+                                ? `- Smart Auto-Fit (${rec.familyLabel}: ${familyWidths.join(', ')}) -`
+                                : '- No Material Linked (Manual Selection in Print Room) -'}
                             </option>
                             {materials.map(m => {
                               const parsed = parseRollDimensions(m)

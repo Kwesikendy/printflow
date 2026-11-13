@@ -179,10 +179,10 @@ export function CustomerStatementPrint({
                   {row.recordedBy && <span className="text-slate-400"> (Cashier: {row.recordedBy})</span>}
                 </td>
                 <td className="py-2 px-3 text-right font-semibold text-slate-900">
-                  {row.debit > 0 ? formatCurrency(row.debit) : '—'}
+                  {row.debit > 0 ? formatCurrency(row.debit) : '-'}
                 </td>
                 <td className="py-2 px-3 text-right font-semibold text-emerald-700">
-                  {row.credit > 0 ? formatCurrency(row.credit) : '—'}
+                  {row.credit > 0 ? formatCurrency(row.credit) : '-'}
                 </td>
                 <td className="py-2 px-3 text-right font-black whitespace-nowrap">
                   {formatCurrency(row.runningBalance)}
@@ -253,7 +253,7 @@ export function CustomerStatementPrint({
                 <tr key={p.id}>
                   <td className="py-1.5 text-slate-600">{formatDate(p.recorded_at)}</td>
                   <td className="py-1.5 font-semibold text-slate-700 uppercase">{p.method}</td>
-                  <td className="py-1.5 text-slate-500 font-mono text-[10px]">{p.reference || '—'}</td>
+                  <td className="py-1.5 text-slate-500 font-mono text-[10px]">{p.reference || '-'}</td>
                   <td className="py-1.5 text-right font-bold text-emerald-700">{formatCurrency(p.amount)}</td>
                 </tr>
               ))}

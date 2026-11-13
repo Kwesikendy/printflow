@@ -61,15 +61,13 @@ export function CustomerArrearsBanner({
 
   return (
     <>
-      <div className="rounded-2xl border-2 border-amber-300 bg-linear-to-br from-amber-50 via-white to-orange-50/50 p-4 sm:p-5 shadow-sm space-y-3.5">
+      <div className="rounded-2xl border border-amber-300 bg-amber-50/80 p-4 sm:p-5 shadow-xs space-y-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/20 shrink-0 mt-0.5">
-              <AlertTriangle className="w-5 h-5" />
-            </div>
+            <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="text-sm font-black text-slate-900 tracking-tight">
+                <h4 className="text-sm font-black text-slate-900 tracking-tight font-heading">
                   Customer Has Outstanding Arrears
                 </h4>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">

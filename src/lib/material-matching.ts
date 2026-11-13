@@ -374,7 +374,7 @@ export function recommendMaterialForJob(
       recommendedMaterial: null,
       reason: targetFamily === 'paper'
         ? 'Paper / sheet item (no wide-format roll required unless selected)'
-        : 'No matching roll family found — select roll manually if needed',
+        : 'No matching roll family found - select roll manually if needed',
       familyLabel,
       familyCandidates: [],
       allMaterialsEnriched,
@@ -422,7 +422,7 @@ export function recommendMaterialForJob(
       return (Number(b.qty_rolls) || 0) - (Number(a.qty_rolls) || 0)
     })
     chosen = sortedDesc[0]
-    reason = `Job exceeds single roll width — selected widest ${familyLabel} (${chosen.parsed.widthSummary})`
+    reason = `Job exceeds single roll width - selected widest ${familyLabel} (${chosen.parsed.widthSummary})`
   }
 
   const rollArea = chosen ? chosen.parsed.effectiveAreaPerRollM2 : 0

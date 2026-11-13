@@ -113,7 +113,7 @@ export function formatDate(date: string | Date): string {
 
 export function formatDateTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
-  // Ghana is UTC+0 (GMT) year-round — no DST
+  // Ghana is UTC+0 (GMT) year-round - no DST
   return d.toLocaleString('en-GB', {
     timeZone: 'Africa/Accra',
     day: '2-digit',

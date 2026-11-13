@@ -353,33 +353,24 @@ export function PrintQueueList({
           const inProdCount = group.jobs.filter(j => j.status === 'in_production').length
 
           return (
-            <motion.div
+            <div
               key={group.key}
-              layout
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              whileHover={{ y: -2, boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)" }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
               className="w-full"
             >
-              <Card className={cn(
-                "overflow-hidden transition-colors border-l-4",
-                group.hasInProduction ? 'border-l-indigo-500 bg-white' : 'border-l-slate-300 bg-white'
-              )}>
-                <CardContent className="p-6">
+              <Card className="overflow-hidden bg-white border border-slate-200/90 shadow-xs">
+                <CardContent className="p-5 sm:p-6">
 
                   {/* ORDER / GROUP HEADER */}
                   <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 pb-4 border-b border-slate-100">
                     <div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                        <h3 className="text-xl font-black text-slate-900 tracking-tight font-heading">
                           {group.customerName}
                         </h3>
 
                         {isMulti && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-200/80 shadow-xs">
-                            <Layers className="w-3.5 h-3.5" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
+                            <Layers className="w-3.5 h-3.5 text-slate-500" />
                             Multi-Job Order ({group.jobs.length} items)
                           </span>
                         )}
@@ -408,10 +399,10 @@ export function PrintQueueList({
                         href={printCardUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white text-slate-800 border-2 border-slate-300 hover:border-slate-800 hover:bg-slate-50 shadow-sm transition-all"
+                        className="btn btn-outline text-xs px-3 py-1.5 font-bold"
                         title="Print single consolidated job ticket on 80mm roll"
                       >
-                        <Printer className="w-4 h-4 text-slate-700" />
+                        <Printer className="w-4 h-4 text-slate-600" />
                         Print Job Card {isMulti ? '(All Items)' : ''}
                       </a>
 
@@ -447,7 +438,7 @@ export function PrintQueueList({
                       {group.groupId && (
                         <Link
                           href={`/dashboard/jobs/group/${group.groupId}`}
-                          className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold px-2 py-1"
+                          className="inline-flex items-center gap-1 text-xs text-sky-700 hover:text-sky-900 font-semibold px-2 py-1"
                         >
                           View Order <ExternalLink className="w-3 h-3" />
                         </Link>
@@ -455,8 +446,8 @@ export function PrintQueueList({
                     </div>
                   </div>
 
-                  {/* ITEMS LIST */}
-                  <div className="mt-4 space-y-3">
+                  {/* ITEMS LIST (FLATTENED DIVIDER ROWS - NO CARDS INSIDE CARDS) */}
+                  <div className="divide-y divide-slate-100">
                     {group.jobs.map((job, idx) => {
                       const consumption = calculateJobConsumption(
                         job.width,
@@ -470,20 +461,20 @@ export function PrintQueueList({
                         <div
                           key={job.id}
                           className={cn(
-                            "p-4 rounded-xl border transition-all flex flex-col md:flex-row gap-4 justify-between md:items-center",
+                            "py-3.5 px-2 flex flex-col md:flex-row gap-4 justify-between md:items-center transition-colors rounded-lg",
                             job.status === 'in_production'
-                              ? 'bg-indigo-50/40 border-indigo-100 shadow-xs'
-                              : 'bg-slate-50/60 border-slate-200/70 hover:bg-white'
+                              ? 'bg-amber-50/30'
+                              : 'hover:bg-slate-50/50'
                           )}
                         >
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               {isMulti && (
-                                <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0">
+                                <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center shrink-0 border border-slate-200">
                                   {idx + 1}
                                 </span>
                               )}
-                              <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                              <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                                 {job.job_number}
                               </span>
                               <span className="font-bold text-sm text-slate-900">
@@ -532,7 +523,7 @@ export function PrintQueueList({
                             </div>
 
                             {job.notes && (
-                              <div className="mt-2 text-xs text-slate-600 bg-white/80 p-2 rounded-lg border border-slate-200/60 italic">
+                              <div className="mt-2 text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200 italic">
                                 <strong>Note:</strong> {job.notes}
                               </div>
                             )}
@@ -578,7 +569,7 @@ export function PrintQueueList({
 
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           )
         })}
       </AnimatePresence>

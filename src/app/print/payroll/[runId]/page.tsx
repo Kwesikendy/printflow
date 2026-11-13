@@ -100,7 +100,7 @@ export default async function PayrollRegisterPage({ params }: { params: Promise<
               const employee = employeesById.get(entry.employee_id) as any
               return <tr key={entry.id} className="break-inside-avoid even:bg-slate-50/70">
                 <td className="border border-slate-300 px-2 py-2"><p className="font-bold">{employee?.full_name || 'Former employee'}</p><p className="mt-0.5 text-slate-500">{employee?.email || ''}</p></td>
-                <td className="border border-slate-300 px-2 py-2">{employee?.department || employee?.role || '—'}</td>
+                <td className="border border-slate-300 px-2 py-2">{employee?.department || employee?.role || '-'}</td>
                 <MoneyCell value={entry.basic_salary} money={money} />
                 <MoneyCell value={entry.allowances} money={money} />
                 <MoneyCell value={entry.gross_salary} money={money} strong />

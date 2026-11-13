@@ -846,7 +846,7 @@ async function deductMaterialForJob(jobId: string, materialId: string): Promise<
     const nowIso = new Date().toISOString()
     const baseNote = `Print Room used ${material.name} for ${job.job_number || 'job'} (${consumption.widthFt}ft × ${consumption.heightFt}ft × ${consumption.quantity} = ${areaM2.toFixed(2)} m²)`
     const shortfallNote = shortfallM2 > 0.001
-      ? ` — STOCK SHORTFALL: system only had ${available.toFixed(3)} rolls, ${shortfallM2.toFixed(2)} m² could not be deducted. Recount this material.`
+      ? ` - STOCK SHORTFALL: system only had ${available.toFixed(3)} rolls, ${shortfallM2.toFixed(2)} m² could not be deducted. Recount this material.`
       : ''
 
     const { error: logErr } = await serviceSupabase.from('inventory_logs').insert({

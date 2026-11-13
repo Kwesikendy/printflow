@@ -230,7 +230,7 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
                     )}
                   </div>
 
-                  {/* Show payment form whenever invoice has a remaining balance — even if jobs are already in print room */}
+                  {/* Show payment form whenever invoice has a remaining balance - even if jobs are already in print room */}
                   {!isFullyPaid && ['front_desk', 'admin', 'accountant'].includes(role) && (
                     <PaymentForm 
                       invoice={invoice} 

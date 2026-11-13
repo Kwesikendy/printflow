@@ -360,7 +360,7 @@ export function FlaggedInvoicesPrint({
                         {formatCurrency(inv.total)}
                       </td>
                       <td className="py-3.5 px-3 text-right text-emerald-600 font-semibold whitespace-nowrap">
-                        {paid > 0 ? formatCurrency(paid) : '—'}
+                        {paid > 0 ? formatCurrency(paid) : '-'}
                       </td>
                       <td className="py-3.5 px-3 text-right font-bold text-rose-700 whitespace-nowrap">
                         {formatCurrency(balance)}
@@ -414,7 +414,7 @@ export function FlaggedInvoicesPrint({
         </div>
 
         <div className="mt-10 text-center text-[10px] text-slate-400">
-          Confidential Audit & Disputed Invoices Report — {tenantName} • Generated via PrintFlow Accounting Control Engine
+          Confidential Audit & Disputed Invoices Report - {tenantName} • Generated via PrintFlow Accounting Control Engine
         </div>
       </div>
     </div>

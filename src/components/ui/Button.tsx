@@ -7,7 +7,7 @@ import { playSound } from '../../lib/sounds'
 import { cn } from '@/lib/utils'
 
 interface ButtonProps extends Omit<HTMLMotionProps<"button">, "disabled"> {
-  variant?: 'primary' | 'ghost' | 'danger' | 'success' | 'outline'
+  variant?: 'primary' | 'ghost' | 'danger' | 'success' | 'outline' | 'accent'
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
   disabled?: boolean
@@ -16,10 +16,11 @@ interface ButtonProps extends Omit<HTMLMotionProps<"button">, "disabled"> {
 
 const variantClass = {
   primary: 'btn-primary',
+  accent: 'btn-accent',
   ghost: 'btn-ghost',
   danger: 'btn-danger',
   success: 'btn-success',
-  outline: 'border border-indigo-500/50 text-indigo-600 hover:bg-indigo-50',
+  outline: 'btn-outline',
 }
 
 const sizeClass = {
@@ -46,10 +47,9 @@ export function Button({
   
   return (
     <motion.button
-      whileHover={{ scale: disabled || loading ? 1 : 1.015 }}
-      whileTap={{ scale: disabled || loading ? 1 : 0.97 }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
-      className={cn("btn", variantClass[variant], sizeClass[size], className)}
+      whileTap={{ y: disabled || loading ? 0 : 1 }}
+      transition={{ duration: 0.1 }}
+      className={cn("btn font-semibold tracking-wide", variantClass[variant], sizeClass[size], className)}
       disabled={disabled || loading}
       onClick={handleClick}
       {...props}

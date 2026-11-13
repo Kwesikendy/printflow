@@ -161,15 +161,13 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
         </Card>
 
         {/* Total Outstanding Arrears */}
-        <Card className="relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-white to-transparent border-amber-300 shadow-xs">
+        <Card className="bg-amber-50/60 border-amber-200/90 shadow-xs">
           <CardContent className="p-5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
                 Total Receivables Owed
               </span>
-              <div className="p-2 bg-amber-500 text-white rounded-lg shadow-sm">
-                <DollarSign className="w-4 h-4" />
-              </div>
+              <DollarSign className="w-4 h-4 text-amber-700" />
             </div>
             <p className="text-2xl sm:text-3xl font-black text-amber-900 mt-2">
               {formatCurrency(data.summary.totalArrears)}
@@ -258,7 +256,7 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
             type="button"
             variant="primary"
             onClick={() => handleOpenAddModal('', '', true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-md shadow-indigo-600/20 flex items-center gap-1.5 cursor-pointer shrink-0"
+            className="text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 font-bold"
           >
             <UserPlus className="w-4 h-4" />
             <span>Add Client / Legacy Debt</span>
@@ -320,13 +318,13 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 transition-transform group-hover/name:scale-105 ${
                           c.hasArrears 
                             ? 'bg-amber-100 text-amber-800 border border-amber-200' 
-                            : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                            : 'bg-slate-100 text-slate-800 border border-slate-200'
                         }`}>
                           {c.name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-black text-slate-900 group-hover/name:text-indigo-600 transition-colors">
+                            <span className="font-black text-slate-900 group-hover/name:text-sky-700 transition-colors">
                               {c.name}
                             </span>
                             {c.hasArrears && (
@@ -349,7 +347,7 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
                         <div className="space-y-0.5">
                           <a
                             href={`tel:${c.phone}`}
-                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-sky-700 transition-colors"
                           >
                             <Phone className="w-3.5 h-3.5 text-slate-400" />
                             <span>{c.phone}</span>
@@ -369,8 +367,8 @@ export function ClientsDirectoryClient({ initialData, userRole }: ClientsDirecto
                     <td className="py-4 px-4">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
                         c.source === 'marketing'
-                          ? 'bg-purple-50 text-purple-700 border border-purple-200/60'
-                          : 'bg-slate-100 text-slate-700'
+                          ? 'bg-sky-50 text-sky-800 border border-sky-200/80'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
                       }`}>
                         {c.source === 'marketing' ? 'Marketing Agency' : 'Walk-in Retail'}
                       </span>

@@ -197,8 +197,7 @@ export function HRDashboard({ initialEmployees, initialLeaveRequests, year, payr
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-600 p-6 sm:p-8 text-white shadow-[0_18px_50px_-20px_rgba(79,70,229,0.55)]">
-        <div className="absolute -right-12 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+      <section className="rounded-3xl bg-slate-900 p-6 sm:p-8 text-white shadow-sm border border-slate-800">
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="flex items-center gap-2 text-indigo-100 text-sm font-semibold"><BriefcaseBusiness className="w-4 h-4" aria-hidden="true" /> People operations</div>
@@ -411,7 +410,7 @@ function RequestStatus({ status }: { status: HRLeaveRequest['status'] }) {
 function LeaveRequestModal({ employees, error, isPending, onClose, onSubmit }: { employees: HRDepartmentEmployee[]; error: string | null; isPending: boolean; onClose: () => void; onSubmit: (formData: FormData) => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <button type="button" className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={onClose} aria-label="Close leave request dialog" />
+      <button type="button" className="absolute inset-0 bg-slate-950/60 " onClick={onClose} aria-label="Close leave request dialog" />
       <Card noHover className="relative z-10 w-full max-w-lg">
         <CardContent className="p-6 sm:p-8">
           <div className="flex items-start justify-between gap-4 mb-6">

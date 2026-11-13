@@ -77,7 +77,7 @@ export function OutstandingBalanceBreakdownModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          className="absolute inset-0 bg-slate-900/60"
         />
 
         {/* Modal Window */}
@@ -86,17 +86,17 @@ export function OutstandingBalanceBreakdownModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 16 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-100 z-10"
+          className="relative w-full max-w-3xl max-h-[90vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 z-10"
         >
           {/* Header */}
-          <div className="p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-amber-500/10 via-white to-transparent">
+          <div className="p-5 sm:p-6 border-b border-slate-200/90 bg-white">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-800">
                   <AlertCircle className="w-3.5 h-3.5" />
                   Receivables Breakdown
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1 font-heading">
                   Outstanding Balance Contributors
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
@@ -107,7 +107,7 @@ export function OutstandingBalanceBreakdownModal({
                 <Link
                   href="/dashboard/admin/clients"
                   onClick={onClose}
-                  className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl border border-indigo-200 transition-colors cursor-pointer"
+                  className="hidden sm:inline-flex items-center gap-1 text-xs font-bold text-slate-800 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-xl border border-slate-200 transition-colors cursor-pointer"
                 >
                   Clients Directory &rarr;
                 </Link>
@@ -144,7 +144,7 @@ export function OutstandingBalanceBreakdownModal({
                   {topDebtor ? topDebtor.name : 'None'}
                 </p>
                 <p className="text-[11px] text-amber-600 font-semibold mt-0.5">
-                  {topDebtor ? `${formatCurrency(topDebtor.totalOutstanding)} (${totalOutstanding > 0 ? ((topDebtor.totalOutstanding / totalOutstanding) * 100).toFixed(0) : 0}%)` : '—'}
+                  {topDebtor ? `${formatCurrency(topDebtor.totalOutstanding)} (${totalOutstanding > 0 ? ((topDebtor.totalOutstanding / totalOutstanding) * 100).toFixed(0) : 0}%)` : '-'}
                 </p>
               </div>
             </div>

@@ -175,20 +175,12 @@ export default async function AdminOverviewPage() {
               }
               
               return (
-                <div key={status} className="relative overflow-hidden bg-white/50 backdrop-blur-sm p-5 rounded-2xl border border-slate-200/60 shadow-sm hover:shadow-md transition-shadow group">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`relative flex h-2.5 w-2.5`}>
-                      {status === 'in_production' && (
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                      )}
-                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${dotClass}`}></span>
-                    </span>
+                <div key={status} className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-flex rounded-full h-2 w-2 ${dotClass}`}></span>
                     <p className="text-xs text-slate-500 uppercase tracking-wider font-bold truncate">{status.replace('_', ' ')}</p>
                   </div>
-                  <p className="text-3xl font-black text-slate-900 tracking-tight">{String(count)}</p>
-                  
-                  {/* Subtle accent bar at the bottom */}
-                  <div className={`absolute bottom-0 left-0 right-0 h-1 ${colorClass} opacity-50 group-hover:opacity-100 transition-opacity`} />
+                  <p className="text-3xl font-black text-slate-900 tracking-tight font-heading">{String(count)}</p>
                 </div>
               )
             })}

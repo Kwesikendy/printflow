@@ -4,7 +4,7 @@ import { FlaggedInvoicesPrint } from '@/components/finance/FlaggedInvoicesPrint'
 import { getShiftDateString } from '@/lib/workday'
 
 export const metadata: Metadata = {
-  title: 'Flagged & Disputed Invoices Report — PrintFlow',
+  title: 'Flagged & Disputed Invoices Report - PrintFlow',
 }
 
 export default async function PrintFlaggedInvoicesPage(props: {
