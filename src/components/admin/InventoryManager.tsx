@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Label } from '@/components/ui/Label'
@@ -714,6 +715,15 @@ export function InventoryManager({
               Fix {misconfiguredRolls.length} Roll Widths (3FT / 4FT / 5FT)
             </Button>
           )}
+
+          <Link
+            href="/print/inventory-report?focus=add_stock"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-xs transition-colors"
+            title="View and print full report of stock additions and movements"
+          >
+            <FileText className="w-3.5 h-3.5 text-sky-600" />
+            Stock Additions Report
+          </Link>
 
           <Button 
             variant="outline" 
