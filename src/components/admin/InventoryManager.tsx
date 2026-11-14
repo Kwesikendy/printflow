@@ -772,7 +772,7 @@ export function InventoryManager({
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
             Stock Asset Valuation
           </p>
-          <h2 className="text-2xl lg:text-3xl font-extrabold mt-2 tracking-tight">
+          <h2 className="text-2xl lg:text-3xl font-extrabold text-white mt-2 tracking-tight">
             {formatCurrency(stats.totalValue)}
           </h2>
           <p className="text-xs text-indigo-200/70 mt-1.5 flex items-center gap-1">
