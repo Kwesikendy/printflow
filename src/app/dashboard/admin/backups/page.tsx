@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import {
   getBackupOverviewAction,
   triggerBackupAction,
+  triggerAutoBackupAction,
   deleteLocalBackupAction,
   deleteDriveBackupAction,
   testDriveConnectionAction,
@@ -24,6 +25,8 @@ import {
   Terminal,
   HelpCircle,
   FileCheck2,
+  Clock,
+  Copy,
 } from 'lucide-react'
 
 export default function BackupsPage() {
@@ -31,8 +34,26 @@ export default function BackupsPage() {
   const [data, setData] = useState<BackupOverviewResponse | null>(null)
   const [creating, setCreating] = useState(false)
   const [testingDrive, setTestingDrive] = useState(false)
+  const [runningAuto, setRunningAuto] = useState(false)
   const [includeStorage, setIncludeStorage] = useState(false)
   const [uploadToDrive, setUploadToDrive] = useState(true)
+
+  const handleTriggerAutoBackup = async () => {
+    try {
+      setRunningAuto(true)
+      const res = await triggerAutoBackupAction()
+      if (res.success) {
+        toast.success(`Automated backup complete: ${res.fileName} (${res.totalRecords} records)`)
+      } else {
+        toast.error(res.error || 'Automated backup failed')
+      }
+      await loadData()
+    } catch (err: any) {
+      toast.error(err.message || 'Error running automated backup')
+    } finally {
+      setRunningAuto(false)
+    }
+  }
   const [showSetupGuide, setShowSetupGuide] = useState(false)
 
   const loadData = async () => {
@@ -278,6 +299,82 @@ export default function BackupsPage() {
                 </>
               )}
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Automated Daily Backups Section */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6 sm:p-7">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-5 border-b border-slate-100">
+          <div className="flex items-start gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-700 flex items-center justify-center shrink-0 border border-sky-100">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-bold text-slate-900 text-lg">Automated Daily Backups</h3>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Active & Scheduled
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Background engine automatically snapshots all 19 database tables every 24 hours (daily shift close at 23:00 UTC) with automatic retention and Google Drive cloud sync.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={handleTriggerAutoBackup}
+              disabled={runningAuto}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-xs transition-colors disabled:opacity-60 cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${runningAuto ? 'animate-spin' : ''}`} />
+              {runningAuto ? 'Running Auto Backup...' : 'Test Auto Backup Now'}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5 text-xs">
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+            <span className="text-slate-400 block font-medium">Automatic Schedule</span>
+            <span className="font-bold text-slate-800 text-sm mt-0.5 block">
+              {data?.autoBackupState?.schedule || 'Daily at 23:00 UTC (End of Shift)'}
+            </span>
+            <span className="text-[11px] text-slate-500">Every 24 hours automatically</span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+            <span className="text-slate-400 block font-medium">Last Automatic Backup</span>
+            <span className="font-bold text-slate-800 text-sm mt-0.5 block">
+              {data?.autoBackupState?.lastRunAt ? formatDate(data.autoBackupState.lastRunAt) : 'Pending tonight'}
+            </span>
+            <span className="text-[11px] text-slate-500">
+              {data?.autoBackupState?.lastTotalRecords
+                ? `${data.autoBackupState.lastTotalRecords.toLocaleString()} records captured`
+                : 'Next run scheduled at shift close'}
+            </span>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100">
+            <span className="text-slate-400 block font-medium">Webhook / Cron Endpoint</span>
+            <div className="flex items-center justify-between gap-1 mt-0.5">
+              <span className="font-mono text-[11px] font-semibold text-slate-700 truncate">
+                /api/cron/backup
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/api/cron/backup`)
+                  toast.success('Copied cron webhook URL to clipboard!')
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded"
+                title="Copy webhook URL"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <span className="text-[11px] text-slate-500">Triggers on demand or external scheduler</span>
           </div>
         </div>
       </div>

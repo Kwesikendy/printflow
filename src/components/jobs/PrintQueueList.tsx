@@ -7,12 +7,13 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Button } from '@/components/ui/Button'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { transitionJobStatusAction, startJobsWithMaterialAction } from '@/app/actions/jobs'
-import { Printer, Play, CheckCircle2, Layers, ExternalLink } from 'lucide-react'
+import { Printer, Play, CheckCircle2, Layers, ExternalLink, Download } from 'lucide-react'
 import type { Job } from '@/types/database'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn, PRINT_ROOM_LABELS, formatDateTime, isPocketOrFinishingProduct } from '@/lib/utils'
+import { getArtworkDownloadUrl, getArtworkDownloadFilename } from '@/lib/artwork'
 import {
   type MaterialLike,
   calculateJobConsumption,
@@ -530,7 +531,19 @@ export function PrintQueueList({
                           </div>
 
                           {/* ITEM ACTIONS */}
-                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                          <div className="flex items-center gap-2 shrink-0 self-end md:self-center flex-wrap">
+                            {job.artwork_url && (
+                              <a
+                                href={getArtworkDownloadUrl(job)}
+                                download={getArtworkDownloadFilename(job)}
+                                title={`Download: ${getArtworkDownloadFilename(job)}`}
+                                className="btn bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200 text-xs px-2.5 py-1.5 font-bold inline-flex items-center gap-1.5 transition-colors"
+                              >
+                                <Download className="w-3.5 h-3.5 text-sky-700" />
+                                Download Artwork
+                              </a>
+                            )}
+
                             <Link
                               href={`/dashboard/jobs/${job.id}`}
                               className="btn btn-outline border-slate-200 text-slate-700 hover:bg-slate-100 text-xs px-3 py-1.5"

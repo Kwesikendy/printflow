@@ -138,7 +138,9 @@ async function uploadArtworkFile(file: File, tenantId: string): Promise<string> 
         })
 
       if (!storageErr && presignedJson.publicUrl) {
-        return presignedJson.publicUrl
+        const base = presignedJson.publicUrl
+        const sep = base.includes('?') ? '&' : '?'
+        return `${base}${sep}name=${encodeURIComponent(file.name)}`
       }
       if (storageErr) {
         console.warn('uploadToSignedUrl returned error:', storageErr)
@@ -173,7 +175,9 @@ async function uploadArtworkFile(file: File, tenantId: string): Promise<string> 
     throw new Error(`Failed to upload ${file.name}: ` + (uploadJson?.error || 'Upload error'))
   }
 
-  return uploadJson.publicUrl
+  const base = uploadJson.publicUrl
+  const sep = base.includes('?') ? '&' : '?'
+  return `${base}${sep}name=${encodeURIComponent(file.name)}`
 }
 
 function CustomerAutocomplete({

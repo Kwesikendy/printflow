@@ -449,3 +449,123 @@ export async function normalizeRollDimensionsAction() {
   return { success: true, fixedCount, updatedMaterials }
 }
 
+
+
+/**
+ * Zeroes out all legacy inventory quantities in preparation for a fresh full restock.
+ * Leaves materials intact, but resets balances to 0 with an audit trail entry.
+ */
+export async function prepareInventoryForRestockAction(notes?: string) {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { error: permError || 'Unauthorized' }
+
+  const serviceSupabase = createServiceClient()
+  const { data: materials, error: fetchErr } = await (serviceSupabase as any)
+    .from('materials')
+    .select('id, name, unit, qty_rolls, roll_width, roll_length, roll_height')
+    .eq('tenant_id', profile.tenant_id)
+
+  if (fetchErr || !materials) return { error: fetchErr?.message || 'Failed to fetch materials' }
+
+  const nowIso = new Date().toISOString()
+  const auditNote = notes?.trim() || 'Pre-restock warehouse reset: Legacy stock balance cleared for incoming shipment'
+  let resetCount = 0
+
+  for (const m of materials) {
+    const currentQty = parseFloat(m.qty_rolls || 0)
+    if (currentQty !== 0) {
+      const { error: upErr } = await (serviceSupabase as any)
+        .from('materials')
+        .update({
+          qty_rolls: 0,
+          updated_at: nowIso,
+        })
+        .eq('id', m.id)
+
+      if (!upErr) {
+        resetCount++
+        const area = (parseFloat(m.roll_width) || 0) * (parseFloat(m.roll_height || m.roll_length) || 0) * currentQty
+        await (serviceSupabase as any).from('inventory_logs').insert({
+          tenant_id: profile.tenant_id,
+          material_id: m.id,
+          action: 'adjust_stock',
+          qty_change_rolls: -currentQty,
+          qty_change_area: -area,
+          created_at: nowIso,
+          notes: `${auditNote} (cleared ${currentQty.toFixed(2)} ${m.unit || 'roll'}s)`,
+        })
+      }
+    }
+  }
+
+  revalidatePath('/dashboard/admin/inventory')
+  revalidatePath('/dashboard/queue')
+  return { success: true, resetCount }
+}
+
+/**
+ * Batch restocks multiple materials from a shipment delivery in a single operation.
+ */
+export async function batchRestockAction(
+  shipments: Array<{ materialId: string; rollsToAdd: number; costPerRoll?: number }>,
+  deliveryRef?: string
+) {
+  const { error: permError, profile } = await checkInventoryPermission()
+  if (permError || !profile) return { error: permError || 'Unauthorized' }
+
+  const validItems = shipments.filter(s => s.rollsToAdd > 0)
+  if (validItems.length === 0) {
+    return { error: 'Please enter a positive roll count for at least one material.' }
+  }
+
+  const serviceSupabase = createServiceClient()
+  const nowIso = new Date().toISOString()
+  let updatedCount = 0
+
+  for (const item of validItems) {
+    const { data: mat } = await (serviceSupabase as any)
+      .from('materials')
+      .select('id, name, unit, qty_rolls, unit_cost, roll_width, roll_length, roll_height')
+      .eq('id', item.materialId)
+      .single()
+
+    if (!mat) continue
+
+    const currentQty = parseFloat(mat.qty_rolls || 0)
+    const newQty = currentQty + item.rollsToAdd
+    const cost = item.costPerRoll !== undefined && item.costPerRoll > 0 ? item.costPerRoll : parseFloat(mat.unit_cost || 0)
+
+    const updatePayload: any = {
+      qty_rolls: newQty,
+      updated_at: nowIso,
+    }
+    if (item.costPerRoll !== undefined && item.costPerRoll > 0) {
+      updatePayload.unit_cost = item.costPerRoll
+    }
+
+    const { error: upErr } = await (serviceSupabase as any)
+      .from('materials')
+      .update(updatePayload)
+      .eq('id', item.materialId)
+
+    if (!upErr) {
+      updatedCount++
+      const addedArea = (parseFloat(mat.roll_width) || 0) * (parseFloat(mat.roll_height || mat.roll_length) || 0) * item.rollsToAdd
+      const unitLabel = mat.unit === 'sheet' ? 'sheets' : mat.unit === 'piece' ? 'pieces' : 'rolls'
+      const refNote = deliveryRef?.trim() ? ` [Ref: ${deliveryRef.trim()}]` : ''
+      await (serviceSupabase as any).from('inventory_logs').insert({
+        tenant_id: profile.tenant_id,
+        material_id: item.materialId,
+        action: 'add_stock',
+        qty_change_rolls: item.rollsToAdd,
+        qty_change_area: addedArea,
+        created_at: nowIso,
+        notes: `Shipment Restock: +${item.rollsToAdd} ${unitLabel} @ ${cost.toFixed(2)} GHS${refNote}`,
+      })
+    }
+  }
+
+  revalidatePath('/dashboard/admin/inventory')
+  revalidatePath('/dashboard/queue')
+  return { success: true, updatedCount }
+}

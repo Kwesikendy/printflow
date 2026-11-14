@@ -12,7 +12,8 @@ import { EditJobModal } from '@/components/jobs/EditJobModal'
 import { formatCurrency, formatDateTime, PRINT_ROOM_LABELS, isPocketOrFinishingProduct } from '@/lib/utils'
 import { EditInvoiceModal } from '@/components/finance/EditInvoiceModal'
 import { AdminPaymentCorrectionModal } from '@/components/finance/AdminPaymentCorrectionModal'
-import { FileText, CheckCircle2, ArrowLeft, Flag } from 'lucide-react'
+import { FileText, CheckCircle2, ArrowLeft, Flag, Download, ExternalLink } from 'lucide-react'
+import { getArtworkDownloadUrl, getArtworkDownloadFilename } from '@/lib/artwork'
 
 export default async function JobGroupPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -157,11 +158,29 @@ export default async function JobGroupPage(props: { params: Promise<{ id: string
 
                 {job.notes && <p className="mt-3 text-sm text-slate-500 italic">Notes: {job.notes}</p>}
                 {job.artwork_url && (
-                  <a href={job.artwork_url} target="_blank" rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:underline font-medium"
-                  >
-                    <FileText className="w-3.5 h-3.5" /> View Artwork
-                  </a>
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center gap-2 flex-wrap">
+                    <a
+                      href={getArtworkDownloadUrl(job)}
+                      download={getArtworkDownloadFilename(job)}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200 rounded-lg text-xs font-bold transition-colors"
+                      title={`Direct download as: ${getArtworkDownloadFilename(job)}`}
+                    >
+                      <Download className="w-3.5 h-3.5 text-sky-700" />
+                      Download Artwork
+                    </a>
+                    <a
+                      href={job.artwork_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1"
+                      title="Preview in new tab"
+                    >
+                      <ExternalLink className="w-3 h-3" /> Preview
+                    </a>
+                    <span className="text-[11px] text-slate-400 font-mono truncate max-w-xs">
+                      {getArtworkDownloadFilename(job)}
+                    </span>
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -30,8 +30,10 @@ import {
   Layers,
   Sparkles,
   Calendar,
-  Clock
+  Clock,
+  PackagePlus
 } from 'lucide-react'
+import { BatchRestockModal } from '@/components/admin/BatchRestockModal'
 import { formatCurrency, formatDateTime, cn } from '@/lib/utils'
 
 function formatDateStamp(dateStr?: string) {
@@ -59,6 +61,8 @@ function formatTimeStamp(dateStr?: string) {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/Dialog'
 import { toast } from 'sonner'
 import { 
+  getMaterialsAction,
+  getInventoryLogsAction,
   createMaterialAction, 
   addStockAction, 
   adjustStockAction,
@@ -202,11 +206,25 @@ export function InventoryManager({
   // Modals state
   const [isAddOpen, setIsAddOpen] = useState(false)
   const [isStockOpen, setIsStockOpen] = useState(false)
+  const [isBatchRestockOpen, setIsBatchRestockOpen] = useState(false)
   const [isAdjustOpen, setIsAdjustOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const refreshInventoryData = async () => {
+    try {
+      const [mRes, lRes] = await Promise.all([
+        getMaterialsAction(tenantId),
+        getInventoryLogsAction(tenantId),
+      ])
+      if (mRes.data) setMaterials(mRes.data as Material[])
+      if (lRes.data) setLogs(lRes.data as InventoryLog[])
+    } catch (err) {
+      console.error('Failed to reload inventory data:', err)
+    }
+  }
 
   // Form states
   const [addForm, setAddForm] = useState({ 
@@ -703,6 +721,13 @@ export function InventoryManager({
             className="border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-xs"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5 text-emerald-600" /> Export CSV
+          </Button>
+
+          <Button 
+            onClick={() => setIsBatchRestockOpen(true)} 
+            className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-bold text-xs px-4 flex items-center gap-1.5"
+          >
+            <PackagePlus className="w-4 h-4" /> Shipment Restock Intake
           </Button>
 
           <Button 
@@ -2232,6 +2257,13 @@ export function InventoryManager({
           })()}
         </DialogContent>
       </Dialog>
+
+      <BatchRestockModal
+        open={isBatchRestockOpen}
+        onOpenChange={setIsBatchRestockOpen}
+        materials={materials}
+        onSuccess={refreshInventoryData}
+      />
     </div>
   )
 }

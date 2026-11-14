@@ -15,6 +15,11 @@ import {
   type GoogleDriveStatus,
   type GoogleDriveBackupFile,
 } from '@/lib/google-drive'
+import {
+  getAutoBackupState,
+  runAutoBackup,
+  type AutoBackupState,
+} from '@/lib/auto-backup-scheduler'
 import { revalidatePath } from 'next/cache'
 
 async function verifyAdmin() {
@@ -41,19 +46,21 @@ export interface BackupOverviewResponse {
   localBackups: LocalBackupInfo[]
   driveBackups: GoogleDriveBackupFile[]
   googleDriveStatus: GoogleDriveStatus
+  autoBackupState: AutoBackupState
   error?: string
 }
 
 /**
- * Gets the list of local backups, Google Drive backups, and Drive configuration status
+ * Gets the list of local backups, Google Drive backups, Drive configuration status, and Auto-Backup scheduler state
  */
 export async function getBackupOverviewAction(): Promise<BackupOverviewResponse> {
   try {
     await verifyAdmin()
 
-    const [driveStatus, localBackups] = await Promise.all([
+    const [driveStatus, localBackups, autoState] = await Promise.all([
       getGoogleDriveConfigStatus(),
       Promise.resolve(getLocalBackups()),
+      Promise.resolve(getAutoBackupState()),
     ])
 
     let driveBackups: GoogleDriveBackupFile[] = []
@@ -65,15 +72,27 @@ export async function getBackupOverviewAction(): Promise<BackupOverviewResponse>
       localBackups,
       driveBackups,
       googleDriveStatus: driveStatus,
+      autoBackupState: autoState,
     }
   } catch (err: any) {
     return {
       localBackups: [],
       driveBackups: [],
       googleDriveStatus: { isConfigured: false },
+      autoBackupState: getAutoBackupState(),
       error: err.message,
     }
   }
+}
+
+/**
+ * Runs an automated backup immediately on-demand
+ */
+export async function triggerAutoBackupAction(): Promise<BackupResult> {
+  await verifyAdmin()
+  const res = await runAutoBackup('Admin Triggered Automated Backup')
+  revalidatePath('/dashboard/admin/backups')
+  return res
 }
 
 /**
