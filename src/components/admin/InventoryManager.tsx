@@ -1086,208 +1086,140 @@ export function InventoryManager({
                 return (
                   <div 
                     key={m.id} 
-                    className={cn(
-                      "group bg-white rounded-2xl border transition-all duration-200 hover:shadow-md flex flex-col justify-between overflow-hidden relative",
-                      isDepleted 
-                        ? "border-rose-200/80 shadow-xs" 
-                        : isLow 
-                          ? "border-amber-200 shadow-xs" 
-                          : "border-slate-200/80 shadow-xs hover:border-indigo-200"
-                    )}
+                    className="group bg-white rounded-2xl border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all duration-200 flex flex-col justify-between p-5 gap-4"
                   >
-                    {/* Top colored status stripe */}
-                    <div className={cn(
-                      "h-1.5 w-full",
-                      isDepleted ? "bg-rose-500" : isLow ? "bg-amber-500" : "bg-emerald-500"
-                    )} />
-
-                    <div className="p-5 flex-1">
-                      {/* Material Header */}
-                      <div className="flex justify-between items-start gap-2 mb-3">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
-                              {m.name}
-                            </h3>
-                          </div>
-                          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1 font-medium">
-                            <Ruler className="w-3.5 h-3.5 text-slate-400" />
-                            {m.roll_width}m × {m.roll_height ?? m.roll_length}m {uLabels.cardSubtext} ({rollArea.toFixed(1)} m²/{uLabels.singular})
-                          </p>
-                        </div>
-
-                        {/* Top-Right Actions & Status */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Quick Edit/Delete Header Buttons */}
-                          <div className="flex items-center bg-slate-100/90 rounded-lg p-0.5 border border-slate-200/70">
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleOpenEdit(m); }}
-                              className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-white rounded transition-colors"
-                              title="Edit Material"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleOpenDelete(m); }}
-                              className="p-1 text-slate-500 hover:text-rose-600 hover:bg-white rounded transition-colors"
-                              title="Delete Material"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {/* Status badge */}
-                          <div className={cn(
-                            "px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 flex items-center gap-1",
-                            isDepleted 
-                              ? "bg-rose-50 text-rose-700 border border-rose-200" 
-                              : isLow 
-                                ? "bg-amber-50 text-amber-700 border border-amber-200" 
-                                : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          )}>
-                            {isDepleted ? (
-                              <>
-                                <AlertCircle className="w-3 h-3 text-rose-600" /> Out
-                              </>
-                            ) : isLow ? (
-                              <>
-                                <AlertTriangle className="w-3 h-3 text-amber-600" /> Low
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> In Stock
-                              </>
-                            )}
-                          </div>
-                        </div>
+                    {/* 1. Header: Name, Dimensions & Subtle Status */}
+                    <div className="flex justify-between items-start gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-[15px] font-bold text-slate-900 group-hover:text-sky-700 transition-colors truncate">
+                          {m.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-0.5 font-medium tabular-nums">
+                          {m.roll_width}m × {m.roll_height ?? m.roll_length}m {uLabels.cardSubtext} · {rollArea.toFixed(1)} m²/{uLabels.singular}
+                        </p>
                       </div>
 
-                      {/* Stock Level Display */}
-                      <div className="my-4 bg-slate-50/80 rounded-xl p-3.5 border border-slate-100 space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                              {uLabels.warehouseLabel}
-                            </span>
-                            <div className="flex items-baseline gap-1.5">
-                              <span className={cn(
-                                "text-2xl font-black tracking-tight",
-                                isDepleted ? "text-rose-600" : isLow ? "text-amber-600" : "text-slate-900"
-                              )}>
-                                {rolls.toFixed(2)}
-                              </span>
-                              <span className="text-xs font-semibold text-slate-500">{uLabels.plural}</span>
-                            </div>
-                          </div>
+                      <span className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold shrink-0 border",
+                        isDepleted 
+                          ? "bg-rose-50/70 text-rose-700 border-rose-200/80" 
+                          : isLow 
+                            ? "bg-amber-50/70 text-amber-800 border-amber-200/80" 
+                            : "bg-emerald-50/70 text-emerald-700 border-emerald-200/80"
+                      )}>
+                        <span className={cn(
+                          "w-1.5 h-1.5 rounded-full",
+                          isDepleted ? "bg-rose-500" : isLow ? "bg-amber-500" : "bg-emerald-500"
+                        )} />
+                        {isDepleted ? "Out" : isLow ? "Low" : "In Stock"}
+                      </span>
+                    </div>
 
-                          <div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                              Usable Area
-                            </span>
-                            <div className="flex items-baseline gap-1.5">
-                              <span className="text-xl font-bold text-slate-800">
-                                {totalArea.toFixed(1)}
-                              </span>
-                              <span className="text-xs font-semibold text-slate-500">m²</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Visual fill meter */}
-                        <div className="space-y-1">
-                          <div className="w-full bg-slate-200/80 rounded-full h-2 overflow-hidden">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-500",
-                                isDepleted ? "bg-rose-500 w-0" : isLow ? "bg-amber-500" : "bg-emerald-500"
-                              )}
-                              style={{ width: `${Math.min(100, Math.max(5, (rolls / 5) * 100))}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-400 font-medium">
-                            <span>0 {uLabels.plural}</span>
-                            <span>{uLabels.target}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Valuation & Cost footer */}
-                      <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
+                    {/* 2. Primary Stock Metrics (Flat typographic layout, no nested box) */}
+                    <div className="space-y-2.5 pt-1">
+                      <div className="grid grid-cols-2 gap-4 items-baseline">
                         <div>
-                          <span className="text-slate-400 block text-[10px] uppercase font-semibold">Unit Cost</span>
-                          <span className="font-semibold text-slate-700">{formatCurrency(cost)} {uLabels.perUnit}</span>
+                          <span className="text-[11px] font-medium text-slate-400 block">
+                            {uLabels.warehouseLabel}
+                          </span>
+                          <div className="flex items-baseline gap-1.5 mt-0.5">
+                            <span className={cn(
+                              "text-2xl font-extrabold tracking-tight font-mono tabular-nums",
+                              isDepleted ? "text-rose-700" : isLow ? "text-amber-700" : "text-slate-900"
+                            )}>
+                              {rolls.toFixed(2)}
+                            </span>
+                            <span className="text-xs font-medium text-slate-500">{uLabels.plural}</span>
+                          </div>
                         </div>
+
                         <div className="text-right">
-                          <span className="text-slate-400 block text-[10px] uppercase font-semibold">Total Value</span>
-                          <span className="font-bold text-indigo-700 text-sm">{formatCurrency(stockVal)}</span>
+                          <span className="text-[11px] font-medium text-slate-400 block">
+                            Usable Area
+                          </span>
+                          <div className="flex items-baseline justify-end gap-1 mt-0.5">
+                            <span className="text-lg font-bold text-slate-800 font-mono tabular-nums">
+                              {totalArea.toFixed(1)}
+                            </span>
+                            <span className="text-xs font-medium text-slate-500">m²</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Date Stamp & Timestamp Footer */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-[11px] text-slate-500">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Added</span>
-                          <div className="flex items-center gap-2 font-medium text-slate-700">
-                            <span className="inline-flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                              <Calendar className="w-3 h-3 text-indigo-500" />
-                              {formatDateStamp(m.created_at)}
-                            </span>
-                            <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded text-[10px] font-semibold">
-                              <Clock className="w-3 h-3 text-indigo-500" />
-                              {formatTimeStamp(m.created_at)}
-                            </span>
-                          </div>
+                      {/* Subtle thin fill indicator */}
+                      <div className="space-y-1">
+                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all duration-500",
+                              isDepleted ? "bg-rose-400 w-0" : isLow ? "bg-amber-500/85" : "bg-emerald-600/80"
+                            )}
+                            style={{ width: isDepleted ? '0%' : `${Math.min(100, Math.max(6, (rolls / 5) * 100))}%` }}
+                          />
                         </div>
+                        <div className="flex justify-between text-[10px] text-slate-400">
+                          <span>0 {uLabels.plural}</span>
+                          <span>{uLabels.target}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 3. Valuation & Timestamps (Clean inline text, no pill clutter) */}
+                    <div className="pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex justify-between items-baseline text-xs">
+                        <span className="text-slate-500">
+                          Unit: <strong className="font-semibold text-slate-700 font-mono">{formatCurrency(cost)}</strong>{uLabels.perUnit}
+                        </span>
+                        <span className="text-slate-500">
+                          Total: <strong className="font-bold text-slate-900 font-mono text-sm">{formatCurrency(stockVal)}</strong>
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-400 flex items-center justify-between gap-2 flex-wrap">
+                        <span>Added {formatDateStamp(m.created_at)}, {formatTimeStamp(m.created_at)}</span>
                         {m.updated_at && m.created_at && Math.abs(new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 5000 && (
-                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-400">
-                            <span className="uppercase font-semibold">Last Updated</span>
-                            <span>{formatDateStamp(m.updated_at)} • {formatTimeStamp(m.updated_at)}</span>
-                          </div>
+                          <span>Upd. {formatDateStamp(m.updated_at)}</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Card Actions Bottom Bar */}
-                    <div className="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-1.5">
+                    {/* 4. Clean Action Bar (No duplicate buttons, zero overflow) */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
                       <Button
                         size="sm"
                         onClick={() => handleOpenStock(m)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs flex-1 h-8 shadow-xs"
+                        className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs flex-1 h-8 shadow-xs"
                       >
-                        <TrendingUp className="w-3.5 h-3.5 mr-1" /> Restock
+                        <TrendingUp className="w-3.5 h-3.5 mr-1.5" /> Restock
                       </Button>
 
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleOpenAdjust(m)}
-                        className="border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs h-8 font-medium px-2.5"
+                        className="border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs h-8 font-medium px-3"
                         title="Adjust, Record Waste or Recount"
                       >
                         <SlidersHorizontal className="w-3.5 h-3.5 mr-1 text-slate-500" /> Adjust
                       </Button>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <button
+                        type="button"
                         onClick={() => handleOpenEdit(m)}
-                        className="border-slate-200 bg-white hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 text-xs h-8 font-medium px-2"
+                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-sky-700 hover:bg-slate-50 transition-colors shrink-0"
                         title="Edit Material Specifications"
                       >
-                        <Edit3 className="w-3.5 h-3.5 mr-1" /> Edit
-                      </Button>
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
 
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <button
+                        type="button"
                         onClick={() => handleOpenDelete(m)}
-                        className="border-rose-100 bg-white hover:bg-rose-50 text-rose-600 text-xs h-8 font-medium px-2"
+                        className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/50 transition-colors shrink-0"
                         title="Delete Material"
                       >
-                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
-                      </Button>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 )
