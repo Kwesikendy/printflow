@@ -661,14 +661,18 @@ export async function getCustomersDirectoryAction(options?: {
       const invoiceIdsSeen = new Set<string>()
       let totalInvoiced = 0
       let totalPaid = 0
+      let actualUnpaidBalance = 0
 
       entry.jobIds.forEach(jId => {
         const invs = invoicesByJobId.get(jId) || []
         invs.forEach(inv => {
           if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
             invoiceIdsSeen.add(inv.id)
-            totalInvoiced += Number(inv.total || 0)
-            totalPaid += paymentsByInvoice.get(inv.id) || 0
+            const invTotal = Number(inv.total || 0)
+            const invPaid = paymentsByInvoice.get(inv.id) || 0
+            totalInvoiced += invTotal
+            totalPaid += invPaid
+            actualUnpaidBalance += Math.max(0, invTotal - invPaid)
           }
         })
       })
@@ -678,13 +682,16 @@ export async function getCustomersDirectoryAction(options?: {
         invs.forEach(inv => {
           if (!inv.is_flagged && !invoiceIdsSeen.has(inv.id)) {
             invoiceIdsSeen.add(inv.id)
-            totalInvoiced += Number(inv.total || 0)
-            totalPaid += paymentsByInvoice.get(inv.id) || 0
+            const invTotal = Number(inv.total || 0)
+            const invPaid = paymentsByInvoice.get(inv.id) || 0
+            totalInvoiced += invTotal
+            totalPaid += invPaid
+            actualUnpaidBalance += Math.max(0, invTotal - invPaid)
           }
         })
       })
 
-      const balance = Math.max(0, Math.round((totalInvoiced - totalPaid) * 100) / 100)
+      const balance = Math.max(0, Math.round(actualUnpaidBalance * 100) / 100)
       const hasArrears = balance > 0.05
 
       if (hasArrears) {

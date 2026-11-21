@@ -349,6 +349,15 @@ export function CustomerStatementModal({
                   </div>
                 )}
 
+                {Boolean(statement.summary.overpaymentCredit && statement.summary.overpaymentCredit > 0.05) && (
+                  <div className="flex items-center gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <p>
+                      <strong>Overpayment / Duplicate Payment Detected:</strong> {statement.summary.overpaidInvoicesCount} invoice{statement.summary.overpaidInvoicesCount === 1 ? '' : 's'} ha{statement.summary.overpaidInvoicesCount === 1 ? 's' : 've'} excess payments totaling <strong>{formatCurrency(statement.summary.overpaymentCredit || 0)}</strong>. Excess payments are not auto-netted against unpaid invoices; review in <em>Payments Received</em> or reverse duplicate entries.
+                    </p>
+                  </div>
+                )}
+
                 {/* Tactile Soft-UI Tab Track Navigation */}
                 <div className="p-1.5 rounded-2xl neu-track flex space-x-1 overflow-x-auto hide-scrollbar">
                   {[

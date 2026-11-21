@@ -47,6 +47,8 @@ export interface CustomerStatementData {
     paymentsCount: number
     flaggedInvoicesCount?: number
     flaggedInvoicesTotal?: number
+    overpaidInvoicesCount?: number
+    overpaymentCredit?: number
     firstTransactionDate: string | null
     lastTransactionDate: string | null
   }
@@ -249,7 +251,13 @@ export async function searchTransactionCustomers(query: string): Promise<Custome
 
     const totalInvoiced = customerInvoices.reduce((sum, inv) => sum + Number(inv.total), 0)
     const totalPaid = customerInvoices.reduce((sum, inv) => sum + (paidPerInvoice.get(inv.id) || 0), 0)
-    const balance = Math.max(0, Math.round((totalInvoiced - totalPaid) * 100) / 100)
+    // Sum actual unpaid balance per invoice so an overpayment on one invoice never hides unpaid debt on another
+    const balance = Math.round(
+      customerInvoices.reduce((sum, inv) => {
+        const paid = paidPerInvoice.get(inv.id) || 0
+        return sum + Math.max(0, Number(inv.total) - paid)
+      }, 0) * 100
+    ) / 100
 
     return {
       name: c.name,
@@ -524,7 +532,14 @@ export async function getCustomerFinancialStatement(
 
   const totalBilled = filteredInvoices.reduce((sum, inv) => sum + Number(inv.total), 0)
   const totalPaid = filteredPayments.reduce((sum, p) => sum + Number(p.amount), 0)
-  const balance = Math.round((totalBilled - totalPaid) * 100) / 100
+  // Sum actual unpaid balance per invoice so an overpayment/duplicate payment on one invoice never hides unpaid invoices
+  const balance = Math.round(
+    filteredInvoices.reduce((sum, inv) => sum + Number(inv.balance_due || 0), 0) * 100
+  ) / 100
+  const overpaidInvoices = filteredInvoices.filter(inv => Number(inv.amount_paid || 0) - Number(inv.total || 0) > 0.05)
+  const overpaymentCredit = Math.round(
+    overpaidInvoices.reduce((sum, inv) => sum + Math.max(0, Number(inv.amount_paid || 0) - Number(inv.total || 0)), 0) * 100
+  ) / 100
   const flaggedTotal = Math.round(enrichedFlaggedInvoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0) * 100) / 100
 
   const primaryJob = rawJobs[0]
@@ -546,6 +561,8 @@ export async function getCustomerFinancialStatement(
       paymentsCount: filteredPayments.length,
       flaggedInvoicesCount: enrichedFlaggedInvoices.length,
       flaggedInvoicesTotal: flaggedTotal,
+      overpaidInvoicesCount: overpaidInvoices.length,
+      overpaymentCredit,
       firstTransactionDate: rawLedger[0]?.date || null,
       lastTransactionDate: rawLedger[rawLedger.length - 1]?.date || null
     },
