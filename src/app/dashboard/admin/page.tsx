@@ -6,6 +6,8 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
+import { getPendingExpenditureDeletionsAction } from '@/app/actions/expenditures'
+import { PendingExpenditureDeletionsCard } from '@/components/admin/PendingExpenditureDeletionsCard'
 
 import { redirect } from 'next/navigation'
 
@@ -34,7 +36,8 @@ export default async function AdminOverviewPage() {
     { count: readyPickupCount },
     { count: completedCount },
     recentJobsRes,
-    invoiceEditsRes
+    invoiceEditsRes,
+    pendingExpRes
   ] = await Promise.all([
     supabase.from('jobs').select('*', { count: 'exact', head: true }),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
@@ -45,7 +48,8 @@ export default async function AdminOverviewPage() {
     supabase.from('jobs').select('*', { count: 'exact', head: true }).in('status', ['ready_for_pickup', 'picked_up']),
     supabase.from('jobs').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
     supabase.from('jobs').select('*, product_types(name)').order('created_at', { ascending: false }).limit(10),
-    supabase.from('invoice_edits').select('*, invoices(invoice_number), profiles(full_name)').order('created_at', { ascending: false }).limit(5)
+    supabase.from('invoice_edits').select('*, invoices(invoice_number), profiles(full_name)').order('created_at', { ascending: false }).limit(5),
+    getPendingExpenditureDeletionsAction()
   ])
 
   const statusCounts: Record<string, number> = {
@@ -57,6 +61,7 @@ export default async function AdminOverviewPage() {
 
   const recentJobs = recentJobsRes.data || []
   const invoiceEdits = invoiceEditsRes.error ? [] : (invoiceEditsRes.data || [])
+  const pendingExpDeletions = pendingExpRes.data || []
 
   return (
     <div className="space-y-6">
@@ -86,6 +91,8 @@ export default async function AdminOverviewPage() {
           </Link>
         </div>
       </div>
+
+      <PendingExpenditureDeletionsCard initialPending={pendingExpDeletions} />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <Card className="relative overflow-hidden group">

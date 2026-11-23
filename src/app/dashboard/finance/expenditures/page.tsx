@@ -12,5 +12,11 @@ export default async function ExpendituresPage() {
   if (!profile || !['admin', 'accountant'].includes((profile as any).role)) redirect('/dashboard')
 
   const result = await getExpendituresAction()
-  return <ExpenditureManager initialExpenditures={result.data || []} errorMessage={result.error} />
+  return (
+    <ExpenditureManager
+      initialExpenditures={result.data || []}
+      errorMessage={result.error}
+      userRole={(profile as any).role}
+    />
+  )
 }
