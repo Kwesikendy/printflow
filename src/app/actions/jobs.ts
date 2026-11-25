@@ -175,6 +175,11 @@ export async function createJobGroupAction(
   discount?: JobDiscount
 ): Promise<ActionResponse> {
   try {
+    // Always normalize customer name and phone to prevent trailing-space duplicate accounts
+    customerName = (customerName || '').trim().replace(/\s+/g, ' ')
+    customerPhone = customerPhone ? customerPhone.trim() : null
+    if (!customerName) return { error: 'Customer name is required' }
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Unauthorized' }
@@ -1238,8 +1243,11 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
     notes: updates.notes || null
   }
   
-  if (updates.customerName !== undefined) updatePayload.customer_name = updates.customerName
-  if (updates.customerPhone !== undefined) updatePayload.customer_phone = updates.customerPhone
+  const cleanCustomerName = updates.customerName !== undefined ? updates.customerName.trim().replace(/\s+/g, ' ') : undefined
+  const cleanCustomerPhone = updates.customerPhone !== undefined ? (updates.customerPhone ? updates.customerPhone.trim() : null) : undefined
+
+  if (cleanCustomerName !== undefined) updatePayload.customer_name = cleanCustomerName
+  if (cleanCustomerPhone !== undefined) updatePayload.customer_phone = cleanCustomerPhone
   if (updates.printRoom !== undefined) updatePayload.print_room = updates.printRoom || null
 
   const { error } = await (supabase.from('jobs') as any).update(updatePayload).eq('id', jobId)
@@ -1261,10 +1269,10 @@ export async function updateJobAction(jobId: string, updates: { width: number, h
     await (serviceSupabase.from('invoices') as any).update({ total: newTotal, status: nextStatus }).eq('group_id', job.group_id)
 
     // Update group customer details if changed
-    if (updates.customerName !== undefined || updates.customerPhone !== undefined) {
+    if (cleanCustomerName !== undefined || cleanCustomerPhone !== undefined) {
       const groupUpdate: any = {}
-      if (updates.customerName !== undefined) groupUpdate.customer_name = updates.customerName
-      if (updates.customerPhone !== undefined) groupUpdate.customer_phone = updates.customerPhone
+      if (cleanCustomerName !== undefined) groupUpdate.customer_name = cleanCustomerName
+      if (cleanCustomerPhone !== undefined) groupUpdate.customer_phone = cleanCustomerPhone
       await (serviceSupabase.from('job_groups') as any).update(groupUpdate).eq('id', job.group_id)
     }
   } else {

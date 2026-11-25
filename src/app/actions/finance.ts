@@ -307,6 +307,7 @@ export async function getCustomerFinancialStatement(
   const isConsolidated = Boolean(options?.consolidated)
 
   // 1. Fetch matching jobs, groups, and check for sub-accounts in parallel
+  // Query with %trimmedName% and filter exact matches via .trim() so trailing spaces never split an account
   const [jobsRes, groupsRes, subAccountsRes] = await Promise.all([
     serviceSupabase
       .from('jobs')
@@ -316,13 +317,13 @@ export async function getCustomerFinancialStatement(
         profiles ( full_name )
       `)
       .eq('tenant_id', tenantId)
-      .ilike('customer_name', isConsolidated ? `%${trimmedName}%` : trimmedName)
+      .ilike('customer_name', `%${trimmedName}%`)
       .order('created_at', { ascending: false }),
     serviceSupabase
       .from('job_groups')
       .select('*')
       .eq('tenant_id', tenantId)
-      .ilike('customer_name', isConsolidated ? `%${trimmedName}%` : trimmedName),
+      .ilike('customer_name', `%${trimmedName}%`),
     serviceSupabase
       .from('jobs')
       .select('customer_name')
@@ -345,8 +346,12 @@ export async function getCustomerFinancialStatement(
     }
   })
 
-  const rawJobs = (jobsRes.data as any[]) || []
-  const rawGroups = (groupsRes.data as any[]) || []
+  const rawJobs = ((jobsRes.data as any[]) || []).filter((j: any) =>
+    isConsolidated || (j.customer_name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+  )
+  const rawGroups = ((groupsRes.data as any[]) || []).filter((g: any) =>
+    isConsolidated || (g.customer_name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+  )
 
   const jobIds = rawJobs.map((j: any) => j.id)
   const groupIds = Array.from(new Set([
@@ -621,18 +626,18 @@ export async function settleCustomerBalanceAction({
   const serviceSupabase = createServiceClient()
   const supabase = await createClient()
 
-  // 1. Fetch all matching jobs for customer in this tenant
+  // 1. Fetch all matching jobs for customer in this tenant (trim-resilient exact matching)
   const [jobsRes, groupsRes] = await Promise.all([
     serviceSupabase
       .from('jobs')
-      .select('id, group_id, status')
+      .select('id, group_id, status, customer_name')
       .eq('tenant_id', tenantId)
-      .ilike('customer_name', exactMatch ? trimmedName : `%${trimmedName}%`),
+      .ilike('customer_name', `%${trimmedName}%`),
     serviceSupabase
       .from('job_groups')
-      .select('id')
+      .select('id, customer_name')
       .eq('tenant_id', tenantId)
-      .ilike('customer_name', exactMatch ? trimmedName : `%${trimmedName}%`)
+      .ilike('customer_name', `%${trimmedName}%`)
   ])
 
   if (jobsRes.error) {
@@ -640,8 +645,12 @@ export async function settleCustomerBalanceAction({
     return { error: 'Database error fetching customer orders.' }
   }
 
-  const rawJobs = jobsRes.data || []
-  const rawGroups = groupsRes.data || []
+  const rawJobs = ((jobsRes.data as any[]) || []).filter((j: any) =>
+    !exactMatch || (j.customer_name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+  )
+  const rawGroups = ((groupsRes.data as any[]) || []).filter((g: any) =>
+    !exactMatch || (g.customer_name || '').trim().toLowerCase() === trimmedName.toLowerCase()
+  )
 
   const jobIds = rawJobs.map((j: any) => j.id)
   const groupIds = Array.from(new Set([
@@ -969,18 +978,18 @@ export async function getCustomerArrearsAction(
     const { tenantId } = await getAuthContext()
     const serviceSupabase = createServiceClient()
 
-    // 1. Fetch matching jobs and groups in parallel
+    // 1. Fetch matching jobs and groups in parallel (trim-resilient exact matching)
     const [jobsRes, groupsRes] = await Promise.all([
       serviceSupabase
         .from('jobs')
-        .select('id, group_id, customer_phone, status')
+        .select('id, group_id, customer_phone, status, customer_name')
         .eq('tenant_id', tenantId)
-        .ilike('customer_name', exact ? trimmed : `%${trimmed}%`),
+        .ilike('customer_name', `%${trimmed}%`),
       serviceSupabase
         .from('job_groups')
-        .select('id, customer_phone')
+        .select('id, customer_phone, customer_name')
         .eq('tenant_id', tenantId)
-        .ilike('customer_name', exact ? trimmed : `%${trimmed}%`)
+        .ilike('customer_name', `%${trimmed}%`)
     ])
 
     if (jobsRes.error) {
@@ -988,8 +997,12 @@ export async function getCustomerArrearsAction(
       return null
     }
 
-    const rawJobs = (jobsRes.data as any[]) || []
-    const rawGroups = (groupsRes.data as any[]) || []
+    const rawJobs = ((jobsRes.data as any[]) || []).filter((j: any) =>
+      !exact || (j.customer_name || '').trim().toLowerCase() === trimmed.toLowerCase()
+    )
+    const rawGroups = ((groupsRes.data as any[]) || []).filter((g: any) =>
+      !exact || (g.customer_name || '').trim().toLowerCase() === trimmed.toLowerCase()
+    )
 
     const jobIds = rawJobs.map((j: any) => j.id)
     const groupIds = Array.from(new Set([
