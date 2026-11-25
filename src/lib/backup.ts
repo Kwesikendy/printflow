@@ -54,7 +54,7 @@ export interface BackupResult {
   error?: string
 }
 
-const BACKUPS_DIR = process.env.VERCEL
+const BACKUPS_DIR = (process.env.VERCEL || process.env.NETLIFY)
   ? path.join('/tmp', 'backups')
   : path.join(process.cwd(), 'backups')
 

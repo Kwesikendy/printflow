@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { createSystemBackup, type BackupResult } from '@/lib/backup'
 
-const BACKUPS_BASE_DIR = process.env.VERCEL
+const BACKUPS_BASE_DIR = (process.env.VERCEL || process.env.NETLIFY)
   ? path.join('/tmp', 'backups')
   : path.join(process.cwd(), 'backups')
 const STATE_FILE = path.join(BACKUPS_BASE_DIR, '.auto_backup_state.json')
@@ -146,8 +146,8 @@ async function checkSchedule() {
  * Boots the auto-backup background scheduler
  */
 export function startAutoBackupScheduler() {
-  // On Vercel serverless, automated backups run via Vercel Cron (/api/cron/backup) in vercel.json
-  if (process.env.VERCEL || schedulerTimer) {
+  // On Vercel/Netlify serverless, automated backups run via scheduled cron (/api/cron/backup)
+  if (process.env.VERCEL || process.env.NETLIFY || schedulerTimer) {
     return
   }
 
