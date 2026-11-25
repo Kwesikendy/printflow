@@ -2,7 +2,10 @@ import fs from 'fs'
 import path from 'path'
 import { createSystemBackup, type BackupResult } from '@/lib/backup'
 
-const STATE_FILE = path.join(process.cwd(), 'backups', '.auto_backup_state.json')
+const BACKUPS_BASE_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'backups')
+  : path.join(process.cwd(), 'backups')
+const STATE_FILE = path.join(BACKUPS_BASE_DIR, '.auto_backup_state.json')
 
 export interface AutoBackupState {
   enabled: boolean
@@ -40,9 +43,8 @@ export function getAutoBackupState(): AutoBackupState {
 
 export function saveAutoBackupState(update: Partial<AutoBackupState>): AutoBackupState {
   try {
-    const backupsDir = path.join(process.cwd(), 'backups')
-    if (!fs.existsSync(backupsDir)) {
-      fs.mkdirSync(backupsDir, { recursive: true })
+    if (!fs.existsSync(BACKUPS_BASE_DIR)) {
+      fs.mkdirSync(BACKUPS_BASE_DIR, { recursive: true })
     }
     const current = getAutoBackupState()
     const nextState = { ...current, ...update }
@@ -144,8 +146,9 @@ async function checkSchedule() {
  * Boots the auto-backup background scheduler
  */
 export function startAutoBackupScheduler() {
-  if (schedulerTimer) {
-    return // Already running
+  // On Vercel serverless, automated backups run via Vercel Cron (/api/cron/backup) in vercel.json
+  if (process.env.VERCEL || schedulerTimer) {
+    return
   }
 
   console.log('[AutoBackup] Auto-backup scheduler activated (Checks every 30 minutes)')

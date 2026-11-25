@@ -54,7 +54,9 @@ export interface BackupResult {
   error?: string
 }
 
-const BACKUPS_DIR = path.join(process.cwd(), 'backups')
+const BACKUPS_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'backups')
+  : path.join(process.cwd(), 'backups')
 
 function ensureBackupsDir() {
   if (!fs.existsSync(BACKUPS_DIR)) {

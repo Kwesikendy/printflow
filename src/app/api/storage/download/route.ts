@@ -16,6 +16,30 @@ export async function GET(req: NextRequest) {
       .replace(/[\r\n"\\/;]/g, '_')
       .trim() || 'artwork.pdf'
 
+    // 0. Zero-bandwidth fast path: if this file lives in our active Supabase artworks bucket,
+    // generate a signed download URL with Content-Disposition: attachment; filename=...
+    // and 302-redirect so the client downloads directly from Supabase CDN (0 bytes through Vercel).
+    try {
+      const urlObj = new URL(targetUrl)
+      const currentSupabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
+        ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
+        : null
+      const match = urlObj.pathname.match(/\/storage\/v1\/object\/(?:public|authenticated)\/artworks\/(.+)$/)
+      if (match && match[1] && (!currentSupabaseHost || urlObj.host === currentSupabaseHost)) {
+        const storagePath = decodeURIComponent(match[1])
+        const serviceSupabase = createServiceClient() as any
+        const { data: signedData, error: signErr } = await serviceSupabase.storage
+          .from('artworks')
+          .createSignedUrl(storagePath, 3600, { download: safeFilename })
+
+        if (!signErr && signedData?.signedUrl) {
+          return NextResponse.redirect(signedData.signedUrl, 302)
+        }
+      }
+    } catch (redirectErr) {
+      console.warn('[Artwork Download] Signed redirect check skipped:', redirectErr)
+    }
+
     let fileResponse: Response | null = null
 
     // 1. Try direct fetch (works for public URLs and signed URLs)
