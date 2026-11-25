@@ -4,6 +4,7 @@ import './globals.css'
 import { SessionProvider } from '@/contexts/SessionContext'
 import { AppShell } from '@/components/layout/AppShell'
 import { Toaster } from 'sonner'
+import { Analytics } from '@vercel/analytics/next'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], variable: '--font-space-grotesk' })
@@ -53,6 +54,7 @@ export default function RootLayout({
             }}
           />
         </SessionProvider>
+        <Analytics />
       </body>
     </html>
   )
