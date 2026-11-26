@@ -109,15 +109,15 @@ function createLineItem(productTypes: ProductType[]): LineItemState {
 }
 
 async function uploadArtworkFile(file: File, tenantId: string): Promise<string> {
-  const supabase = createClient()
-
-  // 1. Direct upload straight to storage using signed upload URL (bypasses server payload limits)
+  // 1. Direct upload straight to Cloudflare R2 using presigned PUT URL (bypasses server payload limits)
   try {
+    const contentType = file.type || 'application/octet-stream'
     const presignedRes = await fetch('/api/storage/presigned', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         filename: file.name,
+        contentType,
         path: tenantId,
       }),
     })
@@ -130,24 +130,24 @@ async function uploadArtworkFile(file: File, tenantId: string): Promise<string> 
       // non-json
     }
 
-    if (presignedRes.ok && presignedJson?.path && presignedJson?.token) {
-      const { error: storageErr } = await supabase.storage
-        .from('artworks')
-        .uploadToSignedUrl(presignedJson.path, presignedJson.token, file, {
-          contentType: file.type || 'application/octet-stream',
-        })
+    if (presignedRes.ok && presignedJson?.uploadUrl && presignedJson?.publicUrl) {
+      const putRes = await fetch(presignedJson.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': contentType,
+        },
+        body: file,
+      })
 
-      if (!storageErr && presignedJson.publicUrl) {
+      if (putRes.ok) {
         const base = presignedJson.publicUrl
         const sep = base.includes('?') ? '&' : '?'
         return `${base}${sep}name=${encodeURIComponent(file.name)}`
       }
-      if (storageErr) {
-        console.warn('uploadToSignedUrl returned error:', storageErr)
-      }
+      console.warn('R2 presigned PUT returned status:', putRes.status)
     }
   } catch (storageErr) {
-    console.warn('Storage signed upload error:', storageErr)
+    console.warn('R2 presigned upload error (falling back to server R2 upload):', storageErr)
   }
 
   // 2. Fallback for smaller files if signed direct upload fails

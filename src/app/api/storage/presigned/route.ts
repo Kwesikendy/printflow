@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
+import { createPresignedUploadUrl } from '@/lib/r2'
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { filename, path: customPath } = body
+    const { filename, contentType, path: customPath } = body
 
     if (!filename) {
       return NextResponse.json({ error: 'Filename is required' }, { status: 400 })
@@ -20,40 +21,27 @@ export async function POST(req: NextRequest) {
     const cleanFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_')
     const fileExt = cleanFilename.split('.').pop() || 'dat'
     const uniqueName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`
-    
-    const targetKey = customPath 
-      ? `${customPath.replace(/^\/+|\/+$/g, '')}/${uniqueName}` 
+
+    const targetKey = customPath
+      ? `${customPath.replace(/^\/+|\/+$/g, '')}/${uniqueName}`
       : uniqueName
 
-    const serviceSupabase = createServiceClient() as any
-    const { data: signData, error: signError } = await serviceSupabase.storage
-      .from('artworks')
-      .createSignedUploadUrl(targetKey)
-
-    if (signError) {
-      console.error('[Supabase Storage Signed URL Error]:', signError)
-      return NextResponse.json(
-        { error: signError.message || 'Failed to generate storage upload URL' },
-        { status: 500 }
-      )
-    }
-
-    const { data: pubData } = serviceSupabase.storage
-      .from('artworks')
-      .getPublicUrl(targetKey)
+    const { uploadUrl, publicUrl, key } = await createPresignedUploadUrl(
+      targetKey,
+      contentType || 'application/octet-stream'
+    )
 
     return NextResponse.json({
       success: true,
-      path: signData.path,
-      token: signData.token,
-      signedUrl: signData.signedUrl,
-      publicUrl: pubData.publicUrl,
-      key: targetKey,
+      provider: 'r2',
+      uploadUrl,
+      publicUrl,
+      key,
     })
   } catch (err: any) {
-    console.error('[Storage Presigned URL Generation Error]:', err)
+    console.error('[R2 Presigned URL Generation Error]:', err)
     return NextResponse.json(
-      { error: err.message || 'Failed to generate direct upload URL' },
+      { error: err.message || 'Failed to generate R2 upload URL' },
       { status: 500 }
     )
   }

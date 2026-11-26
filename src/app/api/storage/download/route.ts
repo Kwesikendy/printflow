@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
+import { createPresignedDownloadUrl } from '@/lib/r2'
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,11 +17,23 @@ export async function GET(req: NextRequest) {
       .replace(/[\r\n"\\/;]/g, '_')
       .trim() || 'artwork.pdf'
 
-    // 0. Zero-bandwidth fast path: if this file lives in our active Supabase artworks bucket,
-    // generate a signed download URL with Content-Disposition: attachment; filename=...
-    // and 302-redirect so the client downloads directly from Supabase CDN (0 bytes through Vercel).
+    // 0. Zero-bandwidth fast paths:
+    // (a) Cloudflare R2 public URL -> presigned GET with ResponseContentDisposition (0 bytes through Netlify/Vercel)
+    // (b) Active Supabase artworks bucket -> signed download URL redirect
     try {
       const urlObj = new URL(targetUrl)
+      const r2PublicBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL
+        ? new URL(process.env.NEXT_PUBLIC_R2_PUBLIC_URL).host
+        : null
+
+      if (r2PublicBase && urlObj.host === r2PublicBase) {
+        const r2Key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ''))
+        if (r2Key) {
+          const signedR2Url = await createPresignedDownloadUrl(r2Key, safeFilename, 3600)
+          return NextResponse.redirect(signedR2Url, 302)
+        }
+      }
+
       const currentSupabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
         ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
         : null

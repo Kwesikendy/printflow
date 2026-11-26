@@ -1,6 +1,7 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
   DeleteObjectsCommand,
   ListObjectsV2Command,
@@ -110,6 +111,25 @@ export async function createPresignedUploadUrl(key: string, contentType: string,
     key: cleanKey,
     publicUrl: getR2PublicUrl(cleanKey),
   }
+}
+
+/**
+ * Generates a presigned download URL for R2 with Content-Disposition attachment filename
+ * so browsers download directly from Cloudflare R2 with zero server bandwidth.
+ */
+export async function createPresignedDownloadUrl(key: string, filename: string, expiresIn = 3600) {
+  const client = getR2Client()
+  const cleanKey = key.replace(/^\/+/, '')
+  const asciiName = filename.replace(/[^\x20-\x7E]/g, '_').replace(/["\\/;]/g, '_')
+  const utf8Name = encodeURIComponent(filename)
+
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: cleanKey,
+    ResponseContentDisposition: `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+  })
+
+  return await getSignedUrl(client, command, { expiresIn })
 }
 
 /**
