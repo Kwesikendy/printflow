@@ -45,6 +45,8 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 ```
 *(You can find these in Supabase under Project Settings > API)*
 
+For Cloudflare R2 storage, set `R2_BUCKET_NAME` in your local environment and in the Functions scope on Netlify. There is no default bucket.
+
 ### 4. Create Demo Users
 Since this MVP uses Supabase Auth, you need to create the users in your Supabase dashboard:
 1. Go to **Authentication > Users** and add 4 users (e.g. `admin@demo.com`, `desk@demo.com`, `printer@demo.com`, `accountant@demo.com`).
