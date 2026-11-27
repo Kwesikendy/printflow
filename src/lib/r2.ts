@@ -11,7 +11,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 const accountId = process.env.R2_ACCOUNT_ID
 const accessKeyId = process.env.R2_ACCESS_KEY_ID
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-const bucketName = process.env.R2_BUCKET_NAME || 'printflow-artworks'
+const bucketName = process.env.R2_BUCKET_NAME || ''
 const publicUrlBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
 
 let s3ClientInstance: S3Client | null = null

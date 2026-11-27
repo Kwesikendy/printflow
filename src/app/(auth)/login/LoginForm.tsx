@@ -68,7 +68,7 @@ export default function LoginForm() {
         ) : (
           <Image
             src={process.env.NEXT_PUBLIC_APP_LOGO || "/Print_DPI_Logo.png"}
-            alt={tenantName || process.env.NEXT_PUBLIC_APP_NAME || "PrintDpi"}
+            alt={tenantName || process.env.NEXT_PUBLIC_APP_NAME || "Print Shop"}
             width={240}
             height={75}
             priority
