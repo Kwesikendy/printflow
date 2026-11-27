@@ -11,10 +11,17 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 const accountId = process.env.R2_ACCOUNT_ID
 const accessKeyId = process.env.R2_ACCESS_KEY_ID
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY
-const bucketName = process.env.R2_BUCKET_NAME || 'printflow-artworks'
 const publicUrlBase = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || ''
 
 let s3ClientInstance: S3Client | null = null
+
+function getR2BucketName(): string {
+  const bucketName = process.env.R2_BUCKET_NAME
+  if (!bucketName) {
+    throw new Error('Missing R2_BUCKET_NAME in environment variables.')
+  }
+  return bucketName
+}
 
 export function getR2Client(): S3Client {
   if (s3ClientInstance) return s3ClientInstance
@@ -53,7 +60,7 @@ export async function uploadToR2(params: {
   const cleanKey = params.key.replace(/^\/+/, '')
 
   const command = new PutObjectCommand({
-    Bucket: bucketName,
+    Bucket: getR2BucketName(),
     Key: cleanKey,
     Body: params.body as any,
     ContentType: params.contentType || 'application/octet-stream',
@@ -75,7 +82,7 @@ export async function getObjectFromR2(key: string): Promise<string | null> {
     const cleanKey = key.replace(/^\/+/, '')
     const { GetObjectCommand } = await import('@aws-sdk/client-s3')
     const command = new GetObjectCommand({
-      Bucket: bucketName,
+      Bucket: getR2BucketName(),
       Key: cleanKey,
     })
     const response = await client.send(command)
@@ -100,7 +107,7 @@ export async function createPresignedUploadUrl(key: string, contentType: string,
   const cleanKey = key.replace(/^\/+/, '')
 
   const command = new PutObjectCommand({
-    Bucket: bucketName,
+    Bucket: getR2BucketName(),
     Key: cleanKey,
     ContentType: contentType,
   })
@@ -124,7 +131,7 @@ export async function createPresignedDownloadUrl(key: string, filename: string, 
   const utf8Name = encodeURIComponent(filename)
 
   const command = new GetObjectCommand({
-    Bucket: bucketName,
+    Bucket: getR2BucketName(),
     Key: cleanKey,
     ResponseContentDisposition: `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
   })
@@ -145,14 +152,14 @@ export async function deleteFromR2(keys: string | string[]) {
   if (validKeys.length === 1) {
     await client.send(
       new DeleteObjectCommand({
-        Bucket: bucketName,
+        Bucket: getR2BucketName(),
         Key: validKeys[0],
       })
     )
   } else {
     await client.send(
       new DeleteObjectsCommand({
-        Bucket: bucketName,
+        Bucket: getR2BucketName(),
         Delete: {
           Objects: validKeys.map((Key) => ({ Key })),
         },
@@ -167,7 +174,7 @@ export async function deleteFromR2(keys: string | string[]) {
 export async function listR2Files(prefix?: string) {
   const client = getR2Client()
   const command = new ListObjectsV2Command({
-    Bucket: bucketName,
+    Bucket: getR2BucketName(),
     Prefix: prefix ? prefix.replace(/^\/+/, '') : undefined,
   })
 
